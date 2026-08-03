@@ -1,23 +1,59 @@
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2, BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2 } from "lucide-react";
-import { currentUser, getUserById, getPostsByUser, formatCount } from "@/data/mockData";
+import { ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2, BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2, Users } from "lucide-react";
+import { getUserById, getPostsByUser, formatCount, type User as MockUser } from "@/data/mockData";
+import { useAuth } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
+function initialsAvatar(name: string) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "Y";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FF006E"/><stop offset="1" stop-color="#8B00FF"/></linearGradient></defs><rect width="300" height="300" rx="150" fill="url(#g)"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="Inter,Arial,sans-serif" font-size="104" font-weight="800">${initials}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 interface ProfilePageProps {
   userId?: string;
 }
 
+type ProfileUser = Omit<MockUser, "coverPhoto"> & { coverPhoto?: string };
+
 export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
+  const { user: authUser } = useAuth();
   const targetId = userId || params?.userId || "me";
-  const isOwn = targetId === "me" || targetId === currentUser.id;
+  const authUserId = authUser?.id.toString();
+  const isOwn = targetId === "me" || targetId === authUserId;
 
-  const user = isOwn ? currentUser : getUserById(targetId);
+  const authenticatedProfile: ProfileUser | null = authUser
+    ? {
+        id: authUser.id.toString(),
+        username: authUser.username,
+        displayName: authUser.displayName,
+        avatar: authUser.avatarUrl ?? initialsAvatar(authUser.displayName || authUser.username),
+        bio: authUser.bio,
+        location: [authUser.country, authUser.countryFlag].filter(Boolean).join(" "),
+        flag: authUser.countryFlag ?? "",
+        verified: false,
+        followers: 0,
+        following: 0,
+        posts: 0,
+        isOnline: true,
+        isFollowing: false,
+        isFriend: false,
+        website: `yuniko.app/@${authUser.username}`,
+      }
+    : null;
+
+  const user: ProfileUser | null | undefined = isOwn ? authenticatedProfile : getUserById(targetId);
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
   const [tab, setTab] = useState<"grid" | "saved" | "analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
@@ -32,16 +68,22 @@ export default function Profile({ userId }: ProfilePageProps) {
   }
 
   const userPosts = getPostsByUser(user.id);
-  const samplePosts = Array.from({ length: 9 }).map((_, i) => ({
-    id: `sample-${i}`,
-    src: `https://picsum.photos/seed/profile_${user.id}_${i}/200/200`,
-  }));
 
   const statItems = [
     { label: t("posts"), value: formatCount(user.posts), onClick: undefined },
     { label: t("followers"), value: formatCount(user.followers), onClick: () => setLocation(`/followers/${user.id}`) },
     { label: t("following"), value: formatCount(user.following), onClick: () => setLocation(`/following/${user.id}`) },
+    { label: "Friends", value: formatCount(user.isFriend ? 1 : 0), onClick: () => setLocation("/add-friends") },
   ];
+
+  const shareProfile = async () => {
+    const profileUrl = `${window.location.origin}/user/${user.id}`;
+    if (navigator.share) {
+      await navigator.share({ title: `${user.displayName} on Yuniko`, text: `Follow @${user.username} on Yuniko`, url: profileUrl });
+      return;
+    }
+    await navigator.clipboard.writeText(profileUrl);
+  };
 
   const goBack = () => {
     if (window.history.length > 1) window.history.back();
@@ -82,24 +124,9 @@ export default function Profile({ userId }: ProfilePageProps) {
         )}
       </header>
 
-      {/* Cover photo */}
-      <div className="relative h-32 overflow-hidden" style={{ background: GRADIENT }}>
-        <img src={user.coverPhoto} alt="Cover" className="w-full h-full object-cover opacity-60" />
-        {isOwn && (
-          <button
-            onClick={() => setLocation("/profile/edit")}
-            className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg text-xs font-medium text-white/90"
-            style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)" }}
-            data-testid="btn-edit-cover"
-          >
-            {t("editCoverPhoto")}
-          </button>
-        )}
-      </div>
-
       {/* Avatar + action buttons */}
       <div className="px-4 relative">
-        <div className="flex items-end justify-between -mt-9 mb-3">
+        <div className="flex items-end justify-between pt-6 mb-3">
           <button onClick={() => setShowPhotoViewer(true)} className="relative" data-testid="btn-profile-photo">
             <div
               className="w-[78px] h-[78px] rounded-full p-[2.5px]"
@@ -133,7 +160,15 @@ export default function Profile({ userId }: ProfilePageProps) {
                 style={{ background: GRADIENT, boxShadow: "0 2px 12px rgba(255,0,110,0.3)" }}
                 data-testid="btn-add-friends"
               >
-                {t("addFriends")}
+                <Users size={15} className="inline mr-1" />{t("addFriends")}
+              </button>
+              <button
+                onClick={() => void shareProfile()}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
+                style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}
+                data-testid="btn-share-own-profile"
+              >
+                <Share2 size={15} className="inline mr-1" />Share
               </button>
             </div>
           ) : (
@@ -252,31 +287,25 @@ export default function Profile({ userId }: ProfilePageProps) {
               </button>
             ))
           ) : (
-            samplePosts.map((sp, i) => (
-              <button
-                key={sp.id}
-                onClick={() => setLocation(`/post/sample-${i}`)}
-                className="aspect-square overflow-hidden"
-              >
-                <img src={sp.src} alt="" className="w-full h-full object-cover" />
-              </button>
-            ))
+            <div className="col-span-3 px-6 py-14 text-center">
+              <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <Grid3X3 size={22} className="text-white/35" />
+              </div>
+              <p className="text-white font-semibold text-sm mb-1">No posts yet</p>
+              <p className="text-white/45 text-xs">Posts you create will appear here.</p>
+            </div>
           )}
         </div>
       )}
 
       {/* Saved tab */}
       {tab === "saved" && (
-        <div className="grid grid-cols-3 gap-0.5 px-0.5">
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <button
-              key={i}
-              onClick={() => setLocation("/saved")}
-              className="aspect-square overflow-hidden"
-            >
-              <img src={`https://picsum.photos/seed/saved_${user.id}_${i}/200/200`} alt="" className="w-full h-full object-cover" />
-            </button>
-          ))}
+        <div className="px-6 py-14 text-center">
+          <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <BookmarkIcon size={22} className="text-white/35" />
+          </div>
+          <p className="text-white font-semibold text-sm mb-1">No saved posts yet</p>
+          <p className="text-white/45 text-xs">Posts you save will be private and appear here.</p>
         </div>
       )}
 

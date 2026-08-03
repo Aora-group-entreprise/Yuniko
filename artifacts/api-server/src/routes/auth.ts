@@ -135,6 +135,63 @@ authRouter.get("/auth/me", authMiddleware, async (req, res) => {
   }
 });
 
+// PATCH /api/auth/me
+authRouter.patch("/auth/me", authMiddleware, async (req, res) => {
+  const userId = (req as any).userId as number;
+  const { username, displayName, country, countryFlag, age, avatarUrl, bio } = req.body as {
+    username?: string;
+    displayName?: string;
+    country?: string | null;
+    countryFlag?: string | null;
+    age?: number | null;
+    avatarUrl?: string | null;
+    bio?: string;
+  };
+
+  const nextUsername = username?.trim().toLowerCase();
+  if (nextUsername !== undefined) {
+    if (nextUsername.length < 3) return res.status(400).json({ error: "Username must be at least 3 characters" });
+    if (!/^[a-z0-9._]+$/.test(nextUsername)) return res.status(400).json({ error: "Invalid username characters" });
+  }
+  if (displayName !== undefined && !displayName.trim()) {
+    return res.status(400).json({ error: "Display name is required" });
+  }
+  if (age != null && (age < 13 || age > 120)) return res.status(400).json({ error: "Invalid age" });
+
+  try {
+    if (nextUsername !== undefined) {
+      const existing = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.username, nextUsername))
+        .limit(1);
+      if (existing.length > 0 && existing[0]!.id !== userId) {
+        return res.status(409).json({ error: "Username already taken" });
+      }
+    }
+
+    const [user] = await db
+      .update(usersTable)
+      .set({
+        ...(nextUsername !== undefined ? { username: nextUsername } : {}),
+        ...(displayName !== undefined ? { displayName: displayName.trim() } : {}),
+        ...(country !== undefined ? { country } : {}),
+        ...(countryFlag !== undefined ? { countryFlag } : {}),
+        ...(age !== undefined ? { age } : {}),
+        ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+        ...(bio !== undefined ? { bio: bio.slice(0, 150) } : {}),
+      })
+      .where(eq(usersTable.id, userId))
+      .returning();
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const { passwordHash: _, ...publicUser } = user;
+    return res.json(publicUser);
+  } catch (err) {
+    return dbError(res, err);
+  }
+});
+
 // POST /api/auth/reset-password
 authRouter.post("/auth/reset-password", async (req, res) => {
   const { username, newPassword } = req.body as { username?: string; newPassword?: string };

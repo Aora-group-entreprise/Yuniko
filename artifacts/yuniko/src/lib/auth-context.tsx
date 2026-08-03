@@ -23,6 +23,7 @@ interface AuthContextValue {
   token: string | null;
   login: (token: string, user: AuthUser) => void;
   logout: () => void;
+  refreshUser: () => Promise<AuthUser | null>;
   updateUser: (user: AuthUser) => void;
   isLoading: boolean;
 }
@@ -40,16 +41,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
     const storedUser = localStorage.getItem(USER_KEY);
-    if (storedToken && storedUser) {
+
+    async function restoreSession() {
+      if (!storedToken) {
+        setIsLoading(false);
+        return;
+      }
+
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser) as AuthUser);
+        } catch {
+          localStorage.removeItem(USER_KEY);
+        }
+      }
+      setToken(storedToken);
+
       try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser) as AuthUser);
+        const response = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${storedToken}` },
+        });
+        if (!response.ok) throw new Error("Session expired");
+        const freshUser = (await response.json()) as AuthUser;
+        setUser(freshUser);
+        localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
       } catch {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
+        setToken(null);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
       }
     }
-    setIsLoading(false);
+
+    void restoreSession();
   }, []);
 
   const login = (t: string, u: AuthUser) => {
@@ -66,6 +92,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(USER_KEY);
   };
 
+  const refreshUser = async () => {
+    const currentToken = localStorage.getItem(TOKEN_KEY);
+    if (!currentToken) return null;
+    const response = await fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${currentToken}` },
+    });
+    if (!response.ok) {
+      logout();
+      return null;
+    }
+    const freshUser = (await response.json()) as AuthUser;
+    updateUser(freshUser);
+    return freshUser;
+  };
+
   const updateUser = (u: AuthUser) => {
     setUser(u);
     localStorage.setItem(USER_KEY, JSON.stringify(u));
@@ -73,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, login, logout, updateUser, isLoading }}
+      value={{ user, token, login, logout, refreshUser, updateUser, isLoading }}
     >
       {children}
     </AuthContext.Provider>
