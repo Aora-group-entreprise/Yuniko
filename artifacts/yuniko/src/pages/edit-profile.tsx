@@ -131,9 +131,7 @@ export default function EditProfile() {
         </button>
       </header>
 
-      <div className="relative h-28 overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(255,0,110,0.4), rgba(139,0,255,0.4))" }} />
-
-      <div className="flex justify-center -mt-8 mb-4">
+      <div className="flex justify-center pt-8 mb-4">
         <div className="relative">
           <div className="w-20 h-20 rounded-full p-[2.5px]" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 20px rgba(255,0,110,0.4)" }}>
             <img src={avatar} alt={displayName} className="w-full h-full rounded-full object-cover" style={{ border: "2.5px solid #0D0B14" }} />
