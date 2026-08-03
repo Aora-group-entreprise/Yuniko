@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2, BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2 } from "lucide-react";
 import { currentUser, getUserById, getPostsByUser, formatCount } from "@/data/mockData";
+import { useAuth } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 
@@ -13,11 +14,25 @@ interface ProfilePageProps {
 
 export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
+  const { user: authUser } = useAuth();
   const params = useParams<{ userId: string }>();
   const targetId = userId || params?.userId || "me";
   const isOwn = targetId === "me" || targetId === currentUser.id;
 
-  const user = isOwn ? currentUser : getUserById(targetId);
+  const ownUser = authUser
+    ? {
+        ...currentUser,
+        id: String(authUser.id),
+        username: authUser.username,
+        displayName: authUser.displayName,
+        avatar: authUser.avatarUrl ?? currentUser.avatar,
+        bio: authUser.bio,
+        location: authUser.countryFlag && authUser.country
+          ? `${authUser.countryFlag} ${authUser.country}`
+          : authUser.country ?? "",
+      }
+    : currentUser;
+  const user = isOwn ? ownUser : getUserById(targetId);
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
   const [tab, setTab] = useState<"grid" | "saved" | "analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
