@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2, BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2 } from "lucide-react";
 import { currentUser, getUserById, getPostsByUser, formatCount } from "@/data/mockData";
+import { useAuth } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 
@@ -13,11 +14,25 @@ interface ProfilePageProps {
 
 export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
+  const { user: authUser } = useAuth();
   const params = useParams<{ userId: string }>();
   const targetId = userId || params?.userId || "me";
   const isOwn = targetId === "me" || targetId === currentUser.id;
 
-  const user = isOwn ? currentUser : getUserById(targetId);
+  const ownUser = authUser
+    ? {
+        ...currentUser,
+        id: String(authUser.id),
+        username: authUser.username,
+        displayName: authUser.displayName,
+        avatar: authUser.avatarUrl ?? currentUser.avatar,
+        bio: authUser.bio,
+        location: authUser.countryFlag && authUser.country
+          ? `${authUser.countryFlag} ${authUser.country}`
+          : authUser.country ?? "",
+      }
+    : currentUser;
+  const user = isOwn ? ownUser : getUserById(targetId);
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
   const [tab, setTab] = useState<"grid" | "saved" | "analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
@@ -32,10 +47,6 @@ export default function Profile({ userId }: ProfilePageProps) {
   }
 
   const userPosts = getPostsByUser(user.id);
-  const samplePosts = Array.from({ length: 9 }).map((_, i) => ({
-    id: `sample-${i}`,
-    src: `https://picsum.photos/seed/profile_${user.id}_${i}/200/200`,
-  }));
 
   const statItems = [
     { label: t("posts"), value: formatCount(user.posts), onClick: undefined },
@@ -82,24 +93,9 @@ export default function Profile({ userId }: ProfilePageProps) {
         )}
       </header>
 
-      {/* Cover photo */}
-      <div className="relative h-32 overflow-hidden" style={{ background: GRADIENT }}>
-        <img src={user.coverPhoto} alt="Cover" className="w-full h-full object-cover opacity-60" />
-        {isOwn && (
-          <button
-            onClick={() => setLocation("/profile/edit")}
-            className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg text-xs font-medium text-white/90"
-            style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)" }}
-            data-testid="btn-edit-cover"
-          >
-            {t("editCoverPhoto")}
-          </button>
-        )}
-      </div>
-
       {/* Avatar + action buttons */}
-      <div className="px-4 relative">
-        <div className="flex items-end justify-between -mt-9 mb-3">
+      <div className="px-4 relative pt-6">
+        <div className="flex items-end justify-between mb-3">
           <button onClick={() => setShowPhotoViewer(true)} className="relative" data-testid="btn-profile-photo">
             <div
               className="w-[78px] h-[78px] rounded-full p-[2.5px]"
@@ -252,58 +248,27 @@ export default function Profile({ userId }: ProfilePageProps) {
               </button>
             ))
           ) : (
-            samplePosts.map((sp, i) => (
-              <button
-                key={sp.id}
-                onClick={() => setLocation(`/post/sample-${i}`)}
-                className="aspect-square overflow-hidden"
-              >
-                <img src={sp.src} alt="" className="w-full h-full object-cover" />
-              </button>
-            ))
+            <div className="col-span-3 py-14 px-6 text-center">
+              <p className="text-white/70 font-semibold mb-1">No posts yet</p>
+              <p className="text-white/40 text-sm">Posts you create will appear here.</p>
+            </div>
           )}
         </div>
       )}
 
       {/* Saved tab */}
       {tab === "saved" && (
-        <div className="grid grid-cols-3 gap-0.5 px-0.5">
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <button
-              key={i}
-              onClick={() => setLocation("/saved")}
-              className="aspect-square overflow-hidden"
-            >
-              <img src={`https://picsum.photos/seed/saved_${user.id}_${i}/200/200`} alt="" className="w-full h-full object-cover" />
-            </button>
-          ))}
+        <div className="py-14 px-6 text-center">
+          <p className="text-white/70 font-semibold mb-1">No saved posts yet</p>
+          <p className="text-white/40 text-sm">Posts you save will appear here.</p>
         </div>
       )}
 
       {/* Analytics tab */}
       {tab === "analytics" && (
-        <div className="px-4 py-4 flex flex-col gap-3">
-          {[
-            { label: "Profile Views", value: "2,840", change: "+12%", up: true },
-            { label: "Post Impressions", value: "45,200", change: "+8%", up: true },
-            { label: "Reach", value: "18,600", change: "+23%", up: true },
-            { label: "Followers Gained", value: "342", change: "+5%", up: true },
-            { label: "Avg. Engagement", value: "4.2%", change: "-0.3%", up: false },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="p-4 rounded-2xl flex items-center justify-between"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-            >
-              <div>
-                <p className="text-white/55 text-xs mb-1">{stat.label}</p>
-                <p className="text-white font-bold text-xl">{stat.value}</p>
-              </div>
-              <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${stat.up ? "text-green-400 bg-green-400/10" : "text-red-400 bg-red-400/10"}`}>
-                {stat.change}
-              </span>
-            </div>
-          ))}
+        <div className="py-14 px-6 text-center">
+          <p className="text-white/70 font-semibold mb-1">Analytics will appear after you post</p>
+          <p className="text-white/40 text-sm">Real profile views, reach, and engagement metrics are calculated from your account activity.</p>
         </div>
       )}
 
