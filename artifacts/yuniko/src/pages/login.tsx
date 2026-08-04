@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
+import { getProfileByUsername } from "@/lib/supabase-auth";
 import { COUNTRIES } from "@/data/countries";
 import logoSrc from "@assets/file_000000003524724399ff06d3685a22e6_1780640550687.png";
 
@@ -114,7 +115,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { login } = useAuth();
+  const { login, register } = useAuth();
 
   const [mode, setMode] = useState<Mode>("signin");
   const [signupStep, setSignupStep] = useState(1);
@@ -157,9 +158,8 @@ export default function LoginPage() {
     setUsernameStatus("checking");
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/auth/check-username/${encodeURIComponent(u)}`);
-        const d = await r.json() as { available: boolean };
-        setUsernameStatus(d.available ? "available" : "taken");
+        const existing = await getProfileByUsername(u);
+        setUsernameStatus(existing ? "taken" : "available");
       } catch { setUsernameStatus("idle"); }
     }, 500);
     return () => clearTimeout(t);
@@ -170,15 +170,9 @@ export default function LoginPage() {
     if (!siUsername.trim() || !siPassword) { setError("Please fill in all fields"); return; }
     setLoading(true); clearError();
     try {
-      const r = await fetch("/api/auth/login", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: siUsername.trim(), password: siPassword }),
-      });
-      const d = await r.json() as { token?: string; user?: any; error?: string };
-      if (!r.ok) { setError(d.error ?? "Login failed"); return; }
-      login(d.token!, d.user);
+      await login(siUsername.trim(), siPassword);
       setLocation("/");
-    } catch { setError("Network error. Please try again."); }
+    } catch (err) { setError(err instanceof Error ? err.message : "Login failed. Please try again."); }
     finally { setLoading(false); }
   };
 
@@ -209,23 +203,17 @@ export default function LoginPage() {
   const handleRegister = async () => {
     setLoading(true); clearError();
     try {
-      const r = await fetch("/api/auth/register", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: signup.username.trim().toLowerCase(),
-          displayName: signup.displayName.trim(),
-          password: signup.password,
-          country: signup.country,
-          countryFlag: signup.countryFlag,
-          age: parseInt(signup.age),
-          avatarUrl: signup.avatarUrl,
-        }),
+      await register({
+        username: signup.username.trim().toLowerCase(),
+        displayName: signup.displayName.trim(),
+        password: signup.password,
+        country: signup.country,
+        countryFlag: signup.countryFlag,
+        age: parseInt(signup.age),
+        avatarUrl: signup.avatarUrl,
       });
-      const d = await r.json() as { token?: string; user?: any; error?: string };
-      if (!r.ok) { setError(d.error ?? "Registration failed"); return; }
-      login(d.token!, d.user);
       setSignupStep(4);
-    } catch { setError("Network error. Please try again."); }
+    } catch (err) { setError(err instanceof Error ? err.message : "Registration failed. Please try again."); }
     finally { setLoading(false); }
   };
 

@@ -278,7 +278,7 @@ const sponsorUsers: User[] = [
   },
 ];
 
-export const allUsers: User[] = [currentUser, ...users, ...sponsorUsers];
+export const allUsers: User[] = [...users, ...sponsorUsers];
 
 export const getUserById = (id: string): User | undefined =>
   allUsers.find((u) => u.id === id);

@@ -2,7 +2,6 @@ import { useLocation } from "wouter";
 import { ArrowLeft, ChevronRight, User, Lock, Bell, Eye, Shield, HardDrive, Info, LogOut, Trash2, Moon, Sun, Globe, BadgeCheck } from "lucide-react";
 import { t, availableLanguages, getLang, setLang, Lang } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
-import { currentUser } from "@/data/mockData";
 import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth-context";
@@ -122,13 +121,13 @@ export default function Settings() {
             style={{ background: GRADIENT }}
           >
             <img
-              src={currentUser.avatar}
-              alt={currentUser.displayName}
+              src={authUser?.avatarUrl || `https://picsum.photos/seed/${authUser?.id || "profile"}/200/200`}
+              alt={authUser?.displayName || "Profile"}
               className="w-full h-full rounded-full object-cover"
               style={{ border: "2px solid #0D0B14" }}
             />
           </div>
-          {currentUser.verified && (
+          {authUser?.verified && (
             <div
               className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
               style={{ background: "#0D0B14" }}
@@ -138,8 +137,8 @@ export default function Settings() {
           )}
         </div>
         <div className="flex-1">
-          <p className="text-white font-semibold">{currentUser.displayName}</p>
-          <p className="text-white/50 text-sm">@{currentUser.username}</p>
+          <p className="text-white font-semibold">{authUser?.displayName || "Your profile"}</p>
+          <p className="text-white/50 text-sm">@{authUser?.username || ""}</p>
         </div>
         <ChevronRight size={18} className="text-white/30" />
       </button>

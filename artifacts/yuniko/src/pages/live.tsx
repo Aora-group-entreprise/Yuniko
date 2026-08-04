@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { X, Users, Heart, MessageCircle, Share2, Mic, MicOff, Video, VideoOff, Gift, Eye } from "lucide-react";
-import { currentUser } from "@/data/mockData";
+import { useAuth } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
@@ -24,6 +24,7 @@ interface FloatingHeart {
 
 export default function Live() {
   const [, setLocation] = useLocation();
+  const { user: authUser } = useAuth();
   const [isLive, setIsLive] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
@@ -95,7 +96,7 @@ export default function Live() {
     if (!commentInput.trim()) return;
     setComments((prev) => [
       ...prev.slice(-5),
-      { id: `me_${Date.now()}`, user: currentUser.username, text: commentInput, color: "#FF3D9A" },
+      { id: `me_${Date.now()}`, user: authUser?.username || "you", text: commentInput, color: "#FF3D9A" },
     ]);
     setCommentInput("");
   };
@@ -180,7 +181,7 @@ export default function Live() {
     >
       {/* Camera preview background */}
       <img
-        src={currentUser.coverPhoto}
+        src={(authUser?.coverPhoto || `https://picsum.photos/seed/cover_${authUser?.id || "live"}/800/400`)}
         alt=""
         className="absolute inset-0 w-full h-full object-cover"
         style={{ opacity: camOn ? 0.35 : 0.1, filter: "blur(2px)" }}
@@ -202,7 +203,7 @@ export default function Live() {
       <div className="relative z-10 flex items-center justify-between px-4 pt-5 pb-2">
         <div className="flex items-center gap-2.5">
           <div className="relative">
-            <img src={currentUser.avatar} alt="" className="w-10 h-10 rounded-full object-cover" style={{ border: "2px solid #FF006E" }} />
+            <img src={(authUser?.avatarUrl || `https://picsum.photos/seed/${authUser?.id || "live"}/200/200`)} alt="" className="w-10 h-10 rounded-full object-cover" style={{ border: "2px solid #FF006E" }} />
             <div
               className="absolute -bottom-0.5 -right-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white"
               style={{ background: GRADIENT }}
@@ -211,7 +212,7 @@ export default function Live() {
             </div>
           </div>
           <div>
-            <p className="text-white font-semibold text-sm">{currentUser.displayName}</p>
+            <p className="text-white font-semibold text-sm">{(authUser?.displayName || "You")}</p>
             <p className="text-white/50 text-xs">{formatDuration(duration)}</p>
           </div>
         </div>
