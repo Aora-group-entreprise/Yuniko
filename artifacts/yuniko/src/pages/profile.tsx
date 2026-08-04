@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2, BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2 } from "lucide-react";
-import { currentUser, getUserById, getPostsByUser, formatCount } from "@/data/mockData";
+import { getUserById, getPostsByUser, formatCount, type User } from "@/data/mockData";
+import { useAuth } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 
@@ -13,15 +14,42 @@ interface ProfilePageProps {
 
 export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
+  const { user: authUser, isLoading } = useAuth();
   const params = useParams<{ userId: string }>();
   const targetId = userId || params?.userId || "me";
-  const isOwn = targetId === "me" || targetId === currentUser.id;
+  const isOwn = targetId === "me" || targetId === authUser?.id;
+  const ownUser: User | null = authUser ? {
+    id: authUser.id,
+    username: authUser.username,
+    displayName: authUser.displayName,
+    avatar: authUser.avatarUrl || `https://picsum.photos/seed/${authUser.id}/200/200`,
+    bio: authUser.bio,
+    location: authUser.location || authUser.country || "",
+    flag: authUser.countryFlag || "",
+    verified: authUser.verified,
+    followers: authUser.followers,
+    following: authUser.following,
+    posts: authUser.posts,
+    isOnline: true,
+    coverPhoto: authUser.coverPhoto || `https://picsum.photos/seed/cover_${authUser.id}/800/400`,
+    isFollowing: false,
+    isFriend: false,
+    website: authUser.website || undefined,
+  } : null;
 
-  const user = isOwn ? currentUser : getUserById(targetId);
+  const user = isOwn ? ownUser : getUserById(targetId);
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
   const [tab, setTab] = useState<"grid" | "saved" | "analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
+        <p className="text-white/50">Loading profile…</p>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
