@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { X, Users, Heart, MessageCircle, Share2, Mic, MicOff, Video, VideoOff, Gift, Eye } from "lucide-react";
-import { currentUser } from "@/data/mockData";
+import { useAuth } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
@@ -24,6 +24,8 @@ interface FloatingHeart {
 
 export default function Live() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+
   const [isLive, setIsLive] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
@@ -35,6 +37,13 @@ export default function Live() {
   const [giftShown, setGiftShown] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState("");
   const [heartId, setHeartId] = useState(0);
+
+  // Derive display values from real auth user
+  const avatarSrc =
+    user?.avatarUrl ??
+    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(user?.displayName ?? "U")}&backgroundColor=FF006E`;
+  const displayName = user?.displayName ?? "You";
+  const liveUsername = user?.username ?? "you";
 
   useEffect(() => {
     if (!isLive) return;
@@ -95,7 +104,7 @@ export default function Live() {
     if (!commentInput.trim()) return;
     setComments((prev) => [
       ...prev.slice(-5),
-      { id: `me_${Date.now()}`, user: currentUser.username, text: commentInput, color: "#FF3D9A" },
+      { id: `me_${Date.now()}`, user: liveUsername, text: commentInput, color: "#FF3D9A" },
     ]);
     setCommentInput("");
   };
@@ -178,9 +187,9 @@ export default function Live() {
       style={{ background: "#0D0B14" }}
       data-testid="live-broadcast-screen"
     >
-      {/* Camera preview background */}
+      {/* Camera preview — use avatar as background when real camera isn't available */}
       <img
-        src={currentUser.coverPhoto}
+        src={avatarSrc}
         alt=""
         className="absolute inset-0 w-full h-full object-cover"
         style={{ opacity: camOn ? 0.35 : 0.1, filter: "blur(2px)" }}
@@ -202,7 +211,12 @@ export default function Live() {
       <div className="relative z-10 flex items-center justify-between px-4 pt-5 pb-2">
         <div className="flex items-center gap-2.5">
           <div className="relative">
-            <img src={currentUser.avatar} alt="" className="w-10 h-10 rounded-full object-cover" style={{ border: "2px solid #FF006E" }} />
+            <img
+              src={avatarSrc}
+              alt={displayName}
+              className="w-10 h-10 rounded-full object-cover"
+              style={{ border: "2px solid #FF006E" }}
+            />
             <div
               className="absolute -bottom-0.5 -right-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white"
               style={{ background: GRADIENT }}
@@ -211,7 +225,7 @@ export default function Live() {
             </div>
           </div>
           <div>
-            <p className="text-white font-semibold text-sm">{currentUser.displayName}</p>
+            <p className="text-white font-semibold text-sm">{displayName}</p>
             <p className="text-white/50 text-xs">{formatDuration(duration)}</p>
           </div>
         </div>

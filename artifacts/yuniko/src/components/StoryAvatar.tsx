@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { getUserById } from "@/data/mockData";
+import { useAuth } from "@/lib/auth-context";
 import { Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import { t } from "@/lib/i18n";
@@ -13,7 +14,8 @@ interface StoryAvatarProps {
 
 export default function StoryAvatar({ userId, isOwn = false, viewed = false, label }: StoryAvatarProps) {
   const [, setLocation] = useLocation();
-  const user = isOwn ? null : getUserById(userId);
+  const { user: authUser } = useAuth();
+  const mockUser = isOwn ? null : getUserById(userId);
 
   const handleClick = () => {
     if (isOwn) {
@@ -23,8 +25,14 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
     }
   };
 
-  const displayName = isOwn ? t("yourStory") : (label ?? user?.displayName ?? "");
-  const avatarUrl = isOwn ? "https://picsum.photos/seed/me/200/200" : (user?.avatar ?? "");
+  const displayName = isOwn ? t("yourStory") : (label ?? mockUser?.displayName ?? "");
+
+  // For own avatar: use the real authenticated user's avatar
+  const ownAvatarSrc =
+    authUser?.avatarUrl ??
+    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "U")}&backgroundColor=FF006E`;
+
+  const avatarUrl = isOwn ? ownAvatarSrc : (mockUser?.avatar ?? "");
 
   return (
     <motion.button
@@ -64,7 +72,7 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
             <Plus size={9} className="text-white" strokeWidth={3} />
           </div>
         )}
-        {!isOwn && user?.isOnline && (
+        {!isOwn && mockUser?.isOnline && (
           <div
             className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-green-400"
             style={{ border: "1.5px solid #0D0B14" }}

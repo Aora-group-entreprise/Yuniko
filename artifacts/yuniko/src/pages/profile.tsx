@@ -1,11 +1,38 @@
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2, BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2 } from "lucide-react";
-import { currentUser, getUserById, getPostsByUser, formatCount } from "@/data/mockData";
+import {
+  ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2,
+  BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2,
+} from "lucide-react";
+import { getUserById, getPostsByUser, formatCount } from "@/data/mockData";
+import { useAuth, AuthUser } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
+
+/** Convert the real authenticated user into a shape usable by this page. */
+function authUserToDisplay(u: AuthUser) {
+  return {
+    id: String(u.id),
+    username: u.username,
+    displayName: u.displayName,
+    // Use avatarUrl from DB; fall back to a deterministic placeholder
+    avatar: u.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(u.displayName)}&backgroundColor=FF006E`,
+    bio: u.bio ?? "",
+    location: [u.countryFlag, u.country].filter(Boolean).join(" ") || "",
+    flag: u.countryFlag ?? "",
+    verified: false,
+    followers: 0,
+    following: 0,
+    posts: 0,
+    isOnline: true,
+    coverPhoto: "",       // own profile always shows gradient fallback
+    isFollowing: false,
+    isFriend: false,
+    website: u.website ?? undefined,
+  };
+}
 
 interface ProfilePageProps {
   userId?: string;
@@ -14,10 +41,16 @@ interface ProfilePageProps {
 export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
-  const targetId = userId || params?.userId || "me";
-  const isOwn = targetId === "me" || targetId === currentUser.id;
+  const { user: authUser } = useAuth();
 
-  const user = isOwn ? currentUser : getUserById(targetId);
+  const targetId = userId || params?.userId || "me";
+  const isOwn = targetId === "me" || (authUser && targetId === String(authUser.id));
+
+  // For own profile use real auth data; for others use mock data
+  const user = isOwn
+    ? (authUser ? authUserToDisplay(authUser) : null)
+    : getUserById(targetId);
+
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
   const [tab, setTab] = useState<"grid" | "saved" | "analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
@@ -31,7 +64,7 @@ export default function Profile({ userId }: ProfilePageProps) {
     );
   }
 
-  const userPosts = getPostsByUser(user.id);
+  const userPosts = isOwn ? [] : getPostsByUser(user.id);
   const samplePosts = Array.from({ length: 9 }).map((_, i) => ({
     id: `sample-${i}`,
     src: `https://picsum.photos/seed/profile_${user.id}_${i}/200/200`,
@@ -82,9 +115,11 @@ export default function Profile({ userId }: ProfilePageProps) {
         )}
       </header>
 
-      {/* Cover photo */}
+      {/* Cover photo — own profile: gradient; others: their cover */}
       <div className="relative h-32 overflow-hidden" style={{ background: GRADIENT }}>
-        <img src={user.coverPhoto} alt="Cover" className="w-full h-full object-cover opacity-60" />
+        {user.coverPhoto && (
+          <img src={user.coverPhoto} alt="Cover" className="w-full h-full object-cover opacity-60" />
+        )}
         {isOwn && (
           <button
             onClick={() => setLocation("/profile/edit")}
@@ -284,11 +319,9 @@ export default function Profile({ userId }: ProfilePageProps) {
       {tab === "analytics" && (
         <div className="px-4 py-4 flex flex-col gap-3">
           {[
-            { label: "Profile Views", value: "2,840", change: "+12%", up: true },
-            { label: "Post Impressions", value: "45,200", change: "+8%", up: true },
-            { label: "Reach", value: "18,600", change: "+23%", up: true },
-            { label: "Followers Gained", value: "342", change: "+5%", up: true },
-            { label: "Avg. Engagement", value: "4.2%", change: "-0.3%", up: false },
+            { label: "Profile Views", value: "—", change: "Coming soon", up: true },
+            { label: "Post Impressions", value: "—", change: "Coming soon", up: true },
+            { label: "Reach", value: "—", change: "Coming soon", up: true },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -299,7 +332,7 @@ export default function Profile({ userId }: ProfilePageProps) {
                 <p className="text-white/55 text-xs mb-1">{stat.label}</p>
                 <p className="text-white font-bold text-xl">{stat.value}</p>
               </div>
-              <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${stat.up ? "text-green-400 bg-green-400/10" : "text-red-400 bg-red-400/10"}`}>
+              <span className="text-sm font-semibold px-2.5 py-1 rounded-full text-white/40 bg-white/5">
                 {stat.change}
               </span>
             </div>
@@ -336,7 +369,7 @@ export default function Profile({ userId }: ProfilePageProps) {
         </div>
       )}
 
-      {/* Options bottom sheet */}
+      {/* Options bottom sheet (other users) */}
       {showOptions && (
         <>
           <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowOptions(false)} />

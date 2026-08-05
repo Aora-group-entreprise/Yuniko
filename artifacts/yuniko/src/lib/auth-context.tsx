@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
 } from "react";
 
@@ -15,6 +16,7 @@ export interface AuthUser {
   countryFlag: string | null;
   age: number | null;
   bio: string;
+  website: string | null;
   createdAt: string;
 }
 
@@ -24,6 +26,7 @@ interface AuthContextValue {
   login: (token: string, user: AuthUser) => void;
   logout: () => void;
   updateUser: (user: AuthUser) => void;
+  refreshUser: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -71,9 +74,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(USER_KEY, JSON.stringify(u));
   };
 
+  /** Re-fetch the latest user data from the server and update local state. */
+  const refreshUser = useCallback(async () => {
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    if (!storedToken) return;
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${storedToken}` },
+      });
+      if (res.status === 401) {
+        // Token expired or invalid — log out
+        logout();
+        return;
+      }
+      if (res.ok) {
+        const freshUser = (await res.json()) as AuthUser;
+        setUser(freshUser);
+        localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+      }
+    } catch {
+      // Network error — keep current cached user
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user, token, login, logout, updateUser, isLoading }}
+      value={{ user, token, login, logout, updateUser, refreshUser, isLoading }}
     >
       {children}
     </AuthContext.Provider>

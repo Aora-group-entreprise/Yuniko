@@ -135,6 +135,49 @@ authRouter.get("/auth/me", authMiddleware, async (req, res) => {
   }
 });
 
+// PATCH /api/auth/me — update own profile
+authRouter.patch("/auth/me", authMiddleware, async (req, res) => {
+  const userId = (req as any).userId as number;
+  const { displayName, bio, website, country, countryFlag, avatarUrl } =
+    req.body as {
+      displayName?: string;
+      bio?: string;
+      website?: string | null;
+      country?: string | null;
+      countryFlag?: string | null;
+      avatarUrl?: string | null;
+    };
+
+  const updates: Record<string, unknown> = {};
+  if (displayName !== undefined) {
+    const d = displayName.trim();
+    if (!d) return res.status(400).json({ error: "Display name cannot be empty" });
+    updates["displayName"] = d;
+  }
+  if (bio !== undefined) updates["bio"] = bio;
+  if (website !== undefined) updates["website"] = website || null;
+  if (country !== undefined) updates["country"] = country || null;
+  if (countryFlag !== undefined) updates["countryFlag"] = countryFlag || null;
+  if (avatarUrl !== undefined) updates["avatarUrl"] = avatarUrl || null;
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: "No fields to update" });
+  }
+
+  try {
+    const [user] = await db
+      .update(usersTable)
+      .set(updates)
+      .where(eq(usersTable.id, userId))
+      .returning();
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const { passwordHash: _, ...publicUser } = user;
+    return res.json(publicUser);
+  } catch (err) {
+    return dbError(res, err);
+  }
+});
+
 // POST /api/auth/reset-password
 authRouter.post("/auth/reset-password", async (req, res) => {
   const { username, newPassword } = req.body as { username?: string; newPassword?: string };

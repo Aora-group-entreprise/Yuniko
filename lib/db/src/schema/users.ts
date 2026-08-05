@@ -12,6 +12,7 @@ export const usersTable = pgTable("users", {
   age: integer("age"),
   avatarUrl: text("avatar_url"),
   bio: text("bio").default("").notNull(),
+  website: text("website"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

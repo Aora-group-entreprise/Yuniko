@@ -3,11 +3,13 @@ import { useLocation } from "wouter";
 import { X, Image, Video, MapPin, Hash, Globe, Layers, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { t } from "@/lib/i18n";
-import { currentUser } from "@/data/mockData";
+import { useAuth } from "@/lib/auth-context";
 import BottomNav from "@/components/BottomNav";
 
 export default function Create() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+
   const [caption, setCaption] = useState("");
   const [isWorldFeed, setIsWorldFeed] = useState(true);
   const [isAddToStory, setIsAddToStory] = useState(false);
@@ -22,6 +24,13 @@ export default function Create() {
     setPosted(true);
     setTimeout(() => setLocation("/"), 1400);
   };
+
+  // Avatar to display — use real auth user's avatarUrl with deterministic fallback
+  const avatarSrc =
+    user?.avatarUrl ??
+    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(user?.displayName ?? "U")}&backgroundColor=FF006E`;
+
+  const displayUsername = user?.username ?? "";
 
   if (posted) {
     return (
@@ -88,13 +97,13 @@ export default function Create() {
         {/* User row + caption */}
         <div className="flex gap-3 mb-4">
           <img
-            src={currentUser.avatar}
-            alt={currentUser.displayName}
+            src={avatarSrc}
+            alt={displayUsername}
             className="w-10 h-10 rounded-full object-cover flex-shrink-0"
             style={{ boxShadow: "0 0 0 2px rgba(255,61,154,0.5)" }}
           />
           <div className="flex-1">
-            <p className="text-white font-semibold text-sm mb-1.5">{currentUser.username}</p>
+            <p className="text-white font-semibold text-sm mb-1.5">{displayUsername}</p>
             <textarea
               value={caption}
               onChange={(e) => setCaption(e.target.value)}

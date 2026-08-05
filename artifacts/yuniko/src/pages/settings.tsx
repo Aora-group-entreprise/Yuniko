@@ -1,8 +1,10 @@
 import { useLocation } from "wouter";
-import { ArrowLeft, ChevronRight, User, Lock, Bell, Eye, Shield, HardDrive, Info, LogOut, Trash2, Moon, Sun, Globe, BadgeCheck } from "lucide-react";
+import {
+  ArrowLeft, ChevronRight, User, Lock, Bell, Eye, Shield,
+  HardDrive, Info, LogOut, Trash2, Moon, Sun, Globe, BadgeCheck,
+} from "lucide-react";
 import { t, availableLanguages, getLang, setLang, Lang } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
-import { currentUser } from "@/data/mockData";
 import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth-context";
@@ -91,6 +93,11 @@ export default function Settings() {
     else setLocation("/profile");
   };
 
+  // Derive display values from real auth user
+  const avatarSrc =
+    authUser?.avatarUrl ??
+    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "U")}&backgroundColor=FF006E`;
+
   return (
     <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-24">
       {/* Header */}
@@ -109,7 +116,7 @@ export default function Settings() {
         <h1 className="text-base font-semibold text-white">{t("settings")}</h1>
       </header>
 
-      {/* Profile summary */}
+      {/* Profile summary — uses real auth user */}
       <button
         onClick={() => setLocation("/profile")}
         className="w-full flex items-center gap-3 px-4 py-4 active:bg-white/5"
@@ -122,24 +129,16 @@ export default function Settings() {
             style={{ background: GRADIENT }}
           >
             <img
-              src={currentUser.avatar}
-              alt={currentUser.displayName}
+              src={avatarSrc}
+              alt={authUser?.displayName ?? ""}
               className="w-full h-full rounded-full object-cover"
               style={{ border: "2px solid #0D0B14" }}
             />
           </div>
-          {currentUser.verified && (
-            <div
-              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
-              style={{ background: "#0D0B14" }}
-            >
-              <BadgeCheck size={14} className="text-blue-400 fill-blue-400" />
-            </div>
-          )}
         </div>
         <div className="flex-1">
-          <p className="text-white font-semibold">{currentUser.displayName}</p>
-          <p className="text-white/50 text-sm">@{currentUser.username}</p>
+          <p className="text-white font-semibold">{authUser?.displayName ?? ""}</p>
+          <p className="text-white/50 text-sm">@{authUser?.username ?? ""}</p>
         </div>
         <ChevronRight size={18} className="text-white/30" />
       </button>
