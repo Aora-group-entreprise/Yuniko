@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Search, UserPlus, Globe, ChevronDown, Bookmark, Share2, Flag, EyeOff, WifiOff, Radio } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { stories, getFeedWithAds } from "@/data/mockData";
+import { getFeedWithAds, type Post } from "@/data/mockData";
 import StoryAvatar from "@/components/StoryAvatar";
-import PostCard from "@/components/PostCard";
+import PostCard, { type LiveAuthor } from "@/components/PostCard";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
+import { useAuth } from "@/lib/auth-context";
 
 const HEADER_H = 56;
 const STORIES_H = 78;
@@ -28,21 +29,100 @@ function useOnlineStatus() {
   return isOnline;
 }
 
-const feedItems = getFeedWithAds();
+interface LiveFeedPost {
+  post: Post;
+  author: LiveAuthor;
+}
+
+interface LiveStory {
+  id: number;
+  userId: number;
+  mediaUrl: string;
+  caption: string;
+  authorDisplayName: string;
+  authorUsername: string;
+  authorAvatarUrl: string | null;
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+const mockFeedItems = getFeedWithAds();
 
 export default function Home() {
   const [, setLocation] = useLocation();
+  const { token } = useAuth();
   const [optionsPostId, setOptionsPostId] = useState<string | null>(null);
   const [worldFeedOpen, setWorldFeedOpen] = useState(false);
   const isOnline = useOnlineStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
+  const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
+
+  // Load real posts + stories from API
+  useEffect(() => {
+    if (!token) return;
+
+    const headers = { Authorization: `Bearer ${token}` };
+
+    fetch("/api/posts/feed", { headers })
+      .then((r) => r.json())
+      .then((d: { posts?: any[] }) => {
+        if (!d.posts) return;
+        const converted: LiveFeedPost[] = d.posts.map((p) => ({
+          post: {
+            id: `live_${p.id}`,
+            userId: `live_${p.userId}`,
+            imageUrl: p.mediaUrl ?? `https://picsum.photos/seed/live${p.id}/600/900`,
+            caption: p.caption ?? "",
+            hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
+            likes: p.likes ?? 0,
+            comments: p.comments ?? 0,
+            shares: p.shares ?? 0,
+            saves: p.saves ?? 0,
+            timestamp: relativeTime(p.createdAt),
+            isLiked: false,
+            isSaved: false,
+            location: p.location ?? undefined,
+          } satisfies Post,
+          author: {
+            displayName: p.authorDisplayName,
+            username: p.authorUsername,
+            avatarUrl: p.authorAvatarUrl,
+          },
+        }));
+        setLivePosts(converted);
+      })
+      .catch(() => {/* keep mock feed on error */});
+
+    fetch("/api/stories", { headers })
+      .then((r) => r.json())
+      .then((d: { stories?: any[] }) => {
+        if (d.stories) setLiveStories(d.stories);
+      })
+      .catch(() => {});
+  }, [token]);
+
+  // Merge: live posts first, then mock feed
+  const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> = [
+    ...livePosts.map(({ post, author }) => ({ post, author })),
+    ...mockFeedItems.map((post) => ({ post })),
+  ];
 
   return (
     <div
       className="relative w-full max-w-[430px] mx-auto"
       style={{ height: "100dvh", overflow: "hidden" }}
     >
-      {/* ── HEADER ── fixed */}
+      {/* ── HEADER ── */}
       <header
         className="absolute inset-x-0 top-0 z-50 flex items-center justify-between px-4"
         style={{
@@ -54,7 +134,6 @@ export default function Home() {
         }}
         data-testid="home-header"
       >
-        {/* Yuniko logo */}
         <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}>
           <span
             className="text-2xl font-black tracking-tight"
@@ -69,7 +148,6 @@ export default function Home() {
           </span>
         </button>
 
-        {/* World Feed pill */}
         <button
           onClick={() => setWorldFeedOpen((p) => !p)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
@@ -85,7 +163,6 @@ export default function Home() {
           <ChevronDown size={12} className="text-white/55" />
         </button>
 
-        {/* Right icons */}
         <div className="flex items-center gap-3">
           <motion.button whileTap={{ scale: 0.85 }} onClick={() => setLocation("/search")}>
             <Search size={21} className="text-white/75" strokeWidth={1.8} />
@@ -100,14 +177,7 @@ export default function Home() {
       <AnimatePresence>
         {worldFeedOpen && (
           <>
-            <motion.div
-              key="wf-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-40"
-              onClick={() => setWorldFeedOpen(false)}
-            />
+            <motion.div key="wf-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40" onClick={() => setWorldFeedOpen(false)} />
             <motion.div
               key="wf-menu"
               initial={{ opacity: 0, y: -8, scale: 0.95 }}
@@ -115,18 +185,10 @@ export default function Home() {
               exit={{ opacity: 0, y: -8, scale: 0.95 }}
               transition={{ duration: 0.18 }}
               className="absolute top-[60px] left-1/2 -translate-x-1/2 w-44 rounded-2xl z-50 overflow-hidden"
-              style={{
-                background: "rgba(18,14,30,0.98)",
-                border: "1px solid rgba(255,61,154,0.25)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-              }}
+              style={{ background: "rgba(18,14,30,0.98)", border: "1px solid rgba(255,61,154,0.25)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
             >
               {["World Feed", "Friends Feed", "Following"].map((item) => (
-                <button
-                  key={item}
-                  onClick={() => setWorldFeedOpen(false)}
-                  className="w-full px-4 py-3 text-left text-white/85 text-sm hover:bg-pink-500/15 flex items-center gap-2"
-                >
+                <button key={item} onClick={() => setWorldFeedOpen(false)} className="w-full px-4 py-3 text-left text-white/85 text-sm hover:bg-pink-500/15 flex items-center gap-2">
                   <Globe size={13} style={{ color: "#FF3D9A" }} />
                   {item}
                 </button>
@@ -136,7 +198,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* ── STORIES ── fixed below header */}
+      {/* ── STORIES ── */}
       <div
         className="absolute inset-x-0 z-40"
         style={{
@@ -149,38 +211,28 @@ export default function Home() {
         }}
         data-testid="stories-row"
       >
-        <div
-          className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar"
-          style={{ WebkitOverflowScrolling: "touch" }}
-        >
+        <div className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
+          {/* Own story — navigates to create in story mode */}
           <StoryAvatar userId="me" isOwn />
-          {/* Go Live button */}
-          <button
-            onClick={() => setLocation("/live")}
-            className="flex-shrink-0 flex flex-col items-center gap-1.5"
-            data-testid="btn-go-live-stories"
-          >
-            <div
-              className="w-14 h-14 rounded-full flex items-center justify-center relative"
-              style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 16px rgba(255,0,110,0.45)" }}
-            >
+
+          {/* Go Live */}
+          <button onClick={() => setLocation("/live")} className="flex-shrink-0 flex flex-col items-center gap-1.5" data-testid="btn-go-live-stories">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center relative" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 16px rgba(255,0,110,0.45)" }}>
               <Radio size={22} className="text-white" />
-              <div
-                className="absolute -top-0.5 -right-0.5 px-1 py-0.5 rounded-full text-[8px] font-bold text-white leading-none"
-                style={{ background: "#FF006E" }}
-              >
-                LIVE
-              </div>
+              <div className="absolute -top-0.5 -right-0.5 px-1 py-0.5 rounded-full text-[8px] font-bold text-white leading-none" style={{ background: "#FF006E" }}>LIVE</div>
             </div>
             <span className="text-white/60 text-[10px] font-medium">Go Live</span>
           </button>
-          {stories.map((story) => (
-            <StoryAvatar
-              key={story.id}
-              userId={story.userId}
-              viewed={story.viewed}
-            />
+
+          {/* Live stories from API */}
+          {liveStories.map((story) => (
+            <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
+
+          {/* Mock stories (only shown if no live stories yet) */}
+          {liveStories.length === 0 && (
+            <StoryAvatar userId="u1" />
+          )}
         </div>
       </div>
 
@@ -189,15 +241,9 @@ export default function Home() {
         {!isOnline && (
           <motion.div
             key="offline-banner"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="absolute inset-x-0 z-30 flex items-center justify-center gap-1.5 py-1.5"
-            style={{
-              top: TOP_OFFSET,
-              background: "rgba(239,68,68,0.88)",
-              backdropFilter: "blur(8px)",
-            }}
+            style={{ top: TOP_OFFSET, background: "rgba(239,68,68,0.88)", backdropFilter: "blur(8px)" }}
           >
             <WifiOff size={12} className="text-white" />
             <span className="text-white text-xs font-medium">Offline — showing cached posts</span>
@@ -219,7 +265,7 @@ export default function Home() {
         }}
         data-testid="posts-feed"
       >
-        {feedItems.map((post) => (
+        {allFeedItems.map(({ post, author }) => (
           <div
             key={post.id}
             className="relative px-2.5"
@@ -231,15 +277,13 @@ export default function Home() {
               flexShrink: 0,
             }}
           >
-            <div className="relative w-full h-full rounded-[20px] overflow-hidden"
-              style={{
-                boxShadow: post.isSponsored
-                  ? "0 4px 24px rgba(255,0,110,0.18)"
-                  : "0 2px 16px rgba(0,0,0,0.4)",
-              }}
+            <div
+              className="relative w-full h-full rounded-[20px] overflow-hidden"
+              style={{ boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)" }}
             >
               <PostCard
                 post={post}
+                liveAuthor={author}
                 onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)}
               />
             </div>
@@ -254,25 +298,13 @@ export default function Home() {
       <AnimatePresence>
         {optionsPostId && (
           <>
-            <motion.div
-              key="options-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/65"
-              onClick={() => setOptionsPostId(null)}
-            />
+            <motion.div key="options-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/65" onClick={() => setOptionsPostId(null)} />
             <motion.div
               key="options-sheet"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 340 }}
               className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden"
-              style={{
-                background: "rgba(16,12,28,0.98)",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
+              style={{ background: "rgba(16,12,28,0.98)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <div className="w-10 h-1 rounded-full bg-white/18 mx-auto mt-3 mb-4" />
               {[
@@ -281,26 +313,50 @@ export default function Home() {
                 { icon: <EyeOff size={18} />, label: t("hide") },
                 { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span> },
               ].map((item, i) => (
-                <button
-                  key={i}
-                  onClick={() => setOptionsPostId(null)}
-                  className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
-                >
-                  {item.icon}
-                  {item.label}
+                <button key={i} onClick={() => setOptionsPostId(null)} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                  {item.icon}{item.label}
                 </button>
               ))}
-              <button
-                onClick={() => setOptionsPostId(null)}
-                className="w-full py-4 text-white/45 text-sm font-medium"
-              >
-                {t("cancel")}
-              </button>
+              <button onClick={() => setOptionsPostId(null)} className="w-full py-4 text-white/45 text-sm font-medium">{t("cancel")}</button>
             </motion.div>
           </>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// Inline component for real API stories in the stories row
+function LiveStoryAvatar({ story }: { story: LiveStory }) {
+  const [, setLocation] = useLocation();
+  const avatarSrc =
+    story.authorAvatarUrl ??
+    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(story.authorDisplayName)}&backgroundColor=FF006E`;
+
+  return (
+    <motion.button
+      onClick={() => setLocation(`/story/live_${story.id}`)}
+      className="flex flex-col items-center gap-1 flex-shrink-0"
+      style={{ minWidth: 64 }}
+      whileTap={{ scale: 0.9 }}
+    >
+      <div className="relative">
+        <div
+          className="w-[54px] h-[54px] rounded-full p-[2px]"
+          style={{ background: "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}
+        >
+          <img
+            src={avatarSrc}
+            alt={story.authorDisplayName}
+            className="w-full h-full rounded-full object-cover"
+            style={{ border: "2px solid #0D0B14" }}
+            loading="lazy"
+          />
+        </div>
+      </div>
+      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">
+        {story.authorDisplayName}
+      </span>
+    </motion.button>
   );
 }

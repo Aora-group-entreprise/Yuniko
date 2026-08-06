@@ -5,21 +5,48 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Post, getUserById, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 
+export interface LiveAuthor {
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  verified?: boolean;
+  isFollowing?: boolean;
+}
+
 interface PostCardProps {
   post: Post;
   onOptions?: () => void;
+  liveAuthor?: LiveAuthor;
 }
 
-export default function PostCard({ post, onOptions }: PostCardProps) {
+export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps) {
   const [, setLocation] = useLocation();
-  const user = getUserById(post.userId);
+  const mockUser = !liveAuthor ? getUserById(post.userId) : null;
+
+  // Resolve author from liveAuthor prop or fall back to mock data
+  const author: LiveAuthor | null = liveAuthor ?? (
+    mockUser
+      ? {
+          displayName: mockUser.displayName,
+          username: (mockUser as any).username ?? mockUser.displayName,
+          avatarUrl: mockUser.avatar,
+          verified: mockUser.verified,
+          isFollowing: mockUser.isFollowing,
+        }
+      : null
+  );
+
   const [liked, setLiked] = useState(post.isLiked);
   const [saved, setSaved] = useState(post.isSaved);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [heartBurst, setHeartBurst] = useState(false);
   const [lastTap, setLastTap] = useState(0);
 
-  if (!user) return null;
+  if (!author) return null;
+
+  const avatarSrc =
+    author.avatarUrl ??
+    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(author.displayName)}&backgroundColor=FF006E`;
 
   const handleLike = useCallback(() => {
     setLiked((prev) => !prev);
@@ -149,27 +176,25 @@ export default function PostCard({ post, onOptions }: PostCardProps) {
       <div className="absolute bottom-4 left-3 right-20 z-10">
         <div className="flex items-center gap-2.5 mb-1.5">
           <button
-            onClick={() => setLocation(`/user/${user.id}`)}
+            onClick={() => setLocation(`/user/${post.userId}`)}
             className="flex-shrink-0"
           >
             <img
-              src={user.avatar}
-              alt={user.displayName}
+              src={avatarSrc}
+              alt={author.displayName}
               className="w-9 h-9 rounded-full object-cover"
-              style={{
-                boxShadow: "0 0 0 2px rgba(255,61,154,0.7)",
-              }}
+              style={{ boxShadow: "0 0 0 2px rgba(255,61,154,0.7)" }}
             />
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1 flex-wrap">
               <button
-                onClick={() => setLocation(`/user/${user.id}`)}
+                onClick={() => setLocation(`/user/${post.userId}`)}
                 className="font-semibold text-white text-sm"
               >
-                {user.displayName}
+                {author.displayName}
               </button>
-              {user.verified && (
+              {author.verified && (
                 <BadgeCheck size={13} className="text-blue-400 fill-blue-400 flex-shrink-0" />
               )}
               {post.location && (
@@ -177,7 +202,7 @@ export default function PostCard({ post, onOptions }: PostCardProps) {
               )}
             </div>
           </div>
-          {!user.isFollowing && !post.isSponsored && (
+          {!author.isFollowing && !post.isSponsored && (
             <motion.button
               whileTap={{ scale: 0.93 }}
               className="px-3.5 py-1 rounded-full text-xs font-semibold text-white flex-shrink-0"

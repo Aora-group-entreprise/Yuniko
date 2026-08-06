@@ -19,7 +19,7 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
 
   const handleClick = () => {
     if (isOwn) {
-      setLocation("/create");
+      setLocation("/create?mode=story");
     } else {
       setLocation(`/story/${userId}`);
     }
