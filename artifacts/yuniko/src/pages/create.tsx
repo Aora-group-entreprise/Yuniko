@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
-import { X, Image, Video, MapPin, Hash, Globe, Layers, AlertCircle, Camera } from "lucide-react";
+import { X, Image as ImageIcon, Video, MapPin, Hash, Globe, Layers, AlertCircle, Camera } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
