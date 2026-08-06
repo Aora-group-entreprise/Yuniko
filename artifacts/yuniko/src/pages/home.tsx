@@ -1,6 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Search, UserPlus, Globe, ChevronDown, Bookmark, Share2, Flag, EyeOff, WifiOff, Radio } from "lucide-react";
+import {
+  Search, UserPlus, Globe, ChevronDown, Bookmark, Share2,
+  Flag, EyeOff, WifiOff, Radio,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getFeedWithAds, type Post } from "@/data/mockData";
 import StoryAvatar from "@/components/StoryAvatar";
@@ -13,6 +16,9 @@ const HEADER_H = 56;
 const STORIES_H = 78;
 const NAV_H = 64;
 const TOP_OFFSET = HEADER_H + STORIES_H;
+
+const SCROLL_KEY = "yuniko_feed_scroll";
+const POLL_INTERVAL = 30_000; // 30 s
 
 function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -66,17 +72,20 @@ export default function Home() {
 
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
   const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
+  const [newPostsBadge, setNewPostsBadge] = useState(0);
 
-  // Load real posts + stories from API
-  useEffect(() => {
-    if (!token) return;
-
-    const headers = { Authorization: `Bearer ${token}` };
-
-    fetch("/api/posts/feed", { headers })
-      .then((r) => r.json())
-      .then((d: { posts?: any[] }) => {
+  // ── Fetch live data from API ──────────────────────────────────
+  const fetchFeed = useCallback(
+    async (isBackground = false) => {
+      if (!token) return;
+      try {
+        const res = await fetch("/api/posts/feed", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const d = (await res.json()) as { posts?: any[] };
         if (!d.posts) return;
+
         const converted: LiveFeedPost[] = d.posts.map((p) => ({
           post: {
             id: `live_${p.id}`,
@@ -99,23 +108,106 @@ export default function Home() {
             avatarUrl: p.authorAvatarUrl,
           },
         }));
-        setLivePosts(converted);
-      })
-      .catch(() => {/* keep mock feed on error */});
 
-    fetch("/api/stories", { headers })
-      .then((r) => r.json())
-      .then((d: { stories?: any[] }) => {
-        if (d.stories) setLiveStories(d.stories);
-      })
-      .catch(() => {});
+        if (isBackground) {
+          // Check if there are new posts compared to current state
+          setLivePosts((prev) => {
+            const prevIds = new Set(prev.map((x) => x.post.id));
+            const newCount = converted.filter((x) => !prevIds.has(x.post.id)).length;
+            if (newCount > 0) setNewPostsBadge((b) => b + newCount);
+            return prev; // don't update yet, let user tap to refresh
+          });
+        } else {
+          setLivePosts(converted);
+          setNewPostsBadge(0);
+        }
+      } catch {
+        /* keep current feed */
+      }
+    },
+    [token],
+  );
+
+  const fetchStories = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/stories", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const d = (await res.json()) as { stories?: any[] };
+      if (d.stories) setLiveStories(d.stories);
+    } catch {
+      /* ignore */
+    }
   }, [token]);
 
-  // Merge: live posts first, then mock feed
+  // Initial load
+  useEffect(() => {
+    fetchFeed(false);
+    fetchStories();
+  }, [fetchFeed, fetchStories]);
+
+  // Background polling every 30 s
+  useEffect(() => {
+    const id = setInterval(() => {
+      fetchFeed(true);
+      fetchStories();
+    }, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [fetchFeed, fetchStories]);
+
+  // Refresh when tab becomes visible again (e.g. user comes back from create page)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        fetchFeed(false);
+        fetchStories();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchFeed, fetchStories]);
+
+  // ── Scroll position memory ────────────────────────────────────
+  // Save scroll offset on scroll, restore on mount
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    // Restore saved position after feed loads (wait for livePosts)
+    const saved = sessionStorage.getItem(SCROLL_KEY);
+    if (saved) {
+      const top = parseInt(saved, 10);
+      if (!isNaN(top) && top > 0) {
+        // Use requestAnimationFrame to let DOM settle
+        requestAnimationFrame(() => {
+          el.scrollTo({ top, behavior: "instant" });
+        });
+      }
+    }
+
+    const save = () => {
+      sessionStorage.setItem(SCROLL_KEY, String(el.scrollTop));
+    };
+    el.addEventListener("scroll", save, { passive: true });
+    return () => el.removeEventListener("scroll", save);
+  }, [livePosts.length]); // re-run after live posts load so DOM height is correct
+
+  // ── Merge live + mock feed ────────────────────────────────────
   const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> = [
     ...livePosts.map(({ post, author }) => ({ post, author })),
     ...mockFeedItems.map((post) => ({ post })),
   ];
+
+  // ── "New posts" banner tap → refresh & scroll to top ─────────
+  const handleNewPostsBanner = () => {
+    fetchFeed(false);
+    fetchStories();
+    setNewPostsBadge(0);
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    sessionStorage.setItem(SCROLL_KEY, "0");
+  };
 
   return (
     <div
@@ -177,7 +269,12 @@ export default function Home() {
       <AnimatePresence>
         {worldFeedOpen && (
           <>
-            <motion.div key="wf-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40" onClick={() => setWorldFeedOpen(false)} />
+            <motion.div
+              key="wf-backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 z-40"
+              onClick={() => setWorldFeedOpen(false)}
+            />
             <motion.div
               key="wf-menu"
               initial={{ opacity: 0, y: -8, scale: 0.95 }}
@@ -185,10 +282,18 @@ export default function Home() {
               exit={{ opacity: 0, y: -8, scale: 0.95 }}
               transition={{ duration: 0.18 }}
               className="absolute top-[60px] left-1/2 -translate-x-1/2 w-44 rounded-2xl z-50 overflow-hidden"
-              style={{ background: "rgba(18,14,30,0.98)", border: "1px solid rgba(255,61,154,0.25)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
+              style={{
+                background: "rgba(18,14,30,0.98)",
+                border: "1px solid rgba(255,61,154,0.25)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+              }}
             >
               {["World Feed", "Friends Feed", "Following"].map((item) => (
-                <button key={item} onClick={() => setWorldFeedOpen(false)} className="w-full px-4 py-3 text-left text-white/85 text-sm hover:bg-pink-500/15 flex items-center gap-2">
+                <button
+                  key={item}
+                  onClick={() => setWorldFeedOpen(false)}
+                  className="w-full px-4 py-3 text-left text-white/85 text-sm hover:bg-pink-500/15 flex items-center gap-2"
+                >
                   <Globe size={13} style={{ color: "#FF3D9A" }} />
                   {item}
                 </button>
@@ -211,30 +316,60 @@ export default function Home() {
         }}
         data-testid="stories-row"
       >
-        <div className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
-          {/* Own story — navigates to create in story mode */}
+        <div
+          className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           <StoryAvatar userId="me" isOwn />
 
-          {/* Go Live */}
-          <button onClick={() => setLocation("/live")} className="flex-shrink-0 flex flex-col items-center gap-1.5" data-testid="btn-go-live-stories">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center relative" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 16px rgba(255,0,110,0.45)" }}>
+          <button
+            onClick={() => setLocation("/live")}
+            className="flex-shrink-0 flex flex-col items-center gap-1.5"
+            data-testid="btn-go-live-stories"
+          >
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center relative"
+              style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 16px rgba(255,0,110,0.45)" }}
+            >
               <Radio size={22} className="text-white" />
-              <div className="absolute -top-0.5 -right-0.5 px-1 py-0.5 rounded-full text-[8px] font-bold text-white leading-none" style={{ background: "#FF006E" }}>LIVE</div>
+              <div
+                className="absolute -top-0.5 -right-0.5 px-1 py-0.5 rounded-full text-[8px] font-bold text-white leading-none"
+                style={{ background: "#FF006E" }}
+              >
+                LIVE
+              </div>
             </div>
             <span className="text-white/60 text-[10px] font-medium">Go Live</span>
           </button>
 
-          {/* Live stories from API */}
           {liveStories.map((story) => (
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
 
-          {/* Mock stories (only shown if no live stories yet) */}
-          {liveStories.length === 0 && (
-            <StoryAvatar userId="u1" />
-          )}
+          {liveStories.length === 0 && <StoryAvatar userId="u1" />}
         </div>
       </div>
+
+      {/* ── NEW POSTS BADGE (appears when polling finds fresh posts) ── */}
+      <AnimatePresence>
+        {newPostsBadge > 0 && (
+          <motion.button
+            key="new-posts-badge"
+            initial={{ opacity: 0, y: -8, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.9 }}
+            onClick={handleNewPostsBanner}
+            className="absolute z-50 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-xs font-semibold flex items-center gap-2"
+            style={{
+              top: TOP_OFFSET + 10,
+              background: "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)",
+              boxShadow: "0 4px 20px rgba(255,0,110,0.5)",
+            }}
+          >
+            ↑ {newPostsBadge} new post{newPostsBadge > 1 ? "s" : ""}
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* ── OFFLINE BANNER ── */}
       <AnimatePresence>
@@ -279,7 +414,11 @@ export default function Home() {
           >
             <div
               className="relative w-full h-full rounded-[20px] overflow-hidden"
-              style={{ boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)" }}
+              style={{
+                boxShadow: post.isSponsored
+                  ? "0 4px 24px rgba(255,0,110,0.18)"
+                  : "0 2px 16px rgba(0,0,0,0.4)",
+              }}
             >
               <PostCard
                 post={post}
@@ -298,7 +437,12 @@ export default function Home() {
       <AnimatePresence>
         {optionsPostId && (
           <>
-            <motion.div key="options-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/65" onClick={() => setOptionsPostId(null)} />
+            <motion.div
+              key="options-backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/65"
+              onClick={() => setOptionsPostId(null)}
+            />
             <motion.div
               key="options-sheet"
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
@@ -313,11 +457,21 @@ export default function Home() {
                 { icon: <EyeOff size={18} />, label: t("hide") },
                 { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span> },
               ].map((item, i) => (
-                <button key={i} onClick={() => setOptionsPostId(null)} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <button
+                  key={i}
+                  onClick={() => setOptionsPostId(null)}
+                  className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+                >
                   {item.icon}{item.label}
                 </button>
               ))}
-              <button onClick={() => setOptionsPostId(null)} className="w-full py-4 text-white/45 text-sm font-medium">{t("cancel")}</button>
+              <button
+                onClick={() => setOptionsPostId(null)}
+                className="w-full py-4 text-white/45 text-sm font-medium"
+              >
+                {t("cancel")}
+              </button>
             </motion.div>
           </>
         )}
