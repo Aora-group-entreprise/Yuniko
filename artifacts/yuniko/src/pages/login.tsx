@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Eye, EyeOff, Lock, ArrowRight, ArrowLeft,
-  CheckCircle, XCircle, Loader, User, Globe, Calendar, Camera, X,
+  CheckCircle, User, Globe, Calendar, Camera, X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
@@ -12,7 +12,6 @@ import logoSrc from "@assets/file_000000003524724399ff06d3685a22e6_1780640550687
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
 type Mode = "signin" | "signup" | "forgot";
-type UsernameStatus = "idle" | "checking" | "available" | "taken";
 
 interface SignupData {
   username: string;
@@ -132,7 +131,6 @@ export default function LoginPage() {
   });
   const [suShowPw, setSuShowPw] = useState(false);
   const [suShowConfirm, setSuShowConfirm] = useState(false);
-  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Forgot
@@ -148,22 +146,6 @@ export default function LoginPage() {
 
   const clearError = () => setError("");
   const su = (patch: Partial<SignupData>) => setSignup((s) => ({ ...s, ...patch }));
-
-  // Username availability — debounced 500ms
-  useEffect(() => {
-    if (mode !== "signup" || signupStep !== 1) return;
-    const u = signup.username.trim();
-    if (u.length < 3) { setUsernameStatus("idle"); return; }
-    setUsernameStatus("checking");
-    const t = setTimeout(async () => {
-      try {
-        const r = await fetch(`/api/auth/check-username/${encodeURIComponent(u)}`);
-        const d = await r.json() as { available: boolean };
-        setUsernameStatus(d.available ? "available" : "taken");
-      } catch { setUsernameStatus("idle"); }
-    }, 500);
-    return () => clearTimeout(t);
-  }, [signup.username, mode, signupStep]);
 
   // ── Signin submit
   const handleSignin = async () => {
@@ -187,8 +169,6 @@ export default function LoginPage() {
     const { username, password, confirmPassword } = signup;
     if (!username.trim()) { setError("Username is required"); return false; }
     if (username.trim().length < 3) { setError("Username must be at least 3 characters"); return false; }
-    if (usernameStatus === "taken") { setError("That username is already taken"); return false; }
-    if (usernameStatus === "checking") { setError("Still checking username…"); return false; }
     if (!password) { setError("Password is required"); return false; }
     if (password.length < 6) { setError("Password must be at least 6 characters"); return false; }
     if (password !== confirmPassword) { setError("Passwords don't match"); return false; }
@@ -230,16 +210,10 @@ export default function LoginPage() {
   };
 
   // ── Forgot step 1
-  const handleForgotLookup = async () => {
+  const handleForgotLookup = () => {
     if (!forgotUsername.trim()) { setError("Please enter your username"); return; }
-    setLoading(true); clearError();
-    try {
-      const r = await fetch(`/api/auth/check-username/${encodeURIComponent(forgotUsername.trim())}`);
-      const d = await r.json() as { available: boolean };
-      if (d.available) { setError("No account found with that username"); return; }
-      setForgotStep(2);
-    } catch { setError("Network error. Please try again."); }
-    finally { setLoading(false); }
+    clearError();
+    setForgotStep(2);
   };
 
   // ── Forgot step 2
@@ -416,28 +390,18 @@ export default function LoginPage() {
 
               <div className="flex flex-col gap-3 mb-5">
                 {/* Username */}
-                <div>
-                  <div
-                    className="flex items-center gap-2 px-4 py-3.5 rounded-2xl transition-colors"
-                    style={{
-                      background: "rgba(255,255,255,0.06)",
-                      border: `1px solid ${usernameStatus === "available" ? "rgba(74,222,128,0.5)" : usernameStatus === "taken" ? "rgba(248,113,113,0.5)" : "rgba(255,255,255,0.1)"}`,
-                    }}
-                  >
-                    <span className="text-white/40 text-sm flex-shrink-0 select-none">@</span>
-                    <input
-                      value={signup.username}
-                      onChange={(e) => { su({ username: e.target.value.replace(/[^a-zA-Z0-9._]/g, "") }); clearError(); }}
-                      placeholder="username"
-                      autoCapitalize="none" autoCorrect="off"
-                      className="flex-1 bg-transparent text-white/90 text-sm outline-none placeholder:text-white/30"
-                    />
-                    {usernameStatus === "checking" && <Loader size={15} className="text-white/40 animate-spin flex-shrink-0" />}
-                    {usernameStatus === "available" && <CheckCircle size={15} className="text-green-400 flex-shrink-0" />}
-                    {usernameStatus === "taken" && <XCircle size={15} className="text-red-400 flex-shrink-0" />}
-                  </div>
-                  {usernameStatus === "available" && <p className="text-green-400 text-xs mt-1.5 ml-1">Username available ✓</p>}
-                  {usernameStatus === "taken" && <p className="text-red-400 text-xs mt-1.5 ml-1">Username already taken</p>}
+                <div
+                  className="flex items-center gap-2 px-4 py-3.5 rounded-2xl"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  <span className="text-white/40 text-sm flex-shrink-0 select-none">@</span>
+                  <input
+                    value={signup.username}
+                    onChange={(e) => { su({ username: e.target.value.replace(/[^a-zA-Z0-9._]/g, "") }); clearError(); }}
+                    placeholder="username"
+                    autoCapitalize="none" autoCorrect="off"
+                    className="flex-1 bg-transparent text-white/90 text-sm outline-none placeholder:text-white/30"
+                  />
                 </div>
 
                 <Field
