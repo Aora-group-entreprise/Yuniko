@@ -29,6 +29,9 @@ export interface Post {
   id: string;
   userId: string;
   imageUrl: string;
+  mediaType?: "image" | "video" | "carousel" | "text";
+  mediaItems?: string[];
+  views?: number;
   caption: string;
   hashtags: string[];
   likes: number;

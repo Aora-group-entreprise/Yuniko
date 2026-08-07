@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Heart, MessageCircle, Share2, Bookmark, BadgeCheck,
-  MoreHorizontal, Sparkles, ExternalLink, X, Send,
+  MoreHorizontal, Sparkles, ExternalLink, X, Send, Eye,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Post, getUserById, formatCount } from "@/data/mockData";
@@ -79,9 +79,11 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
     setLiked((prev) => {
       const next = !prev;
       setLikeCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
-      // Persist to API (fire-and-forget, best effort)
       if (numericId) {
-        apiFetch(`/posts/${numericId}/like`, { method: "POST" }).catch(() => {});
+        apiFetch(`/posts/${numericId}/like`, { method: "POST" })
+          .then((r) => r.ok ? r.json() : null)
+          .then((d) => { if (d?.post) setLikeCount(d.post.likes ?? likeCount); })
+          .catch(() => {});
       }
       return next;
     });
@@ -105,8 +107,41 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
     lastTapRef.current = now;
   }, [numericId]);
 
-  // ── Save ──
+  // ── Save/share/report/view ──
   const [saved, setSaved] = useState(post.isSaved);
+  const [saveCount, setSaveCount] = useState(post.saves);
+  const [shareCount, setShareCount] = useState(post.shares);
+  const [viewCount, setViewCount] = useState((post as any).views ?? 0);
+
+  useEffect(() => {
+    if (!numericId) return;
+    const startedAt = Date.now();
+    const timer = window.setTimeout(() => {
+      apiFetch(`/posts/${numericId}/view`, {
+        method: "POST",
+        body: JSON.stringify({ watchMs: Date.now() - startedAt, completionRate: 75 }),
+      })
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => { if (d?.post?.views != null) setViewCount(d.post.views); })
+        .catch(() => {});
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [numericId]);
+
+  const toggleSave = useCallback(() => {
+    const next = !saved;
+    setSaved(next);
+    setSaveCount((c) => next ? c + 1 : Math.max(0, c - 1));
+    if (numericId) apiFetch(`/posts/${numericId}/save`, { method: "POST" }).then((r) => r.ok ? r.json() : null).then((d) => { if (d?.post) { setSaved(Boolean(d.active)); setSaveCount(d.post.saves ?? saveCount); } }).catch(() => {});
+  }, [numericId, saveCount, saved]);
+
+  const sharePost = useCallback(async () => {
+    const url = `${window.location.origin}/post/${post.id}`;
+    if (navigator.share) await navigator.share({ title: `Yuniko post by ${author?.displayName}`, text: post.caption, url }).catch(() => undefined);
+    else await navigator.clipboard?.writeText(url).catch(() => undefined);
+    setShareCount((c) => c + 1);
+    if (numericId) apiFetch(`/posts/${numericId}/share`, { method: "POST" }).then((r) => r.ok ? r.json() : null).then((d) => { if (d?.post?.shares != null) setShareCount(d.post.shares); }).catch(() => {});
+  }, [author?.displayName, numericId, post.caption, post.id]);
 
   // ── Comments sheet ──
   const [showComments, setShowComments] = useState(false);
@@ -167,15 +202,20 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
 
   return (
     <div className="relative w-full h-full" data-testid={`post-card-${post.id}`}>
-      {/* Background image */}
-      <img
-        src={post.imageUrl}
-        alt={post.caption}
-        className="absolute inset-0 w-full h-full object-cover"
-        onClick={handleDoubleTap}
-        loading="lazy"
-        decoding="async"
-      />
+      {/* Media canvas: supports text, photos, videos, and image carousels */}
+      {(post as any).mediaType === "text" || !post.imageUrl ? (
+        <div className="absolute inset-0 flex items-center justify-center p-8" onClick={handleDoubleTap} style={{ background: "linear-gradient(145deg, #160b22 0%, #301141 48%, #090710 100%)" }}>
+          <p className="text-white text-2xl font-black leading-tight text-center">{post.caption}</p>
+        </div>
+      ) : (post as any).mediaType === "video" ? (
+        <video src={post.imageUrl} className="absolute inset-0 w-full h-full object-cover" onClick={handleDoubleTap} autoPlay muted loop playsInline />
+      ) : (Array.isArray((post as any).mediaItems) && (post as any).mediaItems.length > 1) ? (
+        <div className="absolute inset-0 flex overflow-x-auto snap-x snap-mandatory no-scrollbar" onClick={handleDoubleTap}>
+          {(post as any).mediaItems.map((src: string, i: number) => <img key={src + i} src={src} alt={`${post.caption} ${i + 1}`} className="w-full h-full object-cover flex-shrink-0 snap-center" loading="lazy" decoding="async" />)}
+        </div>
+      ) : (
+        <img src={post.imageUrl} alt={post.caption} className="absolute inset-0 w-full h-full object-cover" onClick={handleDoubleTap} loading="lazy" decoding="async" />
+      )}
 
       {/* Gradient overlays */}
       <div
@@ -244,17 +284,22 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
         />
         <ActionBtn
           icon={<Share2 size={25} className="text-white" strokeWidth={1.8} />}
-          label={formatCount(post.shares)}
-          onClick={() => {}}
+          label={formatCount(shareCount)}
+          onClick={sharePost}
           testId="btn-share"
         />
         <ActionBtn
           icon={<Bookmark size={25} className={saved ? "fill-yellow-400 text-yellow-400" : "text-white"} strokeWidth={1.8} />}
-          label={formatCount(post.saves)}
-          onClick={() => setSaved((p) => !p)}
+          label={formatCount(saveCount)}
+          onClick={toggleSave}
           testId="btn-save"
           active={saved}
         />
+      </div>
+
+      <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(0,0,0,0.38)", backdropFilter: "blur(8px)" }}>
+        <Eye size={12} className="text-white/75" />
+        <span className="text-white/80 text-[11px] font-semibold">{formatCount(viewCount)}</span>
       </div>
 
       {/* Bottom user info */}
