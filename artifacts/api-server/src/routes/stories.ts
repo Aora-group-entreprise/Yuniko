@@ -2,7 +2,7 @@ import { Router, Request } from "express";
 import { db } from "@workspace/db";
 import { storiesTable } from "@workspace/db/schema";
 import { usersTable } from "@workspace/db/schema";
-import { eq, desc, gt } from "drizzle-orm";
+import { and, eq, desc, gt } from "drizzle-orm";
 import { authMiddleware } from "../middlewares/auth";
 
 const storiesRouter = Router();
@@ -60,6 +60,22 @@ storiesRouter.get("/stories", authMiddleware, async (_req, res) => {
       .limit(30);
 
     return res.json({ stories: rows });
+  } catch (err) {
+    return dbError(res, err);
+  }
+});
+
+// DELETE /api/stories/:id — delete own active or expired story
+storiesRouter.delete("/stories/:id", authMiddleware, async (req: Request & { userId?: number }, res) => {
+  const storyId = Number(req.params.id);
+  if (!Number.isInteger(storyId)) return res.status(400).json({ error: "Invalid story id" });
+  try {
+    const [story] = await db
+      .delete(storiesTable)
+      .where(and(eq(storiesTable.id, storyId), eq(storiesTable.userId, req.userId!)))
+      .returning({ id: storiesTable.id, userId: storiesTable.userId });
+    if (!story || story.userId !== req.userId) return res.status(404).json({ error: "Story not found" });
+    return res.json({ success: true });
   } catch (err) {
     return dbError(res, err);
   }
