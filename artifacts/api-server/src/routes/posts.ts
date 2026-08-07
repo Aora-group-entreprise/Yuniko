@@ -167,4 +167,16 @@ postsRouter.post("/posts/:id/comments", authMiddleware, async (req: AuthedReques
   } catch (err) { return dbError(res, err); }
 });
 
+postsRouter.delete("/posts/:postId/comments/:commentId", authMiddleware, async (req: AuthedRequest, res) => {
+  const postId = Number(req.params.postId);
+  const commentId = Number(req.params.commentId);
+  if (!Number.isInteger(postId) || !Number.isInteger(commentId)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const [comment] = await db.delete(commentsTable).where(and(eq(commentsTable.id, commentId), eq(commentsTable.postId, postId), eq(commentsTable.userId, req.userId!))).returning({ id: commentsTable.id });
+    if (!comment) return res.status(404).json({ error: "Comment not found" });
+    await db.update(postsTable).set({ comments: sql`GREATEST(${postsTable.comments} - 1, 0)`, updatedAt: new Date() }).where(eq(postsTable.id, postId));
+    return res.json({ success: true });
+  } catch (err) { return dbError(res, err); }
+});
+
 export default postsRouter;
