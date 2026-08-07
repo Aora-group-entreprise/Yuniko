@@ -5,7 +5,7 @@ import {
   Flag, EyeOff, WifiOff, Radio,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getFeedWithAds, type Post } from "@/data/mockData";
+import { type Post } from "@/data/mockData";
 import StoryAvatar from "@/components/StoryAvatar";
 import PostCard, { type LiveAuthor } from "@/components/PostCard";
 import BottomNav from "@/components/BottomNav";
@@ -60,8 +60,6 @@ function relativeTime(iso: string): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-const mockFeedItems = getFeedWithAds();
-
 export default function Home() {
   const [, setLocation] = useLocation();
   const { token } = useAuth();
@@ -90,7 +88,9 @@ export default function Home() {
           post: {
             id: `live_${p.id}`,
             userId: `live_${p.userId}`,
-            imageUrl: p.mediaUrl ?? `https://picsum.photos/seed/live${p.id}/600/900`,
+            imageUrl: p.mediaUrl ?? "",
+            mediaType: p.mediaType ?? "text",
+            mediaItems: p.mediaItems ? JSON.parse(p.mediaItems) : undefined,
             caption: p.caption ?? "",
             hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
             likes: p.likes ?? 0,
@@ -98,8 +98,8 @@ export default function Home() {
             shares: p.shares ?? 0,
             saves: p.saves ?? 0,
             timestamp: relativeTime(p.createdAt),
-            isLiked: false,
-            isSaved: false,
+            isLiked: Boolean(p.liked),
+            isSaved: Boolean(p.saved),
             location: p.location ?? undefined,
           } satisfies Post,
           author: {
@@ -194,11 +194,8 @@ export default function Home() {
     return () => el.removeEventListener("scroll", save);
   }, [livePosts.length]); // re-run after live posts load so DOM height is correct
 
-  // ── Merge live + mock feed ────────────────────────────────────
-  const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> = [
-    ...livePosts.map(({ post, author }) => ({ post, author })),
-    ...mockFeedItems.map((post) => ({ post })),
-  ];
+  // ── Live production feed only — no demo users or placeholder posts ──
+  const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> = livePosts.map(({ post, author }) => ({ post, author }));
 
   // ── "New posts" banner tap → refresh & scroll to top ─────────
   const handleNewPostsBanner = () => {
@@ -346,7 +343,7 @@ export default function Home() {
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
 
-          {liveStories.length === 0 && <StoryAvatar userId="u1" />}
+
         </div>
       </div>
 
@@ -400,6 +397,17 @@ export default function Home() {
         }}
         data-testid="posts-feed"
       >
+
+        {allFeedItems.length === 0 && (
+          <div className="h-full flex flex-col items-center justify-center px-8 text-center" data-testid="empty-feed">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 28px rgba(255,0,110,0.35)" }}>
+              <Globe size={26} className="text-white" />
+            </div>
+            <h2 className="text-white text-xl font-black mb-2">Your world feed is ready</h2>
+            <p className="text-white/55 text-sm leading-relaxed mb-5">Follow creators or publish the first Yuniko post from your community. Real posts appear here instantly—no sample content.</p>
+            <button onClick={() => setLocation("/create")} className="px-5 py-3 rounded-2xl text-white text-sm font-bold" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)" }}>Create a post</button>
+          </div>
+        )}
         {allFeedItems.map(({ post, author }) => (
           <div
             key={post.id}
