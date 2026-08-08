@@ -1,6 +1,6 @@
 import { Router, Request } from "express";
 import { db } from "@workspace/db";
-import { usersTable, postsTable, followsTable, notificationsTable, conversationsTable, conversationMembersTable, messagesTable } from "@workspace/db/schema";
+import { usersTable, postsTable, postEngagementsTable, followsTable, notificationsTable, conversationsTable, conversationMembersTable, messagesTable } from "@workspace/db/schema";
 import { and, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { authMiddleware } from "../middlewares/auth";
 
@@ -46,7 +46,15 @@ socialRouter.delete("/users/:id/follow", authMiddleware, async (req: AuthedReque
 });
 
 socialRouter.get("/notifications", authMiddleware, async (req: AuthedRequest, res) => {
-  try { const notifications = await db.select().from(notificationsTable).where(eq(notificationsTable.userId, req.userId!)).orderBy(desc(notificationsTable.createdAt)).limit(50); return res.json({ notifications }); } catch (err) { return dbError(res, err); }
+  try {
+    const notifications = await db.select({
+      id: notificationsTable.id, type: notificationsTable.type, postId: notificationsTable.postId, storyId: notificationsTable.storyId,
+      message: notificationsTable.message, readAt: notificationsTable.readAt, createdAt: notificationsTable.createdAt,
+      actorId: usersTable.id, actorDisplayName: usersTable.displayName, actorUsername: usersTable.username, actorAvatarUrl: usersTable.avatarUrl,
+    }).from(notificationsTable).leftJoin(usersTable, eq(notificationsTable.actorId, usersTable.id))
+      .where(eq(notificationsTable.userId, req.userId!)).orderBy(desc(notificationsTable.createdAt)).limit(50);
+    return res.json({ notifications });
+  } catch (err) { return dbError(res, err); }
 });
 socialRouter.patch("/notifications/:id/read", authMiddleware, async (req: AuthedRequest, res) => {
   const id = Number(req.params.id); if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid notification id" });
@@ -54,7 +62,21 @@ socialRouter.patch("/notifications/:id/read", authMiddleware, async (req: Authed
 });
 
 socialRouter.get("/conversations", authMiddleware, async (req: AuthedRequest, res) => {
-  try { const conversations = await db.select({ id: conversationsTable.id, updatedAt: conversationsTable.updatedAt }).from(conversationsTable).innerJoin(conversationMembersTable, eq(conversationMembersTable.conversationId, conversationsTable.id)).where(eq(conversationMembersTable.userId, req.userId!)).orderBy(desc(conversationsTable.updatedAt)).limit(50); return res.json({ conversations }); } catch (err) { return dbError(res, err); }
+  try {
+    const rows = await db.select({ id: conversationsTable.id, updatedAt: conversationsTable.updatedAt, memberUserId: conversationMembersTable.userId,
+      username: usersTable.username, displayName: usersTable.displayName, avatarUrl: usersTable.avatarUrl })
+      .from(conversationsTable).innerJoin(conversationMembersTable, eq(conversationMembersTable.conversationId, conversationsTable.id))
+      .innerJoin(usersTable, eq(usersTable.id, conversationMembersTable.userId))
+      .where(eq(conversationsTable.id, conversationMembersTable.conversationId)).orderBy(desc(conversationsTable.updatedAt)).limit(100);
+    const ids = [...new Set(rows.map(r => r.id))];
+    const conversations = await Promise.all(ids.map(async (id) => {
+      const members = rows.filter(r => r.id === id && r.memberUserId !== req.userId);
+      const other = members[0];
+      const [last] = await db.select({ body: messagesTable.body, createdAt: messagesTable.createdAt }).from(messagesTable).where(eq(messagesTable.conversationId, id)).orderBy(desc(messagesTable.createdAt)).limit(1);
+      return { id, userId: other?.memberUserId ?? 0, username: other?.username ?? "", displayName: other?.displayName ?? "Unknown", avatarUrl: other?.avatarUrl ?? null, lastMessage: last?.body ?? "", lastMessageTime: last?.createdAt ?? null, unread: 0, isOnline: false };
+    }));
+    return res.json({ conversations });
+  } catch (err) { return dbError(res, err); }
 });
 socialRouter.post("/conversations", authMiddleware, async (req: AuthedRequest, res) => {
   const otherUserId = Number(req.body?.userId); if (!Number.isInteger(otherUserId) || otherUserId === req.userId) return res.status(400).json({ error: "Invalid recipient" });
@@ -68,6 +90,20 @@ socialRouter.post("/conversations/:id/messages", authMiddleware, async (req: Aut
   const id = Number(req.params.id); if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid conversation id" });
   const { body, mediaUrl, kind } = req.body as { body?: string; mediaUrl?: string; kind?: string }; if (!body?.trim() && !mediaUrl) return res.status(400).json({ error: "Message text or media required" });
   try { const [member] = await db.select().from(conversationMembersTable).where(and(eq(conversationMembersTable.conversationId, id), eq(conversationMembersTable.userId, req.userId!))).limit(1); if (!member) return res.status(404).json({ error: "Conversation not found" }); const [message] = await db.insert(messagesTable).values({ conversationId: id, senderId: req.userId!, body: body?.trim() ?? "", mediaUrl: mediaUrl ?? null, kind: kind ?? (mediaUrl ? "image" : "text") }).returning(); await db.update(conversationsTable).set({ updatedAt: new Date() }).where(eq(conversationsTable.id, id)); return res.status(201).json({ message }); } catch (err) { return dbError(res, err); }
+});
+
+socialRouter.get("/users/:id/followers", authMiddleware, async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  try { const users = await db.select(publicUser).from(followsTable).innerJoin(usersTable, eq(usersTable.id, followsTable.followerId)).where(eq(followsTable.followingId, id)).orderBy(desc(followsTable.createdAt)).limit(100); return res.json({ users }); } catch (err) { return dbError(res, err); }
+});
+
+socialRouter.get("/users/:id/following", authMiddleware, async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  try { const users = await db.select(publicUser).from(followsTable).innerJoin(usersTable, eq(usersTable.id, followsTable.followingId)).where(eq(followsTable.followerId, id)).orderBy(desc(followsTable.createdAt)).limit(100); return res.json({ users }); } catch (err) { return dbError(res, err); }
+});
+
+socialRouter.get("/posts/saved", authMiddleware, async (req: AuthedRequest, res) => {
+  try { const rows = await db.select().from(postsTable).innerJoin(postEngagementsTable, eq(postEngagementsTable.postId, postsTable.id)).where(and(eq(postEngagementsTable.userId, req.userId!), eq(postEngagementsTable.saved, true))).orderBy(desc(postsTable.createdAt)).limit(100); return res.json({ posts: rows.map(r => r.posts) }); } catch (err) { return dbError(res, err); }
 });
 
 export default socialRouter;
