@@ -1,5 +1,4 @@
 import { useLocation } from "wouter";
-import { getUserById } from "@/data/mockData";
 import { useAuth } from "@/lib/auth-context";
 import { Plus } from "lucide-react";
 import { motion } from "framer-motion";
@@ -10,12 +9,12 @@ interface StoryAvatarProps {
   isOwn?: boolean;
   viewed?: boolean;
   label?: string;
+  avatarUrl?: string | null;
 }
 
-export default function StoryAvatar({ userId, isOwn = false, viewed = false, label }: StoryAvatarProps) {
+export default function StoryAvatar({ userId, isOwn = false, viewed = false, label, avatarUrl }: StoryAvatarProps) {
   const [, setLocation] = useLocation();
   const { user: authUser } = useAuth();
-  const mockUser = isOwn ? null : getUserById(userId);
 
   const handleClick = () => {
     if (isOwn) {
@@ -25,14 +24,13 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
     }
   };
 
-  const displayName = isOwn ? t("yourStory") : (label ?? mockUser?.displayName ?? "");
+  const displayName = isOwn ? t("yourStory") : (label ?? "");
 
-  // For own avatar: use the real authenticated user's avatar
   const ownAvatarSrc =
     authUser?.avatarUrl ??
     `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "U")}&backgroundColor=FF006E`;
 
-  const avatarUrl = isOwn ? ownAvatarSrc : (mockUser?.avatar ?? "");
+  const resolvedAvatarUrl = isOwn ? ownAvatarSrc : (avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName || userId)}&backgroundColor=FF006E`);
 
   return (
     <motion.button
@@ -56,32 +54,16 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
                 }
           }
         >
-          <img
-            src={avatarUrl}
-            alt={displayName}
-            className="w-full h-full rounded-full object-cover"
-            style={{ border: "2px solid #0D0B14" }}
-            loading="lazy"
-          />
+          <img src={resolvedAvatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" style={{ border: "2px solid #0D0B14" }} loading="lazy" />
         </div>
         {isOwn && (
-          <div
-            className="absolute bottom-0 right-0 w-[18px] h-[18px] rounded-full flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", border: "2px solid #0D0B14" }}
-          >
+          <div className="absolute bottom-0 right-0 w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", border: "2px solid #0D0B14" }}>
             <Plus size={9} className="text-white" strokeWidth={3} />
           </div>
         )}
-        {!isOwn && mockUser?.isOnline && (
-          <div
-            className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-green-400"
-            style={{ border: "1.5px solid #0D0B14" }}
-          />
-        )}
+        {false && <div className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-green-400" style={{ border: "1.5px solid #0D0B14" }} />}
       </div>
-      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">
-        {displayName}
-      </span>
+      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">{displayName}</span>
     </motion.button>
   );
 }
