@@ -3,3 +3,4 @@ export * from "./posts";
 export * from "./stories";
 export * from "./comments";
 export * from "./social";
+export * from "./story-engagements";
