@@ -6,7 +6,7 @@ import storiesRouter from "./stories";
 import callsRouter from "./calls";
 import socialRouter from "./social";
 import platformEnhancementsRouter from "./platform-enhancements";
-
+import liveStreamRouter from "./live-stream";
 const router: IRouter = Router();
 router.use(healthRouter);
 router.use(authRouter);
@@ -15,4 +15,5 @@ router.use(storiesRouter);
 router.use(callsRouter);
 router.use(socialRouter);
 router.use(platformEnhancementsRouter);
+router.use(liveStreamRouter);
 export default router;
