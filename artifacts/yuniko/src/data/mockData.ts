@@ -1,8 +1,7 @@
 /**
- * Legacy shared UI types only.
+ * Shared domain types used by legacy UI boundaries.
  *
- * This module intentionally contains no users, posts, stories, conversations,
- * notifications, or other runtime mock data. Real screens must use /api data.
+ * This module contains no runtime mock data. Real screens must use /api data.
  */
 export interface User { id:string; username:string; displayName:string; avatar:string; bio:string; location:string; flag:string; verified:boolean; followers:number; following:number; posts:number; isOnline:boolean; coverPhoto:string; isFollowing:boolean; isFriend:boolean; website?:string; }
 export interface Story { id:string; userId:string; imageUrl:string; timestamp:string; viewed:boolean; }
@@ -11,4 +10,3 @@ export interface Comment { id:string|number; userId:string|number; postId:string
 export interface Message { id:string|number; senderId:string|number; text?:string; imageUrl?:string; voiceUrl?:string; timestamp:string; read:boolean; reactions:string[]; type:"text"|"image"|"voice"; }
 export interface Conversation { id:string|number; userId:string|number; lastMessage:string; lastMessageTime:string; unread:number; isOnline:boolean; }
 export interface Notification { id:string|number; type:"like"|"comment"|"follow"|"story_reply"|"mention"|"tag"; userId:string|number; postId?:string|number; text:string; timestamp:string; read:boolean; }
-export function formatCount(count:number):string { if(count>=1_000_000)return `${(count/1_000_000).toFixed(1)}M`; if(count>=1_000)return `${(count/1_000).toFixed(1)}K`; return String(count); }

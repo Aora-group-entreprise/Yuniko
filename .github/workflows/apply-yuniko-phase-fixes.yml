@@ -1,0 +1,44 @@
+name: apply-yuniko-phase-fixes
+on:
+  push:
+    branches: [fix/yuniko-p0-p1-mocks-and-feed]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply remaining UI cleanup
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('.')
+          p=root/'artifacts/yuniko/src/components/PostCard.tsx'; s=p.read_text()
+          s=s.replace('import { Post, getUserById, formatCount } from "@/data/mockData";','import { Post } from "@/data/mockData";')
+          s=s.replace('  const mockUser = !liveAuthor ? getUserById(post.userId) : null;\n  const numericId = dbId(post.id);','  const numericId = dbId(post.id);\n  const formatCount = (count:number) => count >= 1_000_000 ? `${(count/1_000_000).toFixed(1)}M` : count >= 1_000 ? `${(count/1_000).toFixed(1)}K` : String(count);')
+          old='''  const author: LiveAuthor | null = liveAuthor ?? (\n    mockUser\n      ? {\n          displayName: mockUser.displayName,\n          username: (mockUser as any).username ?? mockUser.displayName,\n          avatarUrl: mockUser.avatar,\n          verified: mockUser.verified,\n          isFollowing: mockUser.isFollowing,\n        }\n      : null\n  );'''
+          s=s.replace(old,'  const author: LiveAuthor | null = liveAuthor ?? null;')
+          s=s.replace('if (!numericId) return; // mock post — sheet opens but empty','if (!numericId) return;')
+          p.write_text(s)
+          p=root/'artifacts/yuniko/src/pages/home.tsx'; s=p.read_text()
+          if 'import { apiFetch } from "@/lib/api";' not in s: s=s.replace('import { useAuth } from "@/lib/auth-context";','import { useAuth } from "@/lib/auth-context";\nimport { apiFetch } from "@/lib/api";')
+          marker='  const [newPostsBadge, setNewPostsBadge] = useState(0);'
+          if 'const selectedPostId = optionsPostId?.startsWith' not in s:
+            s=s.replace(marker,marker+'''\n\n  const selectedPostId = optionsPostId?.startsWith("live_") ? Number(optionsPostId.slice(5)) : NaN;\n  const closeOptions = () => setOptionsPostId(null);\n  const saveSelectedPost = async () => { if (!Number.isFinite(selectedPostId)) return closeOptions(); await apiFetch(`/posts/${selectedPostId}/save`, { method: "POST" }).catch(() => {}); closeOptions(); };\n  const shareSelectedPost = async () => { if (!optionsPostId || !Number.isFinite(selectedPostId)) return closeOptions(); const url = `${window.location.origin}/post/${selectedPostId}`; if (navigator.share) await navigator.share({ title: "Yuniko post", url }).catch(() => undefined); else await navigator.clipboard?.writeText(url).catch(() => undefined); await apiFetch(`/posts/${selectedPostId}/share`, { method: "POST" }).catch(() => {}); closeOptions(); };\n  const reportSelectedPost = async () => { if (!Number.isFinite(selectedPostId)) return closeOptions(); await apiFetch(`/posts/${selectedPostId}/report`, { method: "POST" }).catch(() => {}); closeOptions(); };\n  const hideSelectedPost = () => { if (optionsPostId) setLivePosts(prev => prev.filter(x => x.post.id !== optionsPostId)); closeOptions(); };''')
+          s=s.replace('{["World Feed", "Friends Feed", "Following"].map((item) => (','{["World Feed"].map((item) => (')
+          old='''              {[\n                { icon: <Bookmark size={18} />, label: t("savePost") },\n                { icon: <Share2 size={18} />, label: t("sharePost") },\n                { icon: <EyeOff size={18} />, label: t("hide") },\n                { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span> },\n              ].map((item, i) => (\n                <button\n                  key={i}\n                  onClick={() => setOptionsPostId(null)}\n                  className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium"\n                  style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}\n                >\n                  {item.icon}{item.label}\n                </button>\n              ))}'''
+          new='''              <button onClick={saveSelectedPost} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><Bookmark size={18} />{t("savePost")}</button>\n              <button onClick={shareSelectedPost} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><Share2 size={18} />{t("sharePost")}</button>\n              <button onClick={hideSelectedPost} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><EyeOff size={18} />{t("hide")}</button>\n              <button onClick={reportSelectedPost} className="w-full flex items-center gap-3 px-5 py-4 text-red-400 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><Flag size={18} />{t("report")}</button>'''
+          s=s.replace(old,new)
+          p.write_text(s)
+          p=root/'artifacts/yuniko/src/pages/live.tsx'; s=p.read_text(); s=s.replace('body: JSON.stringify({ peerId: peerIdRef.current }))','body: JSON.stringify({ peerId: peerIdRef.current }) })'); p.write_text(s)
+          PY
+      - name: Commit patches
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add artifacts/yuniko/src/components/PostCard.tsx artifacts/yuniko/src/pages/home.tsx artifacts/yuniko/src/pages/live.tsx
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'fix(feed): remove remaining mock author dependency and wire post actions'
+          git push
