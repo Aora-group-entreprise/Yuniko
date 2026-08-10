@@ -1,7 +1,7 @@
 name: apply-yuniko-phase-fixes
 on:
   push:
-    branches: [fix/yuniko-p0-p1-mocks-and-feed]
+    branches: [fix/yuniko-phase-p0-live-feed]
 permissions:
   contents: write
 jobs:
