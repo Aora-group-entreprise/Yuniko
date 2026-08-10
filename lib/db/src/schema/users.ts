@@ -13,15 +13,12 @@ export const usersTable = pgTable("users", {
   avatarUrl: text("avatar_url"),
   bio: text("bio").default("").notNull(),
   website: text("website"),
+  verificationStatus: text("verification_status").default("none").notNull(),
+  verificationRequestedAt: timestamp("verification_requested_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(usersTable).omit({
-  id: true,
-  passwordHash: true,
-  createdAt: true,
-});
-
+export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, passwordHash: true, createdAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
 export type PublicUser = Omit<User, "passwordHash">;

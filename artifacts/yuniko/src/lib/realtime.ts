@@ -1,0 +1,5 @@
+export type RealtimeEvent<T=unknown>={type:string;data:T};
+export function openRealtime(path:string,onEvent:(event:RealtimeEvent)=>void){const token=localStorage.getItem("yuniko_token");const url=new URL(`/api${path}`,window.location.origin);if(token)url.searchParams.set("token",token);const source=new EventSource(url.toString());const handler=(event:MessageEvent)=>{try{onEvent({type:event.type||"message",data:JSON.parse(event.data)})}catch{}};source.onmessage=handler;source.addEventListener("messages",handler);source.addEventListener("notifications",handler);source.addEventListener("posts",handler);return()=>source.close()}
+export function subscribeToChat(conversationId:number,onMessage:(data:unknown)=>void){return openRealtime(`/conversations/${conversationId}/stream`,e=>onMessage(e.data))}
+export function subscribeToNotifications(onNotification:(data:unknown)=>void){return openRealtime("/notifications/stream",e=>onNotification(e.data))}
+export function subscribeToFeed(onPost:(data:unknown)=>void){return openRealtime("/feed/stream",e=>onPost(e.data))}

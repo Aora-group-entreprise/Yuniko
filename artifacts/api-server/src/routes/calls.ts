@@ -1,21 +1,12 @@
 import { Router, Request } from "express";
+import { and, desc, eq, gt } from "drizzle-orm";
+import { db } from "@workspace/db";
+import { callsTable, callSignalsTable, usersTable } from "@workspace/db/schema";
 import { authMiddleware } from "../middlewares/auth";
-
-const callsRouter = Router();
-type AuthedRequest = Request & { userId?: number };
-
-// Lightweight call-signaling placeholder. Media must still be negotiated with WebRTC on the client.
-callsRouter.post("/calls/session", authMiddleware, async (req: AuthedRequest, res) => {
-  const targetUserId = Number(req.body?.targetUserId);
-  const kind = req.body?.kind === "video" ? "video" : "voice";
-  if (!Number.isInteger(targetUserId) || targetUserId === req.userId) return res.status(400).json({ error: "Invalid target user" });
-  return res.status(201).json({ call: { id: `call_${Date.now()}_${req.userId}`, callerId: req.userId, targetUserId, kind, status: "ringing", createdAt: new Date().toISOString() } });
-});
-
-callsRouter.post("/calls/:id/signal", authMiddleware, async (req: AuthedRequest, res) => {
-  const signal = req.body?.signal;
-  if (!signal) return res.status(400).json({ error: "Signal required" });
-  return res.json({ accepted: true, callId: req.params.id, fromUserId: req.userId, signal });
-});
-
-export default callsRouter;
+const router=Router(); type R=Request&{userId?:number};
+router.post("/calls/session",authMiddleware,async(req:R,res)=>{try{const targetUserId=Number(req.body?.targetUserId),kind=req.body?.kind==="video"?"video":"voice";if(!Number.isInteger(targetUserId)||targetUserId===req.userId)return res.status(400).json({error:"Invalid target user"});const id=`call_${Date.now()}_${req.userId}_${targetUserId}`;const [call]=await db.insert(callsTable).values({id,callerId:req.userId!,targetUserId,kind,status:"ringing"}).returning();return res.status(201).json({call})}catch(e){console.error(e);return res.status(500).json({error:"Server error"})}});
+router.get("/calls/history",authMiddleware,async(req:R,res)=>{try{const rows=await db.select({id:callsTable.id,callerId:callsTable.callerId,targetUserId:callsTable.targetUserId,kind:callsTable.kind,status:callsTable.status,startedAt:callsTable.startedAt,endedAt:callsTable.endedAt,createdAt:callsTable.createdAt,callerUsername:usersTable.username,callerDisplayName:usersTable.displayName,callerAvatar:usersTable.avatarUrl}).from(callsTable).innerJoin(usersTable,eq(usersTable.id,callsTable.callerId)).where(and(eq(callsTable.callerId,req.userId!))).orderBy(desc(callsTable.createdAt)).limit(100);const incoming=await db.select({id:callsTable.id,callerId:callsTable.callerId,targetUserId:callsTable.targetUserId,kind:callsTable.kind,status:callsTable.status,startedAt:callsTable.startedAt,endedAt:callsTable.endedAt,createdAt:callsTable.createdAt,callerUsername:usersTable.username,callerDisplayName:usersTable.displayName,callerAvatar:usersTable.avatarUrl}).from(callsTable).innerJoin(usersTable,eq(usersTable.id,callsTable.callerId)).where(and(eq(callsTable.targetUserId,req.userId!))).orderBy(desc(callsTable.createdAt)).limit(100);return res.json({calls:[...rows,...incoming].sort((a,b)=>+new Date(b.createdAt)-+new Date(a.createdAt)).slice(0,100)})}catch(e){console.error(e);return res.status(500).json({error:"Server error"})}});
+router.get("/calls/:id/signals",authMiddleware,async(req:R,res)=>{try{const after=Number(req.query.after??0),[call]=await db.select().from(callsTable).where(eq(callsTable.id,req.params.id));if(!call||(call.callerId!==req.userId&&call.targetUserId!==req.userId))return res.status(404).json({error:"Call not found"});const signals=await db.select().from(callSignalsTable).where(and(eq(callSignalsTable.callId,req.params.id),gt(callSignalsTable.id,Number.isFinite(after)?after:0))).orderBy(callSignalsTable.id).limit(100);return res.json({signals})}catch(e){console.error(e);return res.status(500).json({error:"Server error"})}});
+router.post("/calls/:id/signal",authMiddleware,async(req:R,res)=>{try{const [call]=await db.select().from(callsTable).where(eq(callsTable.id,req.params.id));if(!call||(call.callerId!==req.userId&&call.targetUserId!==req.userId))return res.status(404).json({error:"Call not found"});if(!req.body?.signal)return res.status(400).json({error:"Signal required"});const [row]=await db.insert(callSignalsTable).values({callId:req.params.id,senderId:req.userId!,type:String(req.body.type??"candidate"),payload:JSON.stringify(req.body.signal)}).returning();return res.status(201).json({accepted:true,signal:row})}catch(e){console.error(e);return res.status(500).json({error:"Server error"})}});
+router.patch("/calls/:id",authMiddleware,async(req:R,res)=>{try{const status=req.body?.status;if(!["ringing","connecting","active","ended","rejected"].includes(status))return res.status(400).json({error:"Invalid call status"});const [call]=await db.select().from(callsTable).where(eq(callsTable.id,req.params.id));if(!call||(call.callerId!==req.userId&&call.targetUserId!==req.userId))return res.status(404).json({error:"Call not found"});const [updated]=await db.update(callsTable).set({status,startedAt:status==="active"?new Date():call.startedAt,endedAt:["ended","rejected"].includes(status)?new Date():call.endedAt}).where(eq(callsTable.id,req.params.id)).returning();return res.json({call:updated})}catch(e){console.error(e);return res.status(500).json({error:"Server error"})}});
+export default router;
