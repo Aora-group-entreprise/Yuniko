@@ -19,6 +19,7 @@ export const postsTable = pgTable("posts", {
   reports: integer("reports").default(0).notNull(),
   viralScore: integer("viral_score").default(0).notNull(),
   distributionTier: integer("distribution_tier").default(0).notNull(),
+  distributionCountries: text("distribution_countries").default("[]").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
