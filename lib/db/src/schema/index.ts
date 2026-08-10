@@ -7,3 +7,4 @@ export * from "./story-engagements";
 export * from "./calls";
 export * from "./live";
 export * from "./feedback";
+export * from "./user-settings";
