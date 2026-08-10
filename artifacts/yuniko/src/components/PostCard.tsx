@@ -5,7 +5,7 @@ import {
   MoreHorizontal, Sparkles, ExternalLink, X, Send, Eye,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Post, getUserById, formatCount } from "@/data/mockData";
+import { Post } from "@/data/mockData";
 import { apiFetch } from "@/lib/api";
 import { t } from "@/lib/i18n";
 
@@ -53,20 +53,10 @@ function relativeTime(iso: string): string {
 
 export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps) {
   const [, setLocation] = useLocation();
-  const mockUser = !liveAuthor ? getUserById(post.userId) : null;
   const numericId = dbId(post.id);
+  const formatCount = (count:number) => count >= 1_000_000 ? `${(count/1_000_000).toFixed(1)}M` : count >= 1_000 ? `${(count/1_000).toFixed(1)}K` : String(count);
 
-  const author: LiveAuthor | null = liveAuthor ?? (
-    mockUser
-      ? {
-          displayName: mockUser.displayName,
-          username: (mockUser as any).username ?? mockUser.displayName,
-          avatarUrl: mockUser.avatar,
-          verified: mockUser.verified,
-          isFollowing: mockUser.isFollowing,
-        }
-      : null
-  );
+  const author: LiveAuthor | null = liveAuthor ?? null;
 
   // ── Likes ──
   const [liked, setLiked] = useState(post.isLiked);
@@ -154,7 +144,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
 
   const openComments = useCallback(async () => {
     setShowComments(true);
-    if (!numericId) return; // mock post — sheet opens but empty
+    if (!numericId) return;
     setCommentsLoading(true);
     try {
       const res = await apiFetch(`/posts/${numericId}/comments`);
