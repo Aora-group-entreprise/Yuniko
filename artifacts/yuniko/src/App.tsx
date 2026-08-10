@@ -3,8 +3,8 @@ import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme";
-import { motion, AnimatePresence } from "framer-motion";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { motion, AnimatePresence } from "framer-motion";
 
 import SplashScreen from "@/components/SplashScreen";
 import Home from "@/pages/home";
@@ -50,17 +50,74 @@ function isTabRoot(path: string) {
 }
 
 const slideVariants = {
-  enterForward:  { x: "100%", opacity: 1 },
-  enterBack:     { x: "-100%", opacity: 1 },
-  center:        { x: 0, opacity: 1 },
-  exitForward:   { x: "-100%", opacity: 1 },
-  exitBack:      { x: "100%", opacity: 1 },
-  instant:       { x: 0, opacity: 1 },
+  enterForward: { x: "100%", opacity: 1 },
+  enterBack: { x: "-100%", opacity: 1 },
+  center: { x: 0, opacity: 1 },
+  exitForward: { x: "-100%", opacity: 1 },
+  exitBack: { x: "100%", opacity: 1 },
+  instant: { x: 0, opacity: 1 },
 };
+
+function VerifyAccount() {
+  const { token } = useAuth();
+  const [status, setStatus] = useState<"idle" | "pending" | "error">("idle");
+  const [loading, setLoading] = useState(false);
+
+  const requestVerification = async () => {
+    if (!token || loading || status === "pending") return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/account/verify", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Verification request failed");
+      setStatus("pending");
+    } catch (error) {
+      console.error("Verification request failed", error);
+      setStatus("error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center px-6">
+      <div className="text-center">
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
+          style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 40px rgba(255,0,110,0.4)" }}
+        >
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <h2 className="text-white font-bold text-xl mb-2">Verify Account</h2>
+        <p className="text-white/50 text-sm mb-6 leading-relaxed">
+          Verification helps your followers know your account is authentic.
+        </p>
+        {status === "pending" ? (
+          <p className="text-white/70 text-sm font-semibold">Verification request submitted.</p>
+        ) : (
+          <>
+            <button
+              onClick={requestVerification}
+              disabled={loading || !token}
+              className="px-6 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 4px 16px rgba(255,0,110,0.4)" }}
+            >
+              {loading ? "Sending..." : "Request Verification"}
+            </button>
+            {status === "error" && <p className="text-red-400 text-xs mt-3">Unable to submit the request. Please try again.</p>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AnimatedRoutes() {
   const [location] = useLocation();
-
   const historyRef = useRef<string[]>([location]);
   const prevLocationRef = useRef(location);
   const directionRef = useRef<"forward" | "back" | "instant">("instant");
@@ -68,7 +125,6 @@ function AnimatedRoutes() {
   if (location !== prevLocationRef.current) {
     const history = historyRef.current;
     const prevIdx = history.slice(0, -1).lastIndexOf(location);
-
     if (isTabRoot(location) || location === "/login") {
       directionRef.current = "instant";
       historyRef.current = [location];
@@ -79,22 +135,12 @@ function AnimatedRoutes() {
       directionRef.current = "forward";
       historyRef.current = [...history, location];
     }
-
     prevLocationRef.current = location;
   }
 
   const direction = directionRef.current;
-
-  const getInitial = () => {
-    if (direction === "instant") return "instant";
-    return direction === "forward" ? "enterForward" : "enterBack";
-  };
-
-  const getExit = () => {
-    if (direction === "instant") return "instant";
-    return direction === "forward" ? "exitForward" : "exitBack";
-  };
-
+  const getInitial = () => direction === "instant" ? "instant" : direction === "forward" ? "enterForward" : "enterBack";
+  const getExit = () => direction === "instant" ? "instant" : direction === "forward" ? "exitForward" : "exitBack";
   const transitionDuration = direction === "instant" ? 0 : 0.22;
 
   return (
@@ -110,102 +156,42 @@ function AnimatedRoutes() {
           style={{ width: "100%", minHeight: "100dvh", willChange: direction === "instant" ? "auto" : "transform" }}
         >
           <Switch>
-            {/* Auth */}
             <Route path="/login" component={Login} />
-
-            {/* Main tabs */}
             <Route path="/" component={Home} />
             <Route path="/notifications" component={Notifications} />
             <Route path="/create" component={Create} />
             <Route path="/messages" component={Messages} />
-            <Route path="/profile">
-              {() => <Profile />}
-            </Route>
-
-            {/* Settings */}
+            <Route path="/profile">{() => <Profile />}</Route>
             <Route path="/settings" component={Settings} />
             <Route path="/settings/privacy" component={SettingsPrivacy} />
             <Route path="/settings/security" component={SettingsSecurity} />
             <Route path="/settings/storage" component={SettingsStorage} />
             <Route path="/settings/about" component={SettingsAbout} />
-            <Route path="/settings/account">
-              {() => <EditProfile />}
-            </Route>
-
-            {/* Profile pages */}
+            <Route path="/settings/account">{() => <EditProfile />}</Route>
             <Route path="/profile/edit" component={EditProfile} />
-            <Route path="/user/:userId">
-              {(params) => <Profile userId={params.userId} />}
-            </Route>
-            <Route path="/followers/:userId">
-              {() => <Followers mode="followers" />}
-            </Route>
-            <Route path="/following/:userId">
-              {() => <Followers mode="following" />}
-            </Route>
-
-            {/* Content */}
+            <Route path="/user/:userId">{(params) => <Profile userId={params.userId} />}</Route>
+            <Route path="/followers/:userId">{() => <Followers mode="followers" />}</Route>
+            <Route path="/following/:userId">{() => <Followers mode="following" />}</Route>
             <Route path="/post/:postId" component={PostDetail} />
             <Route path="/saved" component={Saved} />
             <Route path="/hashtag/:tag" component={Hashtag} />
             <Route path="/search" component={Search} />
-
-            {/* Social */}
             <Route path="/add-friends" component={AddFriends} />
-
-            {/* Messaging */}
             <Route path="/chat/:userId" component={Chat} />
             <Route path="/message-requests" component={MessageRequests} />
             <Route path="/archived-chats" component={ArchivedChats} />
             <Route path="/call-history" component={CallHistory} />
-
-            {/* Calls */}
             <Route path="/video-call" component={VideoCall} />
             <Route path="/video-call/:userId" component={VideoCall} />
             <Route path="/voice-call" component={VoiceCall} />
             <Route path="/voice-call/:userId" component={VoiceCall} />
-
-            {/* Stories */}
             <Route path="/story/:userId" component={Story} />
-
-            {/* Live */}
             <Route path="/live" component={Live} />
-
-            {/* Account */}
             <Route path="/blocked-users" component={BlockedUsers} />
             <Route path="/account/delete" component={DeleteAccount} />
-            <Route path="/account/verify">
-              {() => (
-                <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center px-6">
-                  <div className="text-center">
-                    <div
-                      className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
-                      style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 40px rgba(255,0,110,0.4)" }}
-                    >
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                    <h2 className="text-white font-bold text-xl mb-2">Verify Account</h2>
-                    <p className="text-white/50 text-sm mb-6 leading-relaxed">
-                      Verification helps your followers know your account is authentic.
-                    </p>
-                    <button
-                      className="px-6 py-3 rounded-2xl text-sm font-bold text-white"
-                      style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 4px 16px rgba(255,0,110,0.4)" }}
-                    >
-                      Request Verification
-                    </button>
-                  </div>
-                </div>
-              )}
-            </Route>
-
-            {/* Support */}
+            <Route path="/account/verify" component={VerifyAccount} />
             <Route path="/help" component={Help} />
             <Route path="/feedback" component={Feedback} />
-
-            {/* Fallback */}
             <Route component={NotFound} />
           </Switch>
         </motion.div>
@@ -214,22 +200,17 @@ function AnimatedRoutes() {
   );
 }
 
-// Inner component — has access to AuthProvider context
 function AppContent() {
   const [splashDone, setSplashDone] = useState(false);
   const { user, isLoading } = useAuth();
   const [location, navigate] = useLocation();
 
-  // After splash + auth resolution: redirect if needed
   useEffect(() => {
     if (!splashDone || isLoading) return;
     const onAuthPage = location === "/login";
-    if (!user && !onAuthPage) {
-      navigate("/login");
-    } else if (user && onAuthPage) {
-      navigate("/");
-    }
-  }, [splashDone, isLoading, user, location]);
+    if (!user && !onAuthPage) navigate("/login");
+    else if (user && onAuthPage) navigate("/");
+  }, [splashDone, isLoading, user, location, navigate]);
 
   return (
     <>
@@ -246,9 +227,7 @@ export default function App() {
         <ThemeProvider>
           <AuthProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <div className="yuniko-root">
-                <AppContent />
-              </div>
+              <div className="yuniko-root"><AppContent /></div>
             </WouterRouter>
           </AuthProvider>
         </ThemeProvider>
