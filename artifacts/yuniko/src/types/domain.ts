@@ -1,0 +1,7 @@
+export interface User { id:string; username:string; displayName:string; avatar:string; bio:string; location:string; flag:string; verified:boolean; followers:number; following:number; posts:number; isOnline:boolean; coverPhoto:string; isFollowing:boolean; isFriend:boolean; website?:string; }
+export interface Story { id:string; userId:string; imageUrl:string; timestamp:string; viewed:boolean; }
+export interface Post { id:string|number; userId:string|number; imageUrl:string; mediaType?:"image"|"video"|"carousel"|"text"; mediaItems?:string[]; views?:number; caption:string; hashtags:string[]; likes:number; comments:number; shares:number; saves:number; timestamp:string; isLiked:boolean; isSaved:boolean; location?:string; isVideo?:boolean; isSponsored?:boolean; sponsorCta?:string; }
+export interface Comment { id:string|number; userId:string|number; postId:string|number; text:string; timestamp:string; likes:number; }
+export interface Message { id:string|number; senderId:string|number; text?:string; imageUrl?:string; voiceUrl?:string; timestamp:string; read:boolean; reactions:string[]; type:"text"|"image"|"voice"; }
+export interface Conversation { id:string|number; userId:string|number; lastMessage:string; lastMessageTime:string; unread:number; isOnline:boolean; }
+export interface Notification { id:string|number; type:"like"|"comment"|"follow"|"story_reply"|"mention"|"tag"; userId:string|number; postId?:string|number; text:string; timestamp:string; read:boolean; }
