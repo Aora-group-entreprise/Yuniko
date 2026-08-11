@@ -6,5 +6,6 @@ export * from "./social";
 export * from "./story-engagements";
 export * from "./calls";
 export * from "./live";
+export * from "./live-engagements";
 export * from "./feedback";
 export * from "./user-settings";
