@@ -11,6 +11,7 @@ import PostCard, { type LiveAuthor } from "@/components/PostCard";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
+import { apiFetch } from "@/lib/api";
 
 const HEADER_H = 56;
 const STORIES_H = 78;
@@ -71,6 +72,13 @@ export default function Home() {
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
   const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
   const [newPostsBadge, setNewPostsBadge] = useState(0);
+
+  const selectedPostId = optionsPostId?.startsWith("live_") ? Number(optionsPostId.slice(5)) : NaN;
+  const closeOptions = () => setOptionsPostId(null);
+  const saveSelectedPost = async () => { if (!Number.isFinite(selectedPostId)) return closeOptions(); await apiFetch(`/posts/${selectedPostId}/save`, { method: "POST" }).catch(() => {}); closeOptions(); };
+  const shareSelectedPost = async () => { if (!optionsPostId || !Number.isFinite(selectedPostId)) return closeOptions(); const url = `${window.location.origin}/post/${selectedPostId}`; if (navigator.share) await navigator.share({ title: "Yuniko post", url }).catch(() => undefined); else await navigator.clipboard?.writeText(url).catch(() => undefined); await apiFetch(`/posts/${selectedPostId}/share`, { method: "POST" }).catch(() => {}); closeOptions(); };
+  const reportSelectedPost = async () => { if (!Number.isFinite(selectedPostId)) return closeOptions(); await apiFetch(`/posts/${selectedPostId}/report`, { method: "POST" }).catch(() => {}); closeOptions(); };
+  const hideSelectedPost = () => { if (optionsPostId) setLivePosts(prev => prev.filter(x => x.post.id !== optionsPostId)); closeOptions(); };
 
   // ── Fetch live data from API ──────────────────────────────────
   const fetchFeed = useCallback(
@@ -285,7 +293,7 @@ export default function Home() {
                 boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
               }}
             >
-              {["World Feed", "Friends Feed", "Following"].map((item) => (
+              {["World Feed"].map((item) => (
                 <button
                   key={item}
                   onClick={() => setWorldFeedOpen(false)}
@@ -459,21 +467,10 @@ export default function Home() {
               style={{ background: "rgba(16,12,28,0.98)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <div className="w-10 h-1 rounded-full bg-white/18 mx-auto mt-3 mb-4" />
-              {[
-                { icon: <Bookmark size={18} />, label: t("savePost") },
-                { icon: <Share2 size={18} />, label: t("sharePost") },
-                { icon: <EyeOff size={18} />, label: t("hide") },
-                { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span> },
-              ].map((item, i) => (
-                <button
-                  key={i}
-                  onClick={() => setOptionsPostId(null)}
-                  className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
-                >
-                  {item.icon}{item.label}
-                </button>
-              ))}
+              <button onClick={saveSelectedPost} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><Bookmark size={18} />{t("savePost")}</button>
+              <button onClick={shareSelectedPost} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><Share2 size={18} />{t("sharePost")}</button>
+              <button onClick={hideSelectedPost} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><EyeOff size={18} />{t("hide")}</button>
+              <button onClick={reportSelectedPost} className="w-full flex items-center gap-3 px-5 py-4 text-red-400 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><Flag size={18} />{t("report")}</button>
               <button
                 onClick={() => setOptionsPostId(null)}
                 className="w-full py-4 text-white/45 text-sm font-medium"
