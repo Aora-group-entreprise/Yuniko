@@ -1,8 +1,3 @@
-/**
- * Shared domain types used by legacy UI boundaries.
- *
- * This module contains no runtime mock data. Real screens must use /api data.
- */
 export interface User { id:string; username:string; displayName:string; avatar:string; bio:string; location:string; flag:string; verified:boolean; followers:number; following:number; posts:number; isOnline:boolean; coverPhoto:string; isFollowing:boolean; isFriend:boolean; website?:string; }
 export interface Story { id:string; userId:string; imageUrl:string; timestamp:string; viewed:boolean; }
 export interface Post { id:string|number; userId:string|number; imageUrl:string; mediaType?:"image"|"video"|"carousel"|"text"; mediaItems?:string[]; views?:number; caption:string; hashtags:string[]; likes:number; comments:number; shares:number; saves:number; timestamp:string; isLiked:boolean; isSaved:boolean; location?:string; isVideo?:boolean; isSponsored?:boolean; sponsorCta?:string; }
