@@ -36,6 +36,14 @@ export function assertLiveEnabled() {
   }
 }
 
+export function assertSfuEnabled() {
+  if (!getVideoFeatureConfig().sfuEnabled) {
+    const error = new Error("Live SFU is not enabled");
+    (error as Error & { statusCode?: number }).statusCode = 503;
+    throw error;
+  }
+}
+
 export function isLiveRecordingEnabled() {
   return getVideoFeatureConfig().liveRecordingEnabled;
 }
