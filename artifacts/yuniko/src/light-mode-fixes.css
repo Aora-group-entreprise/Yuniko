@@ -1,0 +1,36 @@
+/* Yuniko light-mode contrast fixes. */
+:root:not(.dark) .text-white { color: hsl(var(--foreground)) !important; }
+:root:not(.dark) .text-white\/90 { color: hsl(var(--foreground) / 0.90) !important; }
+:root:not(.dark) .text-white\/80 { color: hsl(var(--foreground) / 0.80) !important; }
+:root:not(.dark) .text-white\/70 { color: hsl(var(--foreground) / 0.70) !important; }
+:root:not(.dark) .text-white\/60 { color: hsl(var(--foreground) / 0.60) !important; }
+:root:not(.dark) .text-white\/50 { color: hsl(var(--foreground) / 0.50) !important; }
+
+/* Preserve white labels on deliberately dark/brand surfaces. */
+:root:not(.dark) .bg-primary .text-white,
+:root:not(.dark) .bg-primary.text-white,
+:root:not(.dark) .bg-destructive .text-white,
+:root:not(.dark) .bg-destructive.text-white,
+:root:not(.dark) .bg-black .text-white,
+:root:not(.dark) .bg-black.text-white,
+:root:not(.dark) [class*="bg-gradient"] .text-white,
+:root:not(.dark) [class*="bg-gradient"].text-white,
+:root:not(.dark) [style*="linear-gradient"] .text-white,
+:root:not(.dark) [style*="linear-gradient"].text-white,
+:root:not(.dark) [style*="rgba(13,11,20"] .text-white,
+:root:not(.dark) [style*="rgba(13,11,20"].text-white {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+:root:not(.dark) input,
+:root:not(.dark) textarea,
+:root:not(.dark) select {
+  color: hsl(var(--foreground));
+  caret-color: hsl(var(--foreground));
+}
+
+:root:not(.dark) input::placeholder,
+:root:not(.dark) textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 1;
+}
