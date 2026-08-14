@@ -1,6 +1,7 @@
 import { Router, Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
-import { assertVideoUploadEnabled, getVideoFeatureConfig } from "../infrastructure/video-features";
+import { assertVideoUploadEnabled } from "../infrastructure/video-features";
+import { isSupabaseStorageConfigured, uploadToSupabaseStorage } from "../infrastructure/supabase-storage";
 
 const router = Router();
 type R = Request & { userId?: number };
@@ -9,6 +10,8 @@ router.post("/media/upload", authMiddleware, async (req: R, res) => {
   const dataUrl = String(req.body?.dataUrl ?? "");
   const kind = String(req.body?.kind ?? "image");
   const filename = String(req.body?.filename ?? "upload");
+
+  if (!["image", "audio", "video"].includes(kind)) return res.status(400).json({ error: "Unsupported media kind" });
 
   if (kind === "video") {
     try {
@@ -26,14 +29,25 @@ router.post("/media/upload", authMiddleware, async (req: R, res) => {
   const allowed = kind === "video" ? /^video\// : kind === "audio" ? /^audio\// : /^image\//;
   if (!allowed.test(mime)) return res.status(415).json({ error: "Unsupported media type" });
 
-  // The current fallback keeps existing image/audio behavior. Persistent video
-  // must remain disabled until an ObjectStorage adapter is configured.
-  const config = getVideoFeatureConfig();
-  if (kind === "video" && !config.mediaPublicBaseUrl) {
-    return res.status(503).json({ error: "Video storage is not configured" });
+  // Persistent media belongs in Supabase Storage, not in PostgreSQL as Base64.
+  // Video remains feature-flagged off until the Video feature is activated.
+  if (!isSupabaseStorageConfigured()) {
+    return res.status(503).json({ error: "Media storage is not configured" });
   }
 
-  return res.status(201).json({ url: dataUrl, filename, kind, mimeType: mime });
+  try {
+    const uploaded = await uploadToSupabaseStorage({
+      dataUrl,
+      userId: req.userId!,
+      filename,
+      mimeType: mime,
+      kind,
+    });
+    return res.status(201).json({ url: uploaded.url, path: uploaded.path, bucket: uploaded.bucket, filename, kind, mimeType: mime });
+  } catch (error) {
+    console.error(error);
+    return res.status(502).json({ error: "Media storage upload failed" });
+  }
 });
 
 export default router;
