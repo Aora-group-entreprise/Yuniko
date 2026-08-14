@@ -9,6 +9,7 @@ export const userSettingsTable = pgTable("user_settings", {
   messagePermission: text("message_permission").default("everyone").notNull(),
   commentPermission: text("comment_permission").default("everyone").notNull(),
   storyPermission: text("story_permission").default("friendsOnly").notNull(),
+  hiddenPostIds: text("hidden_post_ids").default("[]").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
