@@ -6,6 +6,32 @@ interface SplashScreenProps {
   onDone: () => void;
 }
 
+function AoraMark() {
+  return (
+    <svg
+      viewBox="0 0 120 100"
+      aria-hidden="true"
+      className="w-10 h-10"
+      fill="none"
+    >
+      <defs>
+        <linearGradient id="aora-gradient" x1="10" y1="20" x2="105" y2="80" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#147BFF" />
+          <stop offset="48%" stopColor="#00D7C8" />
+          <stop offset="100%" stopColor="#FF00A8" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M18 78V27C18 19 25 14 32 18L94 53C101 57 101 66 94 70L32 95C25 98 18 92 18 84"
+        stroke="url(#aora-gradient)"
+        strokeWidth="13"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function SplashScreen({ onDone }: SplashScreenProps) {
   const [visible, setVisible] = useState(true);
 
@@ -59,11 +85,25 @@ export default function SplashScreen({ onDone }: SplashScreenProps) {
             >
               Yuniko
             </motion.span>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55, duration: 0.4 }}
+              className="mt-8 flex flex-col items-center gap-1"
+            >
+              {/* Transparent SVG: no background rectangle behind the Aora mark. */}
+              <AoraMark />
+              <span className="text-white/90 text-sm font-semibold tracking-wide">
+                Aora Group
+              </span>
+            </motion.div>
+
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="flex gap-1.5 mt-2"
+              transition={{ delay: 0.75 }}
+              className="flex gap-1.5 mt-1"
             >
               {[0, 1, 2].map((i) => (
                 <motion.div
