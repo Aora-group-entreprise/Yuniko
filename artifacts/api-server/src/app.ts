@@ -4,8 +4,22 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./lib/metrics";
+import { rateLimit } from "./middlewares/rate-limit";
 
 const app: Express = express();
+
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (process.env["NODE_ENV"] === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
 app.use(pinoHttp({
   logger,
   serializers: {
@@ -20,9 +34,38 @@ app.use((req, res, next) => {
   });
   next();
 });
-app.use(cors());
-// Media uploads use authenticated base64 data URLs. Keep this limit above the client video limit.
+
+const allowedOrigins = (process.env["CORS_ORIGINS"] ?? "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("Origin not allowed"));
+  },
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  maxAge: 600,
+}));
+
 app.use(express.json({ limit: "40mb" }));
 app.use(express.urlencoded({ extended: true, limit: "40mb" }));
+app.use("/api", rateLimit({ windowMs: 60_000, max: 240 }));
 app.use("/api", router);
+
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error({ err }, "Unhandled request error");
+  if (res.headersSent) return;
+  res.status(500).json({ error: "Server error" });
+});
+
 export default app;
