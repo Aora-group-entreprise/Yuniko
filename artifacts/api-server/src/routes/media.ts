@@ -1,7 +1,7 @@
 import { Router, Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
 import { assertVideoUploadEnabled } from "../infrastructure/video-features";
-import { isR2StorageConfigured, uploadToR2 } from "../infrastructure/r2-storage";
+import { isSupabaseStorageConfigured, uploadToSupabaseStorage } from "../infrastructure/supabase-storage";
 
 const router = Router();
 type R = Request & { userId?: number };
@@ -35,17 +35,17 @@ router.post("/media/upload", authMiddleware, async (req: R, res) => {
   const allowed = kind === "video" ? /^video\// : kind === "audio" ? /^audio\// : /^image\//;
   if (!allowed.test(mime)) return res.status(415).json({ error: "Unsupported media type" });
 
-  // Supabase is reserved for Auth + PostgreSQL. Binary media is stored in R2.
-  if (!isR2StorageConfigured()) {
-    return res.status(503).json({ error: "Cloudflare R2 storage is not configured" });
+  if (!isSupabaseStorageConfigured()) {
+    return res.status(503).json({ error: "Supabase Storage is not configured" });
   }
 
   try {
-    const uploaded = await uploadToR2({
+    const uploaded = await uploadToSupabaseStorage({
       dataUrl,
       userId: req.userId!,
       filename,
       mimeType: mime,
+      kind,
     });
     return res.status(201).json({
       url: uploaded.url,
@@ -57,7 +57,7 @@ router.post("/media/upload", authMiddleware, async (req: R, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(502).json({ error: "Cloudflare R2 upload failed" });
+    return res.status(502).json({ error: "Supabase Storage upload failed" });
   }
 });
 
