@@ -4,8 +4,10 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { authMiddleware, signToken } from "../middlewares/auth";
+import { rateLimit } from "../middlewares/rate-limit";
 
 const authRouter = Router();
+const authLimiter = rateLimit({ windowMs: 60_000, max: 10, message: "Too many authentication attempts. Please wait a minute." });
 
 function dbError(res: any, err: unknown) {
   if (!process.env["DATABASE_URL"]) {
@@ -18,12 +20,12 @@ function dbError(res: any, err: unknown) {
 }
 
 // GET /api/auth/check-username/:username
-authRouter.get("/auth/check-username/:username", async (req, res) => {
+authRouter.get("/auth/check-username/:username", authLimiter, async (req, res) => {
   const username = (req.params["username"] ?? "").trim().toLowerCase();
   if (!username || username.length < 3) {
     return res.json({ available: false, reason: "too_short" });
   }
-  if (!/^[a-z0-9._]+$/.test(username)) {
+  if (username.length > 30 || !/^[a-z0-9._]+$/.test(username)) {
     return res.json({ available: false, reason: "invalid_chars" });
   }
   try {
@@ -39,7 +41,7 @@ authRouter.get("/auth/check-username/:username", async (req, res) => {
 });
 
 // POST /api/auth/register
-authRouter.post("/auth/register", async (req, res) => {
+authRouter.post("/auth/register", authLimiter, async (req, res) => {
   const { username, displayName, password, country, countryFlag, age, avatarUrl } =
     req.body as {
       username?: string;
@@ -55,10 +57,12 @@ authRouter.post("/auth/register", async (req, res) => {
     return res.status(400).json({ error: "Username, display name and password are required" });
   }
   const u = username.trim().toLowerCase();
-  if (u.length < 3) return res.status(400).json({ error: "Username must be at least 3 characters" });
+  const d = displayName.trim();
+  if (u.length < 3 || u.length > 30) return res.status(400).json({ error: "Username must be 3-30 characters" });
   if (!/^[a-z0-9._]+$/.test(u)) return res.status(400).json({ error: "Invalid username characters" });
-  if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
-  if (age != null && (age < 13 || age > 120)) return res.status(400).json({ error: "Invalid age" });
+  if (d.length > 80) return res.status(400).json({ error: "Display name is too long" });
+  if (password.length < 6 || password.length > 200) return res.status(400).json({ error: "Password must be 6-200 characters" });
+  if (age != null && (!Number.isInteger(age) || age < 13 || age > 120)) return res.status(400).json({ error: "Invalid age" });
 
   try {
     const existing = await db
@@ -73,10 +77,10 @@ authRouter.post("/auth/register", async (req, res) => {
       .insert(usersTable)
       .values({
         username: u,
-        displayName: displayName.trim(),
+        displayName: d,
         passwordHash,
-        country: country ?? null,
-        countryFlag: countryFlag ?? null,
+        country: country?.slice(0, 80) ?? null,
+        countryFlag: countryFlag?.slice(0, 16) ?? null,
         age: age ?? null,
         avatarUrl: avatarUrl ?? null,
         bio: "",
@@ -92,10 +96,13 @@ authRouter.post("/auth/register", async (req, res) => {
 });
 
 // POST /api/auth/login
-authRouter.post("/auth/login", async (req, res) => {
+authRouter.post("/auth/login", authLimiter, async (req, res) => {
   const { username, password } = req.body as { username?: string; password?: string };
   if (!username?.trim() || !password) {
     return res.status(400).json({ error: "Username and password are required" });
+  }
+  if (username.trim().length > 30 || password.length > 200) {
+    return res.status(401).json({ error: "Invalid username or password" });
   }
 
   try {
@@ -150,14 +157,22 @@ authRouter.patch("/auth/me", authMiddleware, async (req, res) => {
 
   const updates: Record<string, unknown> = {};
   if (displayName !== undefined) {
+    if (typeof displayName !== "string") return res.status(400).json({ error: "Invalid display name" });
     const d = displayName.trim();
     if (!d) return res.status(400).json({ error: "Display name cannot be empty" });
+    if (d.length > 80) return res.status(400).json({ error: "Display name is too long" });
     updates["displayName"] = d;
   }
-  if (bio !== undefined) updates["bio"] = bio;
-  if (website !== undefined) updates["website"] = website || null;
-  if (country !== undefined) updates["country"] = country || null;
-  if (countryFlag !== undefined) updates["countryFlag"] = countryFlag || null;
+  if (bio !== undefined) {
+    if (typeof bio !== "string" || bio.length > 2000) return res.status(400).json({ error: "Bio is too long" });
+    updates["bio"] = bio;
+  }
+  if (website !== undefined) {
+    if (website !== null && (typeof website !== "string" || website.length > 500)) return res.status(400).json({ error: "Invalid website" });
+    updates["website"] = website || null;
+  }
+  if (country !== undefined) updates["country"] = typeof country === "string" ? country.slice(0, 80) || null : null;
+  if (countryFlag !== undefined) updates["countryFlag"] = typeof countryFlag === "string" ? countryFlag.slice(0, 16) || null : null;
   if (avatarUrl !== undefined) updates["avatarUrl"] = avatarUrl || null;
 
   if (Object.keys(updates).length === 0) {
@@ -178,34 +193,28 @@ authRouter.patch("/auth/me", authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/auth/reset-password
-authRouter.post("/auth/reset-password", async (req, res) => {
-  const { username, newPassword } = req.body as { username?: string; newPassword?: string };
-  if (!username?.trim() || !newPassword) {
-    return res.status(400).json({ error: "Username and new password are required" });
-  }
-  if (newPassword.length < 6) {
-    return res.status(400).json({ error: "Password must be at least 6 characters" });
-  }
+// POST /api/auth/change-password — authenticated password change.
+authRouter.post("/auth/change-password", authMiddleware, authLimiter, async (req, res) => {
+  const userId = (req as any).userId as number;
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: "Current and new passwords are required" });
+  if (newPassword.length < 6 || newPassword.length > 200) return res.status(400).json({ error: "Password must be 6-200 characters" });
 
   try {
-    const [user] = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.username, username.trim().toLowerCase()))
-      .limit(1);
-    if (!user) return res.status(404).json({ error: "No account found with that username" });
-
-    const passwordHash = await bcrypt.hash(newPassword, 12);
-    await db
-      .update(usersTable)
-      .set({ passwordHash })
-      .where(eq(usersTable.id, user.id));
-
+    const [user] = await db.select({ passwordHash: usersTable.passwordHash }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+    await db.update(usersTable).set({ passwordHash: await bcrypt.hash(newPassword, 12) }).where(eq(usersTable.id, userId));
     return res.json({ success: true });
   } catch (err) {
     return dbError(res, err);
   }
+});
+
+// Password reset without proof of account ownership is intentionally disabled.
+authRouter.post("/auth/reset-password", authLimiter, async (_req, res) => {
+  return res.status(410).json({ error: "Password reset is temporarily unavailable. Use Change Password while signed in." });
 });
 
 export default authRouter;
