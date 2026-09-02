@@ -42,11 +42,11 @@ const allowedOrigins = (process.env["CORS_ORIGINS"] ?? "")
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    if (!origin) {
       callback(null, true);
       return;
     }
-    callback(new Error("Origin not allowed"));
+    callback(null, allowedOrigins.includes(origin));
   },
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
