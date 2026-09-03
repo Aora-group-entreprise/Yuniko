@@ -4,6 +4,20 @@ const SUPABASE_MEDIA_BUCKET = () => process.env.SUPABASE_MEDIA_BUCKET?.trim() ||
 
 export function isSupabaseStorageConfigured() { return Boolean(SUPABASE_URL() && SUPABASE_SERVICE_ROLE_KEY()); }
 
+function hasValidMagicBytes(bytes: Buffer, mimeType: string): boolean {
+  if (mimeType === "image/jpeg") return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mimeType === "image/png") return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if (mimeType === "image/gif") return bytes.length >= 6 && ["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString("ascii"));
+  if (mimeType === "image/webp") return bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP";
+  if (mimeType === "image/bmp") return bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d;
+  if (mimeType === "audio/mpeg") return bytes.length >= 3 && (bytes.subarray(0, 3).toString("ascii") === "ID3" || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0));
+  if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WAVE";
+  if (mimeType === "audio/ogg" || mimeType === "video/ogg") return bytes.length >= 4 && bytes.subarray(0, 4).toString("ascii") === "OggS";
+  if (mimeType === "video/mp4" || mimeType === "video/quicktime") return bytes.length >= 12 && bytes.subarray(4, 8).toString("ascii") === "ftyp";
+  if (mimeType === "video/webm" || mimeType === "audio/webm") return bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  return false;
+}
+
 export async function uploadToSupabaseStorage(input: { dataUrl: string; userId: number; filename: string; mimeType: string; kind: string }) {
   const url = SUPABASE_URL();
   const key = SUPABASE_SERVICE_ROLE_KEY();
@@ -21,6 +35,7 @@ export async function uploadToSupabaseStorage(input: { dataUrl: string; userId: 
 
   const maxBytes = input.kind === "video" ? 25_000_000 : input.kind === "audio" ? 12_000_000 : 9_000_000;
   if (bytes.length > maxBytes) throw new Error("Media file is too large");
+  if (!hasValidMagicBytes(bytes, input.mimeType)) throw new Error("Media content does not match its declared type");
 
   const rawName = typeof input.filename === "string" ? input.filename : "upload";
   const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "upload";
