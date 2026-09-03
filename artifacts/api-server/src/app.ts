@@ -42,10 +42,7 @@ const allowedOrigins = (process.env["CORS_ORIGINS"] ?? "")
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
+    if (!origin) return callback(null, true);
     callback(null, allowedOrigins.includes(origin));
   },
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -53,9 +50,14 @@ app.use(cors({
   maxAge: 600,
 }));
 
-app.use(express.json({ limit: "40mb" }));
-app.use(express.urlencoded({ extended: true, limit: "40mb" }));
+// Apply the cheap rate limiter before parsing request bodies. Media uploads need a
+// larger parser limit while normal API requests stay small to reduce memory abuse.
 app.use("/api", rateLimit({ windowMs: 60_000, max: 240 }));
+app.use((req, res, next) => {
+  const isMediaUpload = req.path === "/api/media/upload" || req.path === "/media/upload";
+  return express.json({ limit: isMediaUpload ? "40mb" : "2mb" })(req, res, next);
+});
+app.use(express.urlencoded({ extended: true, limit: "1mb", parameterLimit: 100 }));
 app.use("/api", router);
 
 app.use((req, res) => {
@@ -65,6 +67,14 @@ app.use((req, res) => {
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error({ err }, "Unhandled request error");
   if (res.headersSent) return;
+  if ((err as { type?: string })?.type === "entity.too.large") {
+    res.status(413).json({ error: "Request body is too large" });
+    return;
+  }
+  if ((err as { type?: string })?.type === "entity.parse.failed") {
+    res.status(400).json({ error: "Invalid JSON body" });
+    return;
+  }
   res.status(500).json({ error: "Server error" });
 });
 
