@@ -1,11 +1,25 @@
 import { Router, type IRouter } from "express";
+import { sql } from "drizzle-orm";
 import { HealthCheckResponse } from "@workspace/api-zod";
+import { db } from "@workspace/db";
+import { isSupabaseConfigured } from "../infrastructure/supabase";
 
 const router: IRouter = Router();
 
-router.get("/healthz", (_req, res) => {
-  const data = HealthCheckResponse.parse({ status: "ok" });
-  res.json(data);
+router.get("/healthz", async (_req, res) => {
+  try {
+    // DATABASE_URL points to Yuniko's Supabase PostgreSQL instance.
+    // A real query verifies that the API can actually reach the database.
+    await db.execute(sql`select 1`);
+    const data = HealthCheckResponse.parse({ status: "ok" });
+    res.json({ ...data, database: "connected", supabase: isSupabaseConfigured() });
+  } catch {
+    res.status(503).json({
+      status: "error",
+      database: "unavailable",
+      supabase: isSupabaseConfigured(),
+    });
+  }
 });
 
 export default router;
