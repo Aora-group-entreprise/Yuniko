@@ -13,7 +13,13 @@ function initDb() {
       "DATABASE_URL must be set. Did you forget to provision a database?",
     );
   }
-  const pool = new Pool({ connectionString: url });
+  const pool = new Pool({
+    connectionString: url,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+    allowExitOnIdle: true,
+  });
   const db = drizzle(pool, { schema });
   return { pool, db };
 }
