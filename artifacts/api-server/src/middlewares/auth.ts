@@ -18,7 +18,16 @@ const MAX_TOKEN_LENGTH = 4096;
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers["authorization"];
-  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  let token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
+
+  // EventSource cannot set an Authorization header. Realtime SSE clients send
+  // the same Yuniko JWT through ?token=..., but only accept that fallback for
+  // requests explicitly asking for an event-stream response.
+  if (!token && req.headers.accept?.includes("text/event-stream")) {
+    const queryToken = typeof req.query.token === "string" ? req.query.token.trim() : "";
+    token = queryToken;
+  }
+
   if (!token) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (token.length > MAX_TOKEN_LENGTH) { res.status(401).json({ error: "Invalid token" }); return; }
 
