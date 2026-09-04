@@ -1,4 +1,6 @@
 # Cloudflare Pages configuration for the Yuniko frontend.
 # Build command: pnpm run build:cloudflare
 # Build output directory: artifacts/yuniko/dist/public
+name = "yuniko"
 pages_build_output_dir = "artifacts/yuniko/dist/public"
+compatibility_date = "2026-09-04"
