@@ -3,7 +3,7 @@ import { postsTable, commentsTable, postEngagementsTable, notificationsTable, us
 import { db } from "@workspace/db";
 import { and, eq, desc, sql } from "drizzle-orm";
 import { authMiddleware } from "../middlewares/auth";
-import { nonNegativeInt, positiveId, textField } from "../middlewares/validation";
+import { nonNegativeInt, positiveId, textField, optionalUrl } from "../middlewares/validation";
 
 const postsRouter = Router();
 type AuthedRequest = Request & { userId?: number };
@@ -30,6 +30,5 @@ for (const [path, field] of [["/posts/:id/like","liked"],["/posts/:id/save","sav
 postsRouter.post("/posts/:id/view",authMiddleware,async(req:AuthedRequest,res)=>{const id=postIdFrom(req,res);if(!id)return;try{const [post]=await db.update(postsTable).set({views:sql`${postsTable.views}+1`,updatedAt:new Date()}).where(eq(postsTable.id,id)).returning({id:postsTable.id});if(!post)return res.status(404).json({error:"Post not found"});await updateScore(id);return res.json({viewed:true});}catch(e){return dbError(res,e);}});
 postsRouter.get("/posts/:id/comments",authMiddleware,async(req,res)=>{const id=postIdFrom(req,res);if(!id)return;try{const [post]=await db.select({id:postsTable.id}).from(postsTable).where(eq(postsTable.id,id)).limit(1);if(!post)return res.status(404).json({error:"Post not found"});return res.json({comments:await db.select().from(commentsTable).where(eq(commentsTable.postId,id)).orderBy(desc(commentsTable.createdAt)).limit(100)});}catch(e){return dbError(res,e);}});
 postsRouter.post("/posts/:id/comments",authMiddleware,async(req:AuthedRequest,res)=>{const postId=postIdFrom(req,res);if(!postId)return;const text=textField(req.body?.text,2000,true);if(text===null)return res.status(400).json({error:"Comment text is required and must be 2000 characters or less"});try{const [target]=await db.select({userId:postsTable.userId}).from(postsTable).where(eq(postsTable.id,postId)).limit(1);if(!target)return res.status(404).json({error:"Post not found"});const [comment]=await db.insert(commentsTable).values({postId,userId:req.userId!,text}).returning();await db.update(postsTable).set({comments:sql`${postsTable.comments}+1`,updatedAt:new Date()}).where(eq(postsTable.id,postId));await updateScore(postId);await createNotification(target.userId,req.userId!,"comment",postId,"Your post received a new comment.");return res.status(201).json({comment});}catch(e){return dbError(res,e);}});
-postsRouter.delete("/posts/:id",authMiddleware,async(req:AuthedRequest,res)=>{const id=postIdFrom(req,res);if(!id)return;try{const [deleted]=await db.delete(postsTable).where(and(eq(postsTable.id,id),eq(postsTable.userId,req.userId!))).returning({id:postsTable.id});return deleted?res.json({deleted:true}):res.status(404).json({error:"Post not found"});}catch(e){return dbError(res,e);}});
-
+postsRouter.delete("/posts/:id",authMiddleware,async(req:AuthedRequest,res)=>{const id=postIdFrom(req,res);if(!id)return;try{const [p]=await db.delete(postsTable).where(and(eq(postsTable.id,id),eq(postsTable.userId,req.userId!))).returning({id:postsTable.id});return p?res.json({success:true}):res.status(404).json({error:"Post not found"});}catch(e){return dbError(res,e);}});
 export default postsRouter;
