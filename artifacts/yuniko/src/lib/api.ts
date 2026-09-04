@@ -1,10 +1,19 @@
 /**
  * Authenticated API fetch helper.
  * Yuniko's JWT remains the only session mechanism.
+ *
+ * In production, VITE_API_URL can point the Cloudflare Pages frontend to the
+ * deployed Yuniko API. When it is unset, requests stay same-origin under /api.
  */
 const TOKEN_KEY = "yuniko_token";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const UPLOAD_TIMEOUT_MS = 90_000;
+const API_BASE_URL = String(import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+function apiUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}/api${normalizedPath}`;
+}
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -19,7 +28,7 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   const onAbort = () => controller.abort();
   callerSignal?.addEventListener("abort", onAbort, { once: true });
   try {
-    return await fetch(`/api${path}`, { ...options, headers, signal: controller.signal });
+    return await fetch(apiUrl(path), { ...options, headers, signal: controller.signal });
   } finally {
     window.clearTimeout(timeout);
     callerSignal?.removeEventListener("abort", onAbort);
