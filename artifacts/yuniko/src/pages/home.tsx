@@ -9,7 +9,6 @@ import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
-
 const HEADER_H = 56;
 const STORIES_H = 78;
 const NAV_H = 64;
@@ -17,16 +16,10 @@ const TOP_OFFSET = HEADER_H + STORIES_H;
 const SCROLL_KEY = "yuniko_feed_scroll";
 const POLL_INTERVAL = 30_000;
 const LIVE_ENABLED = import.meta.env.VITE_LIVE_ENABLED === "true";
-
-function useOnlineStatus() {
-  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
-  useEffect(() => { const on=()=>setIsOnline(true), off=()=>setIsOnline(false); window.addEventListener("online",on);window.addEventListener("offline",off);return()=>{window.removeEventListener("online",on);window.removeEventListener("offline",off)}; }, []);
-  return isOnline;
-}
+function useOnlineStatus() { const [isOnline, setIsOnline] = useState(() => navigator.onLine); useEffect(() => { const on=()=>setIsOnline(true), off=()=>setIsOnline(false); window.addEventListener("online",on);window.addEventListener("offline",off);return()=>{window.removeEventListener("online",on);window.removeEventListener("offline",off)}; }, []); return isOnline; }
 interface LiveFeedPost { post: Post; author: LiveAuthor }
 interface LiveStory { id:number; userId:number; mediaUrl:string; caption:string; authorDisplayName:string; authorUsername:string; authorAvatarUrl:string|null }
 function relativeTime(iso:string){const diff=Date.now()-new Date(iso).getTime(),m=Math.floor(diff/60000);if(m<1)return"just now";if(m<60)return`${m}m`;const h=Math.floor(m/60);if(h<24)return`${h}h`;return`${Math.floor(h/24)}d`}
-
 export default function Home(){
   const [,setLocation]=useLocation(); const {token}=useAuth(); const isOnline=useOnlineStatus(); const scrollRef=useRef<HTMLDivElement>(null);
   const [optionsPostId,setOptionsPostId]=useState<string|null>(null); const [worldFeedOpen,setWorldFeedOpen]=useState(false);
@@ -57,7 +50,7 @@ export default function Home(){
     <div className="absolute inset-x-0 z-40" style={{top:HEADER_H,height:STORIES_H,background:"rgba(10,8,18,.82)",backdropFilter:"blur(12px)",borderBottom:"1px solid rgba(255,255,255,.05)"}}><div className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar"><StoryAvatar userId="me" isOwn />{LIVE_ENABLED&&<button onClick={()=>setLocation("/live")} className="flex-shrink-0 flex flex-col items-center gap-1.5" data-testid="btn-go-live-stories"><div className="w-14 h-14 rounded-full flex items-center justify-center relative" style={{background:"linear-gradient(135deg,#FF006E,#8B00FF)"}}><Radio size={22} className="text-white"/><div className="absolute -top-0.5 -right-0.5 px-1 py-0.5 rounded-full text-[8px] font-bold text-white" style={{background:"#FF006E"}}>LIVE</div></div><span className="text-white/60 text-[10px]">Go Live</span></button>}{liveStories.map(story=><LiveStoryAvatar key={`ls_${story.id}`} story={story}/>)}</div></div>
     <AnimatePresence>{newPostsBadge>0&&<motion.button key="new-posts" initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} onClick={handleNewPostsBanner} className="absolute z-50 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-xs font-semibold" style={{top:TOP_OFFSET+10,background:"linear-gradient(135deg,#FF006E,#8B00FF)"}}>↑ {newPostsBadge} new post{newPostsBadge>1?"s":""}</motion.button>}{!isOnline&&<motion.div key="offline" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute inset-x-0 z-30 flex items-center justify-center gap-1.5 py-1.5" style={{top:TOP_OFFSET,background:"rgba(239,68,68,.88)"}}><WifiOff size={12} className="text-white"/><span className="text-white text-xs">Offline — showing cached posts</span></motion.div>}</AnimatePresence>
     <div ref={scrollRef} className="absolute inset-x-0 overflow-y-scroll" style={{top:TOP_OFFSET,bottom:NAV_H,scrollSnapType:"y mandatory",scrollSnapStop:"always",WebkitOverflowScrolling:"touch",overscrollBehaviorY:"contain"}} data-testid="posts-feed">
-      {allFeedItems.length===0?<div className="h-full flex flex-col items-center justify-center px-8 text-center"><div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{background:"linear-gradient(135deg,#FF006E,#8B00FF)"}}><Globe size={26} className="text-white"/></div><h2 className="text-white text-xl font-black mb-2">Your world feed is ready</h2><p className="text-white/55 text-sm leading-relaxed mb-5">Real Yuniko posts appear here — no sample content.</p><button onClick={()=>setLocation("/create")} className="px-5 py-3 rounded-2xl text-white text-sm font-bold" style={{background:"linear-gradient(135deg,#FF006E,#8B00FF)"}}>Create a post</button></div>:allFeedItems.map(({post,author})=><div key={post.id} className="relative px-2.5" style={{height:`calc(100dvh - ${TOP_OFFSET}px - ${NAV_H}px)`,scrollSnapAlign:"start",scrollSnapStop:"always",paddingBottom:10,flexShrink:0}}><div className="relative w-full h-full rounded-[20px] overflow-hidden"><PostCard post={post} liveAuthor={author} onOptions={post.isSponsored?undefined:()=>setOptionsPostId(post.id)}/></div></div>)}
+      {allFeedItems.length===0?<div className="h-full flex flex-col items-center justify-center px-8 text-center"><div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{background:"linear-gradient(135deg,#FF006E,#8B00FF)"}}><Globe size={26} className="text-white"/></div><h2 className="text-white text-xl font-black mb-2">Your world feed is ready</h2><p className="text-white/55 text-sm leading-relaxed mb-5">Real Yuniko posts appear here — no sample content.</p><button onClick={()=>setLocation("/create")} className="px-5 py-3 rounded-2xl text-white text-sm font-bold" style={{background:"linear-gradient(135deg,#FF006E,#8B00FF)"}}>Create a post</button></div>:allFeedItems.map(({post,author})=><div key={post.id} className="relative px-2.5" style={{height:`calc(100dvh - ${TOP_OFFSET}px - ${NAV_H}px)`,scrollSnapAlign:"start",scrollSnapStop:"always",paddingBottom:10,flexShrink:0}}><div className="relative w-full h-full rounded-[20px] overflow-hidden"><PostCard post={post} liveAuthor={author} onOptions={post.isSponsored?undefined:()=>setOptionsPostId(String(post.id))}/></div></div>)}
       {loadingMore&&<div className="py-5 text-center text-white/40 text-xs">{t("loadingMore")}</div>}{!hasMore&&allFeedItems.length>0&&<div className="py-5 text-center text-white/25 text-xs">End of World Feed</div>}
     </div>
     <BottomNav/>
