@@ -4,6 +4,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./lib/metrics";
 import { rateLimit } from "./middlewares/rate-limit";
+import { closeRequestDb, ensureRequestClientConnected, runWithRequestDb } from "@workspace/db";
 
 const app: Express = express();
 
@@ -20,6 +21,25 @@ app.use((req, res, next) => {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
   next();
+});
+
+// Hyperdrive owns the database-side pool. Give each Worker request its own
+// short-lived pg Client and close it when the response is finished.
+app.use((req, res, next) => {
+  runWithRequestDb(() => {
+    let closed = false;
+    const cleanup = () => {
+      if (closed) return;
+      closed = true;
+      void closeRequestDb();
+    };
+    res.once("finish", cleanup);
+    res.once("close", cleanup);
+
+    void ensureRequestClientConnected()
+      .then(() => next())
+      .catch(next);
+  });
 });
 
 app.use((req, res, next) => {
