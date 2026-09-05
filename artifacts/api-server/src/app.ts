@@ -5,11 +5,10 @@ import { logger } from "./lib/logger";
 import { recordRequest } from "./lib/metrics";
 import { rateLimit } from "./middlewares/rate-limit";
 import { closeRequestDb, ensureRequestClientConnected, runWithRequestDb } from "@workspace/db";
+import { env } from "cloudflare:workers";
 
 const app: Express = express();
 
-// The API is behind Cloudflare. Trust the forwarded client address so the
-// existing rate limiter does not put every visitor into one shared bucket.
 app.set("trust proxy", true);
 app.disable("x-powered-by");
 app.use((req, res, next) => {
@@ -23,9 +22,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Hyperdrive owns the database-side pool. Give each Worker request its own
-// short-lived pg Client and close it when the response is finished.
 app.use((req, res, next) => {
+  const hyperdrive = env.HYPERDRIVE as { connectionString?: string } | undefined;
+  const databaseUrl = hyperdrive?.connectionString;
+  if (!databaseUrl) {
+    res.status(503).json({ error: "Database binding is not configured" });
+    return;
+  }
+
   runWithRequestDb(() => {
     let closed = false;
     const cleanup = () => {
@@ -35,11 +39,8 @@ app.use((req, res, next) => {
     };
     res.once("finish", cleanup);
     res.once("close", cleanup);
-
-    void ensureRequestClientConnected()
-      .then(() => next())
-      .catch(next);
-  });
+    void ensureRequestClientConnected().then(() => next()).catch(next);
+  }, databaseUrl);
 });
 
 app.use((req, res, next) => {
@@ -50,10 +51,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const allowedOrigins = (process.env["CORS_ORIGINS"] ?? "")
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean);
+const allowedOrigins = (process.env["CORS_ORIGINS"] ?? "").split(",").map((value) => value.trim()).filter(Boolean);
 
 app.use(cors({
   origin(origin, callback) {
@@ -65,8 +63,6 @@ app.use(cors({
   maxAge: 600,
 }));
 
-// Apply the cheap rate limiter before parsing request bodies. Media uploads need a
-// larger parser limit while normal API requests stay small to reduce memory abuse.
 app.use("/api", rateLimit({ windowMs: 60_000, max: 240 }));
 app.use((req, res, next) => {
   const isMediaUpload = req.path === "/api/media/upload" || req.path === "/media/upload";
@@ -82,14 +78,8 @@ app.use((req, res) => {
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error({ err }, "Unhandled request error");
   if (res.headersSent) return;
-  if ((err as { type?: string })?.type === "entity.too.large") {
-    res.status(413).json({ error: "Request body is too large" });
-    return;
-  }
-  if ((err as { type?: string })?.type === "entity.parse.failed") {
-    res.status(400).json({ error: "Invalid JSON body" });
-    return;
-  }
+  if ((err as { type?: string })?.type === "entity.too.large") return res.status(413).json({ error: "Request body is too large" });
+  if ((err as { type?: string })?.type === "entity.parse.failed") return res.status(400).json({ error: "Invalid JSON body" });
   res.status(500).json({ error: "Server error" });
 });
 
