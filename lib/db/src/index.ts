@@ -42,10 +42,9 @@ export function runWithRequestDb<T>(callback: () => T): T {
 
 export async function closeRequestDb(): Promise<void> {
   const context = requestDb.getStore();
-  if (!context) return;
-  if (context.connected) {
-    await context.client.end();
-  }
+  if (!context || !context.connected) return;
+  context.connected = false;
+  await context.client.end();
 }
 
 async function ensureRequestClientConnected(): Promise<void> {
@@ -95,8 +94,6 @@ export const db = new Proxy({} as object, {
   get(_, prop) {
     const context = requestDb.getStore();
     if (context) {
-      // Drizzle/pg connects lazily when the first query executes. The explicit
-      // connection is scheduled by the middleware before route handling.
       return (context.db as unknown as Record<string, unknown>)[prop as string];
     }
     return (getFallbackDb() as unknown as Record<string, unknown>)[prop as string];
