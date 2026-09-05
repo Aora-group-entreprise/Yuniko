@@ -11,7 +11,11 @@
     "LIVE_ENABLED": "false",
     "SFU_ENABLED": "false",
     "LIVE_RECORDING_ENABLED": "false"
-  }
-  // Add the Hyperdrive binding after creating it in Cloudflare:
-  // "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<HYPERDRIVE_ID>" }]
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "bf18a09e49314ceb9f76879895e7e67d"
+    }
+  ]
 }
