@@ -1,9 +1,10 @@
 import { httpServerHandler } from "cloudflare:node";
 import app from "./app";
 
-// Cloudflare officially supports Express/Node HTTP servers through
-// httpServerHandler. The Hyperdrive binding is consumed inside the Express
-// request middleware, so database I/O stays request-scoped.
-app.listen(3000);
+// Express creates the Node HTTP server. Cloudflare's current runtime supports
+// passing that server directly to httpServerHandler; the local type definition
+// in this workspace only exposes the port-based overload, so keep the cast
+// narrowly scoped to this bridge.
+const server = app.listen(3000);
 
-export default httpServerHandler({ port: 3000 });
+export default httpServerHandler(server as unknown as { port: number });
