@@ -7,6 +7,9 @@ import { rateLimit } from "./middlewares/rate-limit";
 
 const app: Express = express();
 
+// The API is behind Cloudflare. Trust the forwarded client address so the
+// existing rate limiter does not put every visitor into one shared bucket.
+app.set("trust proxy", true);
 app.disable("x-powered-by");
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
