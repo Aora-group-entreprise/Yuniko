@@ -11,6 +11,15 @@ const copyEnv = (name: string) => {
 };
 
 process.env.NODE_ENV = "production";
+
+// Hyperdrive provides a pooled Postgres connection string for Workers.
+// The existing Drizzle layer can keep using DATABASE_URL without changing the
+// route files or the JWT authentication system.
+const hyperdrive = bindings.HYPERDRIVE as { connectionString?: string } | undefined;
+if (hyperdrive?.connectionString) {
+  process.env.DATABASE_URL = hyperdrive.connectionString;
+}
+
 copyEnv("DATABASE_URL");
 copyEnv("CORS_ORIGINS");
 copyEnv("SESSION_SECRET");
