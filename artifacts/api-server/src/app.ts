@@ -58,7 +58,7 @@ app.use((req, res, next) => {
 app.use("/api", rateLimit({ windowMs: 60_000, max: 240 }));
 app.use((req, res, next) => {
   const isMediaUpload = req.path === "/api/media/upload" || req.path === "/media/upload";
-  return express.json({ limit: isMediaUpload ? "40mb" : "2mb" })(req, res, next);
+  return express.json({ limit: isMediaUpload ? "40mb" : "14mb" })(req, res, next);
 });
 app.use(express.urlencoded({ extended: true, limit: "1mb", parameterLimit: 100 }));
 app.use("/api", router);
