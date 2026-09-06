@@ -15,7 +15,6 @@ import { authMiddleware } from "../middlewares/auth";
 import { isSupabaseStorageConfigured, uploadToSupabaseStorage } from "../infrastructure/supabase-storage";
 
 const router: IRouter = Router();
-
 type AuthedRequest = Request & { userId?: number };
 
 function liveFeatureGate(req: Request, res: Response, next: NextFunction) {
@@ -29,9 +28,7 @@ function liveFeatureGate(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-async function uploadInlineImage(req: AuthedRequest, res: Response, next: NextFunction) {
-  const isCreateMedia = req.method === "POST" && (req.path === "/posts" || req.path === "/stories");
-  if (!isCreateMedia) return next();
+async function handleInlineImage(req: AuthedRequest, res: Response, next: NextFunction) {
   const mediaUrl = req.body?.mediaUrl;
   if (typeof mediaUrl !== "string" || !mediaUrl.startsWith("data:image/")) return next();
   if (!req.userId) return res.status(401).json({ error: "Authentication required" });
@@ -58,10 +55,16 @@ async function uploadInlineImage(req: AuthedRequest, res: Response, next: NextFu
   }
 }
 
+function inlineImageUpload(req: AuthedRequest, res: Response, next: NextFunction) {
+  const isCreateMedia = req.method === "POST" && (req.path === "/posts" || req.path === "/stories");
+  if (!isCreateMedia) return next();
+  return authMiddleware(req, res, () => { void handleInlineImage(req, res, next); });
+}
+
 router.use(healthRouter);
 router.use(metricsRouter);
 router.use(authRouter);
-router.use(uploadInlineImage);
+router.use(inlineImageUpload);
 router.use(postsRouter);
 router.use(storiesRouter);
 router.use(callsRouter);
