@@ -32,7 +32,11 @@ async function handleInlineImage(req: AuthedRequest, res: Response, next: NextFu
   const mediaUrl = req.body?.mediaUrl;
   if (typeof mediaUrl !== "string" || !mediaUrl.startsWith("data:image/")) return next();
   if (!req.userId) return res.status(401).json({ error: "Authentication required" });
-  if (!isSupabaseStorageConfigured()) return res.status(503).json({ error: "Supabase Storage is not configured" });
+
+  // Storage is optional. If it is configured, upload and store the short HTTPS URL.
+  // Otherwise keep the compressed data URL so image posts/stories remain functional.
+  if (!isSupabaseStorageConfigured()) return next();
+
   const match = mediaUrl.match(/^data:([^;]+);base64,/);
   if (!match) return res.status(400).json({ error: "Invalid media data" });
   try {
@@ -68,7 +72,6 @@ router.use(inlineImageUpload);
 router.use(postsRouter);
 router.use(storiesRouter);
 router.use(callsRouter);
-router.use(socialRouter);
 router.use(socialCompletionRouter);
 router.use(platformEnhancementsRouter);
 router.use(liveFeatureGate);
