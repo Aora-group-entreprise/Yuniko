@@ -1,6 +1,13 @@
-const SUPABASE_URL = () => process.env.SUPABASE_URL?.trim().replace(/\/$/, "") ?? "";
-const SUPABASE_SERVICE_ROLE_KEY = () => process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-const SUPABASE_MEDIA_BUCKET = () => process.env.SUPABASE_MEDIA_BUCKET?.trim() || "media";
+import { env } from "cloudflare:workers";
+
+function workerValue(name: string): string {
+  const value = (env as Record<string, unknown>)[name];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+const SUPABASE_URL = () => workerValue("SUPABASE_URL") || process.env.SUPABASE_URL?.trim().replace(/\/$/, "") || "";
+const SUPABASE_SERVICE_ROLE_KEY = () => workerValue("SUPABASE_SERVICE_ROLE_KEY") || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
+const SUPABASE_MEDIA_BUCKET = () => workerValue("SUPABASE_MEDIA_BUCKET") || process.env.SUPABASE_MEDIA_BUCKET?.trim() || "media";
 
 export function isSupabaseStorageConfigured() { return Boolean(SUPABASE_URL() && SUPABASE_SERVICE_ROLE_KEY()); }
 
