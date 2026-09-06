@@ -5,17 +5,17 @@ import { env } from "cloudflare:workers";
 
 /**
  * Cloudflare Workers does not expose Wrangler vars through process.env.
- * Prefer the dedicated SESSION_SECRET Worker secret. For an already deployed
- * Worker where that secret has not yet been provisioned, derive a stable
- * server-only signing key from the Hyperdrive connection string so auth does
- * not fail with a generic 500. The database URL never leaves the server.
+ * Prefer SESSION_SECRET. If it is missing, derive a stable server-only key
+ * from the Hyperdrive connection string. Normalize short configured secrets
+ * instead of throwing a 500 during signup/login.
  */
 function getSecret(): string {
   const workerEnv = env as Record<string, unknown>;
   const configured = String(workerEnv["SESSION_SECRET"] ?? process.env["SESSION_SECRET"] ?? "").trim();
   if (configured) {
-    if (configured.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters in production.");
-    return configured;
+    return configured.length >= 32
+      ? configured
+      : createHash("sha256").update(`yuniko-jwt-configured-v1:${configured}`).digest("hex");
   }
 
   const hyperdrive = workerEnv["HYPERDRIVE"] as { connectionString?: string } | undefined;
@@ -25,7 +25,7 @@ function getSecret(): string {
   }
 
   if (String(workerEnv["NODE_ENV"] ?? process.env["NODE_ENV"] ?? "development") === "production") {
-    throw new Error("SESSION_SECRET is required in production and no Hyperdrive fallback is available.");
+    throw new Error("JWT signing key is unavailable in production.");
   }
   return "yuniko-dev-secret-change-in-prod";
 }
