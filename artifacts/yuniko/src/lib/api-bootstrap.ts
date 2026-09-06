@@ -1,7 +1,8 @@
 // Some older pages call fetch("/api/...") directly instead of using apiFetch().
 // In production the frontend is on Cloudflare Pages and the API is a separate
-// Worker, so transparently prefix those same-origin API URLs with VITE_API_URL.
-const apiBase = String(import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+// Worker. Use the deployed API as a safe fallback when VITE_API_URL is absent.
+const DEFAULT_API_BASE_URL = "https://yuniko-api.lafatriniainaallane.workers.dev";
+const apiBase = String(import.meta.env.VITE_API_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, "");
 
 if (apiBase && typeof window !== "undefined") {
   const originalFetch = window.fetch.bind(window);
