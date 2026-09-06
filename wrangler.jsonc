@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yuniko-api",
+  "main": "artifacts/api-server/src/worker.ts",
+  "compatibility_date": "2026-09-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "NODE_ENV": "production",
+    "CORS_ORIGINS": "https://yuniko-19d.pages.dev",
+    "VIDEO_ENABLED": "false",
+    "LIVE_ENABLED": "false",
+    "SFU_ENABLED": "false",
+    "LIVE_RECORDING_ENABLED": "false"
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "bf18a09e49314ceb9f76879895e7e67d"
+    }
+  ]
+}

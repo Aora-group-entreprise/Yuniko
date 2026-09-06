@@ -1,13 +1,15 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./lib/metrics";
 import { rateLimit } from "./middlewares/rate-limit";
+import { closeRequestDb, ensureRequestClientConnected, runWithRequestDb } from "@workspace/db";
+import { env } from "cloudflare:workers";
 
 const app: Express = express();
 
+app.set("trust proxy", true);
 app.disable("x-powered-by");
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -20,13 +22,27 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(pinoHttp({
-  logger,
-  serializers: {
-    req(req) { return { id: req.id, method: req.method, url: req.url?.split("?")[0] }; },
-    res(res) { return { statusCode: res.statusCode }; },
-  },
-}));
+app.use((req, res, next) => {
+  const hyperdrive = env.HYPERDRIVE as { connectionString?: string } | undefined;
+  const databaseUrl = hyperdrive?.connectionString;
+  if (!databaseUrl) {
+    res.status(503).json({ error: "Database binding is not configured" });
+    return;
+  }
+
+  runWithRequestDb(() => {
+    let closed = false;
+    const cleanup = () => {
+      if (closed) return;
+      closed = true;
+      void closeRequestDb();
+    };
+    res.once("finish", cleanup);
+    res.once("close", cleanup);
+    void ensureRequestClientConnected().then(() => next()).catch(next);
+  }, databaseUrl);
+});
+
 app.use((req, res, next) => {
   const started = performance.now();
   res.on("finish", () => {
@@ -35,10 +51,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const allowedOrigins = (process.env["CORS_ORIGINS"] ?? "")
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean);
+const allowedOrigins = (process.env["CORS_ORIGINS"] ?? "").split(",").map((value) => value.trim()).filter(Boolean);
 
 app.use(cors({
   origin(origin, callback) {
@@ -50,8 +63,6 @@ app.use(cors({
   maxAge: 600,
 }));
 
-// Apply the cheap rate limiter before parsing request bodies. Media uploads need a
-// larger parser limit while normal API requests stay small to reduce memory abuse.
 app.use("/api", rateLimit({ windowMs: 60_000, max: 240 }));
 app.use((req, res, next) => {
   const isMediaUpload = req.path === "/api/media/upload" || req.path === "/media/upload";
@@ -66,7 +77,9 @@ app.use((req, res) => {
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error({ err }, "Unhandled request error");
-  if (res.headersSent) return;
+  if (res.headersSent) {
+    return;
+  }
   if ((err as { type?: string })?.type === "entity.too.large") {
     res.status(413).json({ error: "Request body is too large" });
     return;
