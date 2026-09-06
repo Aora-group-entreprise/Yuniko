@@ -1,13 +1,32 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { createHash } from "node:crypto";
+import { env } from "cloudflare:workers";
 
+/**
+ * Cloudflare Workers does not expose Wrangler vars through process.env.
+ * Prefer the dedicated SESSION_SECRET Worker secret. For an already deployed
+ * Worker where that secret has not yet been provisioned, derive a stable
+ * server-only signing key from the Hyperdrive connection string so auth does
+ * not fail with a generic 500. The database URL never leaves the server.
+ */
 function getSecret(): string {
-  const secret = process.env["SESSION_SECRET"]?.trim();
-  if (secret) {
-    if (process.env["NODE_ENV"] === "production" && secret.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters in production.");
-    return secret;
+  const workerEnv = env as Record<string, unknown>;
+  const configured = String(workerEnv["SESSION_SECRET"] ?? process.env["SESSION_SECRET"] ?? "").trim();
+  if (configured) {
+    if (configured.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters in production.");
+    return configured;
   }
-  if (process.env["NODE_ENV"] === "production") throw new Error("SESSION_SECRET is required in production.");
+
+  const hyperdrive = workerEnv["HYPERDRIVE"] as { connectionString?: string } | undefined;
+  const databaseUrl = hyperdrive?.connectionString?.trim();
+  if (databaseUrl) {
+    return createHash("sha256").update(`yuniko-jwt-v1:${databaseUrl}`).digest("hex");
+  }
+
+  if (String(workerEnv["NODE_ENV"] ?? process.env["NODE_ENV"] ?? "development") === "production") {
+    throw new Error("SESSION_SECRET is required in production and no Hyperdrive fallback is available.");
+  }
   return "yuniko-dev-secret-change-in-prod";
 }
 
@@ -20,9 +39,6 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   const header = req.headers["authorization"];
   let token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
 
-  // EventSource cannot set an Authorization header. Realtime SSE clients send
-  // the same Yuniko JWT through ?token=..., but only accept that fallback for
-  // requests explicitly asking for an event-stream response.
   if (!token && req.headers.accept?.includes("text/event-stream")) {
     const queryToken = typeof req.query.token === "string" ? req.query.token.trim() : "";
     token = queryToken;
