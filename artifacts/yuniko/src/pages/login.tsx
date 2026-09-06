@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
+import { apiJson } from "@/lib/api";
 import { COUNTRIES } from "@/data/countries";
 import logoSrc from "@assets/file_000000003524724399ff06d3685a22e6_1780640550687.png";
 
@@ -145,6 +146,12 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   const clearError = () => setError("");
+  const errMsg = (e: unknown, fallback: string) =>
+    e instanceof TypeError
+      ? "Network error. Please check your connection and try again."
+      : e instanceof Error && e.message
+      ? e.message
+      : fallback;
   const su = (patch: Partial<SignupData>) => setSignup((s) => ({ ...s, ...patch }));
 
   // ── Signin submit
@@ -152,15 +159,13 @@ export default function LoginPage() {
     if (!siUsername.trim() || !siPassword) { setError("Please fill in all fields"); return; }
     setLoading(true); clearError();
     try {
-      const r = await fetch("/api/auth/login", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const d = await apiJson<{ token?: string; user?: any }>("/auth/login", {
+        method: "POST",
         body: JSON.stringify({ username: siUsername.trim(), password: siPassword }),
       });
-      const d = await r.json() as { token?: string; user?: any; error?: string };
-      if (!r.ok) { setError(d.error ?? "Login failed"); return; }
       login(d.token!, d.user);
       setLocation("/");
-    } catch { setError("Network error. Please try again."); }
+    } catch (e) { setError(errMsg(e, "Login failed")); }
     finally { setLoading(false); }
   };
 
@@ -189,8 +194,8 @@ export default function LoginPage() {
   const handleRegister = async () => {
     setLoading(true); clearError();
     try {
-      const r = await fetch("/api/auth/register", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const d = await apiJson<{ token?: string; user?: any }>("/auth/register", {
+        method: "POST",
         body: JSON.stringify({
           username: signup.username.trim().toLowerCase(),
           displayName: signup.displayName.trim(),
@@ -201,11 +206,9 @@ export default function LoginPage() {
           avatarUrl: signup.avatarUrl,
         }),
       });
-      const d = await r.json() as { token?: string; user?: any; error?: string };
-      if (!r.ok) { setError(d.error ?? "Registration failed"); return; }
       login(d.token!, d.user);
       setSignupStep(4);
-    } catch { setError("Network error. Please try again."); }
+    } catch (e) { setError(errMsg(e, "Registration failed")); }
     finally { setLoading(false); }
   };
 
@@ -223,19 +226,17 @@ export default function LoginPage() {
     if (forgotNewPw !== forgotConfirm) { setError("Passwords don't match"); return; }
     setLoading(true); clearError();
     try {
-      const r = await fetch("/api/auth/reset-password", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      await apiJson<{ success?: boolean }>("/auth/reset-password", {
+        method: "POST",
         body: JSON.stringify({ username: forgotUsername.trim(), newPassword: forgotNewPw }),
       });
-      const d = await r.json() as { success?: boolean; error?: string };
-      if (!r.ok) { setError(d.error ?? "Reset failed"); return; }
       setForgotDone(true);
       setTimeout(() => {
         setMode("signin"); setForgotStep(1);
         setForgotUsername(""); setForgotNewPw(""); setForgotConfirm(""); setForgotDone(false);
         clearError();
       }, 2000);
-    } catch { setError("Network error. Please try again."); }
+    } catch (e) { setError(errMsg(e, "Reset failed")); }
     finally { setLoading(false); }
   };
 
