@@ -38,6 +38,10 @@ app.use((req, res, next) => {
   return next();
 });
 
+// Keep this endpoint before the database middleware so it proves that the Worker
+// itself is reachable even when the database binding is unavailable.
+app.get("/api/health", (_req, res) => res.json({ ok: true, service: "yuniko-api" }));
+
 const activeStreams = new Map<string, number>();
 const MAX_SSE_CONNECTIONS = 4;
 app.use((req, res, next) => {
@@ -73,6 +77,17 @@ app.use((req, res, next) => {
   }, databaseUrl);
 });
 
+// This check runs after Hyperdrive middleware and therefore validates DB connectivity.
+app.get("/api/health/db", async (_req, res) => {
+  try {
+    await ensureRequestClientConnected();
+    return res.json({ ok: true, database: "connected" });
+  } catch (error) {
+    logger.error({ err: error }, "Health check database failure");
+    return res.status(503).json({ ok: false, database: "unavailable", error: "Database connection failed" });
+  }
+});
+
 app.use((req, res, next) => {
   const started = performance.now();
   res.on("finish", () => recordRequest(req.method, req.path, res.statusCode, Math.round(performance.now() - started)));
@@ -85,16 +100,6 @@ app.use((req, res, next) => {
   return express.json({ limit: isMediaUpload ? "40mb" : "14mb" })(req, res, next);
 });
 app.use(express.urlencoded({ extended: true, limit: "1mb", parameterLimit: 100 }));
-
-app.get("/api/health", async (_req, res) => {
-  try {
-    await ensureRequestClientConnected();
-    return res.json({ ok: true, database: "connected" });
-  } catch (error) {
-    logger.error({ err: error }, "Health check database failure");
-    return res.status(503).json({ ok: false, database: "unavailable", error: "Database connection failed" });
-  }
-});
 
 app.use(async (req, res, next) => {
   if (req.method !== "DELETE") return next();
