@@ -8,13 +8,6 @@ import { t } from "@/lib/i18n";
 const ACTIVE_COLOR = "#FF3D9A";
 const INACTIVE_COLOR = "rgba(255,255,255,0.45)";
 
-const NAV_LABELS = {
-  home: "Home",
-  notifications: "Notifications",
-  messages: "Messages",
-  profile: "Profile",
-} as const;
-
 export default function BottomNav() {
   const [location] = useLocation();
   const [unread, setUnread] = useState(0);
@@ -25,7 +18,7 @@ export default function BottomNav() {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const data = await apiJson<{count?: number}>("/messages/unread-count");
+        const data = await apiJson<{count?: number}>("/conversations/unread-count");
         if (!cancelled) setUnread(Math.max(0, Math.floor(Number(data?.count ?? 0))));
       } catch {
         if (!cancelled) setUnread(0);
