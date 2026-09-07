@@ -42,9 +42,10 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Prepare production JWT secret
+      - name: Prepare production secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           node - <<'NODE'
           const { createHash } = require("node:crypto");
@@ -55,7 +56,11 @@ jobs:
             .update("yuniko-production-jwt-v1:")
             .update(token)
             .digest("hex");
-          writeFileSync("/tmp/yuniko-secrets.json", JSON.stringify({ SESSION_SECRET: secret }));
+          const secrets = { SESSION_SECRET: secret };
+          if (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+            secrets.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+          }
+          writeFileSync("/tmp/yuniko-secrets.json", JSON.stringify(secrets));
           NODE
 
       - name: Deploy Yuniko API Worker
@@ -66,9 +71,12 @@ jobs:
 
       - name: Verify Worker health
         run: |
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 \
+          status=$(curl --silent --show-error --retry 5 --retry-delay 2 \
+            --output /tmp/yuniko-health.json --write-out '%{http_code}' \
             --header 'Accept: application/json' \
-            https://yuniko-api.lafatriniainaallane.workers.dev/api/health
+            https://yuniko-api.lafatriniainaallane.workers.dev/api/health)
+          cat /tmp/yuniko-health.json
+          test "$status" = "200"
 
       - name: Verify database health
         run: |
@@ -86,5 +94,3 @@ jobs:
             --header 'Access-Control-Request-Method: POST' \
             --header 'Access-Control-Request-Headers: authorization,content-type' \
             https://yuniko-api.lafatriniainaallane.workers.dev/api/posts
-
-      # Fresh deployment trigger for the runtime verification checks.
