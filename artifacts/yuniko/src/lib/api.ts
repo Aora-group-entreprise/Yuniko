@@ -1,11 +1,9 @@
 /**
- * Authenticated API fetch helper.
- * Yuniko's JWT remains the only session mechanism.
- *
- * The production frontend and API are deployed separately. Keep the deployed
- * Worker URL as the safe production fallback so auth does not depend on a
- * missing Cloudflare Pages build variable.
+ * Improved API fetch helper: surface network errors with clearer messages
+ * so the UI can display actionable text instead of generic "Failed to fetch".
+ * Also logs errors to the console to aid debugging.
  */
+
 const TOKEN_KEY = "yuniko_token";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const UPLOAD_TIMEOUT_MS = 90_000;
@@ -30,8 +28,35 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   const callerSignal = options.signal;
   const onAbort = () => controller.abort();
   callerSignal?.addEventListener("abort", onAbort, { once: true });
+
   try {
-    return await fetch(apiUrl(path), { ...options, headers, signal: controller.signal });
+    // Attempt the network request and surface clearer errors for the UI/logs.
+    const response = await fetch(apiUrl(path), { ...options, headers, signal: controller.signal });
+    return response;
+  } catch (err: unknown) {
+    // Normalize error message
+    let message = "Network error";
+    try {
+      if (err && typeof err === "object" && "message" in err) {
+        // @ts-ignore
+        message = String(err.message ?? err);
+      } else {
+        message = String(err ?? "Unknown network error");
+      }
+    } catch {
+      message = "Network error";
+    }
+
+    // Provide more helpful error text for timeouts/aborts
+    if (message.toLowerCase().includes("aborted") || message.toLowerCase().includes("timeout") || message.toLowerCase().includes("request timed out")) {
+      const errMsg = `Request timed out or was aborted while calling ${path}`;
+      console.error(errMsg, err);
+      throw new Error(errMsg);
+    }
+
+    const errMsg = `Network error while calling ${path}: ${message}`;
+    console.error(errMsg, err);
+    throw new Error(errMsg);
   } finally {
     if (timeout !== undefined) window.clearTimeout(timeout);
     callerSignal?.removeEventListener("abort", onAbort);
@@ -39,13 +64,19 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 }
 
 export async function apiJson<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await apiFetch(path, options);
-  const raw = await res.text();
-  let data: any = null;
-  if (raw) {
-    try { data = JSON.parse(raw); } catch { data = null; }
+  try {
+    const res = await apiFetch(path, options);
+    const raw = await res.text();
+    let data: any = null;
+    if (raw) {
+      try { data = JSON.parse(raw); } catch { data = null; }
+    }
+    if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
+    if (data === null) throw new Error("Invalid server response");
+    return data as T;
+  } catch (err) {
+    // Re-throw after logging so callers can display messages; messages are already user-friendly
+    console.error(`apiJson error for ${path}:`, err);
+    throw err;
   }
-  if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
-  if (data === null) throw new Error("Invalid server response");
-  return data as T;
 }
