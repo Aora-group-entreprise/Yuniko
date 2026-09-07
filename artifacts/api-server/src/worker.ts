@@ -2,8 +2,8 @@ import { httpServerHandler } from "cloudflare:node";
 import app from "./app";
 import { cleanupExpiredStories } from "./jobs/story-cleanup";
 
-const server = app.listen(3000);
-const fetchHandler = httpServerHandler(server as unknown as { port: number });
+app.listen(3000);
+const fetchHandler = httpServerHandler({ port: 3000 });
 
 export default {
   fetch: fetchHandler,
