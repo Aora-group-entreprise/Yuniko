@@ -86,13 +86,16 @@ app.use((req, res, next) => {
 });
 app.use(express.urlencoded({ extended: true, limit: "1mb", parameterLimit: 100 }));
 
-// Post/story image uploads are handled inside the API router after authMiddleware
-// has populated req.userId. Keeping upload handling there avoids rejecting
-// authenticated create requests before authentication has run.
+app.get("/api/health", async (_req, res) => {
+  try {
+    await ensureRequestClientConnected();
+    return res.json({ ok: true, database: "connected" });
+  } catch (error) {
+    logger.error({ err: error }, "Health check database failure");
+    return res.status(503).json({ ok: false, database: "unavailable", error: "Database connection failed" });
+  }
+});
 
-// The post DELETE route already removes the database row. Capture its media
-// first and clean the corresponding Supabase Storage objects after a
-// successful response. This keeps the existing authorization logic intact.
 app.use(async (req, res, next) => {
   if (req.method !== "DELETE") return next();
   const match = req.path.match(/^\/api\/posts\/(\d+)$/);
