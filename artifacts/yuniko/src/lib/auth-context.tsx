@@ -1,6 +1,6 @@
 import {createContext,useContext,useState,useEffect,useCallback,ReactNode} from "react";
 import { setLanguageFromCountry } from "@/lib/language-preferences";
-export interface AuthUser{id:number;username:string;displayName:string;avatarUrl:string|null;country:string|null;countryFlag:string|null;age:number|null;bio:string;website:string|null;createdAt:string}
+export interface AuthUser{id:number;username:string;displayName:string;avatarUrl:string|null;country:string|null;countryFlag:string|null;age:number|null;bio:string;website:string|null;verificationStatus?:string;createdAt:string}
 interface AuthContextValue{user:AuthUser|null;token:string|null;login:(token:string,user:AuthUser)=>void;logout:()=>void;updateUser:(user:AuthUser)=>void;refreshUser:()=>Promise<void>;isLoading:boolean}
 const AuthContext=createContext<AuthContextValue|null>(null);const TOKEN_KEY="yuniko_token";const USER_KEY="yuniko_user";const USER_ID_KEY="yuniko_user_id";
 function clearStoredAuth(){localStorage.removeItem(TOKEN_KEY);localStorage.removeItem(USER_KEY);localStorage.removeItem(USER_ID_KEY)}
