@@ -29,6 +29,7 @@ router.use(verificationRouter);
 router.use(inlineImageUpload);
 router.use(postsRouter);
 router.use(storiesRouter);
+router.use(socialRouter);
 router.use(callsRouter);
 router.use(socialCompletionRouter);
 router.use(platformEnhancementsRouter);
