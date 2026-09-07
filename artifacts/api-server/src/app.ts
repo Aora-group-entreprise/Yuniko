@@ -4,6 +4,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./lib/metrics";
 import { rateLimit } from "./middlewares/rate-limit";
+import { uploadCreateMedia } from "./middlewares/media-payload";
 import { closeRequestDb, ensureRequestClientConnected, runWithRequestDb } from "@workspace/db";
 import { postsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -85,6 +86,10 @@ app.use((req, res, next) => {
   return express.json({ limit: isMediaUpload ? "40mb" : "14mb" })(req, res, next);
 });
 app.use(express.urlencoded({ extended: true, limit: "1mb", parameterLimit: 100 }));
+
+// Upload image data URLs before the existing post/story routes persist them.
+// Text-only posts and all other API routes are unchanged.
+app.use(uploadCreateMedia);
 
 // The post DELETE route already removes the database row. Capture its media
 // first and clean the corresponding Supabase Storage objects after a
