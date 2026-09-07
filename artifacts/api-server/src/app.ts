@@ -61,7 +61,7 @@ app.use((req, res, next) => {
   const hyperdrive = env.HYPERDRIVE as { connectionString?: string } | undefined;
   const databaseUrl = hyperdrive?.connectionString;
   if (!databaseUrl) return res.status(503).json({ error: "Database binding is not configured" });
-  runWithRequestDb(() => {
+  return runWithRequestDb(() => {
     let closed = false;
     const cleanup = () => { if (closed) return; closed = true; void closeRequestDb(); };
     res.once("finish", cleanup);
