@@ -30,8 +30,17 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   const callerSignal = options.signal;
   const onAbort = () => controller.abort();
   callerSignal?.addEventListener("abort", onAbort, { once: true });
+  const url = apiUrl(path);
   try {
-    return await fetch(apiUrl(path), { ...options, headers, signal: controller.signal });
+    return await fetch(url, { ...options, headers, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted && !callerSignal?.aborted) {
+      throw new Error(`Request timed out after ${path.includes("/media/upload") ? UPLOAD_TIMEOUT_MS / 1000 : DEFAULT_TIMEOUT_MS / 1000}s: ${path}`);
+    }
+    if (error instanceof TypeError) {
+      throw new Error(`Network error while contacting Yuniko API: ${url}`);
+    }
+    throw error;
   } finally {
     if (timeout !== undefined) window.clearTimeout(timeout);
     callerSignal?.removeEventListener("abort", onAbort);
@@ -45,7 +54,10 @@ export async function apiJson<T>(path: string, options: RequestInit = {}): Promi
   if (raw) {
     try { data = JSON.parse(raw); } catch { data = null; }
   }
-  if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
+  if (!res.ok) {
+    const serverMessage = typeof data?.error === "string" ? data.error : raw.trim();
+    throw new Error(serverMessage || `Request failed (${res.status})`);
+  }
   if (data === null) throw new Error("Invalid server response");
   return data as T;
 }
