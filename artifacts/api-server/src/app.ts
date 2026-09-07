@@ -32,13 +32,9 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   if (nodeEnv === "production") res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-  next();
+  return next();
 });
 
-// Bound long-lived SSE connections per session/IP inside each Worker isolate.
-// This complements request rate limiting and prevents one client from opening
-// an unbounded number of streams. The frontend authenticates streams via the
-// Authorization header, never via a query-string token.
 const activeStreams = new Map<string, number>();
 const MAX_SSE_CONNECTIONS = 4;
 app.use((req, res, next) => {
@@ -58,7 +54,7 @@ app.use((req, res, next) => {
   };
   res.once("finish", release);
   res.once("close", release);
-  next();
+  return next();
 });
 
 app.use((req, res, next) => {
@@ -77,7 +73,7 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   const started = performance.now();
   res.on("finish", () => recordRequest(req.method, req.path, res.statusCode, Math.round(performance.now() - started)));
-  next();
+  return next();
 });
 
 app.use("/api", rateLimit({ windowMs: 60_000, max: 240 }));
@@ -93,7 +89,7 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   if (res.headersSent) return;
   if ((err as { type?: string })?.type === "entity.too.large") return res.status(413).json({ error: "Request body is too large" });
   if ((err as { type?: string })?.type === "entity.parse.failed") return res.status(400).json({ error: "Invalid JSON body" });
-  res.status(500).json({ error: "Server error" });
+  return res.status(500).json({ error: "Server error" });
 });
 
 export default app;
