@@ -86,3 +86,5 @@ jobs:
             --header 'Access-Control-Request-Method: POST' \
             --header 'Access-Control-Request-Headers: authorization,content-type' \
             https://yuniko-api.lafatriniainaallane.workers.dev/api/posts
+
+      # Fresh deployment trigger for the runtime verification checks.
