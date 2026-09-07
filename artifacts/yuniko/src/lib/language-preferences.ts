@@ -5,7 +5,8 @@ export { availableLanguages, getLang, setLang };
 function normalizeLanguage(value: string | null | undefined): Lang | null {
   if (!value) return null;
   const code = value.toLowerCase().split("-")[0];
-  return availableLanguages.some(language => language.code === code) ? code : null;
+  const language = availableLanguages.find(item => item.code === code);
+  return language?.code ?? null;
 }
 
 export function detectDeviceLanguage(): Lang {
