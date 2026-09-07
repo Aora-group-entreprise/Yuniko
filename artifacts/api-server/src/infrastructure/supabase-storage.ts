@@ -34,22 +34,18 @@ export async function uploadToSupabaseStorage(input: { dataUrl: string; userId: 
   const match = input.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match || match[1] !== input.mimeType) throw new Error("Invalid media data");
   if (!/^(image|audio|video)\/[a-z0-9.+-]+$/i.test(input.mimeType)) throw new Error("Unsupported media type");
-
   const encoded = match[2];
   if (!encoded || encoded.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) throw new Error("Invalid base64 media");
   const bytes = Buffer.from(encoded, "base64");
   if (!bytes.length) throw new Error("Empty media file");
-
   const maxBytes = input.kind === "video" ? 25_000_000 : input.kind === "audio" ? 12_000_000 : 9_000_000;
   if (bytes.length > maxBytes) throw new Error("Media file is too large");
   if (!hasValidMagicBytes(bytes, input.mimeType)) throw new Error("Media content does not match its declared type");
-
   const rawName = typeof input.filename === "string" ? input.filename : "upload";
   const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "upload";
   const objectPath = `${input.userId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
   const bucket = SUPABASE_MEDIA_BUCKET();
   if (!bucket || bucket.length > 100 || !/^[a-zA-Z0-9._-]+$/.test(bucket)) throw new Error("Invalid storage bucket");
-
   const response = await fetch(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectPath.split("/").map(encodeURIComponent).join("/")}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, apikey: key, "Content-Type": input.mimeType, "x-upsert": "false" },
@@ -60,4 +56,57 @@ export async function uploadToSupabaseStorage(input: { dataUrl: string; userId: 
     throw new Error(`Supabase Storage upload failed (${response.status}): ${detail.slice(0, 300)}`);
   }
   return { path: objectPath, bucket, url: `${url}/storage/v1/object/public/${encodeURIComponent(bucket)}/${objectPath.split("/").map(encodeURIComponent).join("/")}` };
+}
+
+function collectUrls(value: unknown, out: string[]) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed !== value) { collectUrls(parsed, out); return; }
+    } catch {}
+    if (/^https?:\/\//i.test(trimmed)) out.push(trimmed);
+    return;
+  }
+  if (Array.isArray(value)) { for (const item of value) collectUrls(item, out); return; }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of ["url", "mediaUrl", "src"]) if (typeof obj[key] === "string") collectUrls(obj[key], out);
+  }
+}
+
+function extractObject(value: string): { bucket: string; path: string } | null {
+  try {
+    const u = new URL(value);
+    const marker = "/storage/v1/object/public/";
+    const index = u.pathname.indexOf(marker);
+    if (index < 0) return null;
+    const rest = u.pathname.slice(index + marker.length);
+    const slash = rest.indexOf("/");
+    if (slash <= 0) return null;
+    const bucket = decodeURIComponent(rest.slice(0, slash));
+    const path = rest.slice(slash + 1).split("/").map(decodeURIComponent).join("/");
+    return bucket && path ? { bucket, path } : null;
+  } catch { return null; }
+}
+
+export async function deleteFromSupabaseStorage(values: unknown[]): Promise<void> {
+  const url = SUPABASE_URL();
+  const key = SUPABASE_SERVICE_ROLE_KEY();
+  if (!url || !key) throw new Error("Supabase Storage is not configured");
+  const configuredBucket = SUPABASE_MEDIA_BUCKET();
+  const urls: string[] = [];
+  for (const value of values) collectUrls(value, urls);
+  const paths = [...new Set(urls.map(extractObject).filter((x): x is { bucket: string; path: string } => Boolean(x)).filter(x => x.bucket === configuredBucket).map(x => x.path))];
+  if (!paths.length) return;
+  const response = await fetch(`${url}/storage/v1/object/${encodeURIComponent(configuredBucket)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, apikey: key, "Content-Type": "application/json" },
+    body: JSON.stringify({ prefixes: paths }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Supabase Storage delete failed (${response.status}): ${detail.slice(0, 300)}`);
+  }
 }
