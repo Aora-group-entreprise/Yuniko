@@ -16,7 +16,6 @@ const allowedOrigins = String(workerEnv["CORS_ORIGINS"] ?? process.env["CORS_ORI
 app.set("trust proxy", true);
 app.disable("x-powered-by");
 
-// Handle browser CORS preflight before database initialization.
 app.use(cors({
   origin(origin, callback) {
     if (!origin) return callback(null, true);
@@ -33,6 +32,32 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   if (nodeEnv === "production") res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  next();
+});
+
+// Bound long-lived SSE connections per session/IP inside each Worker isolate.
+// This complements request rate limiting and prevents one client from opening
+// an unbounded number of streams. The frontend authenticates streams via the
+// Authorization header, never via a query-string token.
+const activeStreams = new Map<string, number>();
+const MAX_SSE_CONNECTIONS = 4;
+app.use((req, res, next) => {
+  if (req.method !== "GET" || req.headers.accept !== "text/event-stream") return next();
+  const authorization = req.headers.authorization ?? "";
+  const key = authorization.startsWith("Bearer ") ? authorization : `ip:${req.ip ?? "unknown"}`;
+  const count = activeStreams.get(key) ?? 0;
+  if (count >= MAX_SSE_CONNECTIONS) return res.status(429).json({ error: "Too many realtime connections" });
+  activeStreams.set(key, count + 1);
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    const current = activeStreams.get(key) ?? 1;
+    if (current <= 1) activeStreams.delete(key);
+    else activeStreams.set(key, current - 1);
+  };
+  res.once("finish", release);
+  res.once("close", release);
   next();
 });
 
