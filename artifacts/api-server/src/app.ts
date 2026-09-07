@@ -4,7 +4,6 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { recordRequest } from "./lib/metrics";
 import { rateLimit } from "./middlewares/rate-limit";
-import { uploadCreateMedia } from "./middlewares/media-payload";
 import { closeRequestDb, ensureRequestClientConnected, runWithRequestDb } from "@workspace/db";
 import { postsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -87,9 +86,9 @@ app.use((req, res, next) => {
 });
 app.use(express.urlencoded({ extended: true, limit: "1mb", parameterLimit: 100 }));
 
-// Upload image data URLs before the existing post/story routes persist them.
-// Text-only posts and all other API routes are unchanged.
-app.use(uploadCreateMedia);
+// Post/story image uploads are handled inside the API router after authMiddleware
+// has populated req.userId. Keeping upload handling there avoids rejecting
+// authenticated create requests before authentication has run.
 
 // The post DELETE route already removes the database row. Capture its media
 // first and clean the corresponding Supabase Storage objects after a
