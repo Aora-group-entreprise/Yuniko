@@ -3,7 +3,7 @@ import app from "./app";
 import { cleanupExpiredStories } from "./jobs/story-cleanup";
 
 const server = app.listen(3000);
-const fetchHandler = httpServerHandler(server as unknown as { port: number });
+const fetchHandler = httpServerHandler(server);
 
 export default {
   fetch: fetchHandler,
