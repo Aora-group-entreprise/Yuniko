@@ -6,11 +6,7 @@ import { env } from "cloudflare:workers";
 function getSecret(): string {
   const workerEnv = env as Record<string, unknown>;
   const configured = String(workerEnv["SESSION_SECRET"] ?? process.env["SESSION_SECRET"] ?? "").trim();
-  if (configured) {
-    return configured.length >= 32
-      ? configured
-      : createHash("sha256").update(`yuniko-jwt-configured-v1:${configured}`).digest("hex");
-  }
+  if (configured) return configured.length >= 32 ? configured : createHash("sha256").update(`yuniko-jwt-configured-v1:${configured}`).digest("hex");
   const production = String(workerEnv["NODE_ENV"] ?? process.env["NODE_ENV"] ?? "development") === "production";
   if (production) throw new Error("JWT signing key is unavailable in production.");
   return "yuniko-dev-secret-change-in-prod";
@@ -20,10 +16,21 @@ export interface AuthPayload { userId: number; }
 const JWT_ISSUER = "yuniko-api";
 const JWT_AUDIENCE = "yuniko-client";
 const MAX_TOKEN_LENGTH = 4096;
+const SESSION_COOKIE = "yuniko_session";
+
+function cookieToken(req: Request): string {
+  const cookie = req.headers.cookie ?? "";
+  const match = cookie.split(";").map(v => v.trim()).find(v => v.startsWith(`${SESSION_COOKIE}=`));
+  return match ? decodeURIComponent(match.slice(SESSION_COOKIE.length + 1)) : "";
+}
+
+export function setSessionCookie(res: Response, token: string): void {
+  res.setHeader("Set-Cookie", `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`);
+}
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers["authorization"];
-  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : cookieToken(req);
   if (!token) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (token.length > MAX_TOKEN_LENGTH) { res.status(401).json({ error: "Invalid token" }); return; }
   try {
