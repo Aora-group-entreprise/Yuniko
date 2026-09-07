@@ -24,15 +24,16 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((options.headers ?? {}) as Record<string, string>),
   };
+  const isRealtime = headers.Accept === "text/event-stream";
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), path.includes("/media/upload") ? UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
+  const timeout = isRealtime ? undefined : window.setTimeout(() => controller.abort(), path.includes("/media/upload") ? UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
   const callerSignal = options.signal;
   const onAbort = () => controller.abort();
   callerSignal?.addEventListener("abort", onAbort, { once: true });
   try {
     return await fetch(apiUrl(path), { ...options, headers, signal: controller.signal });
   } finally {
-    window.clearTimeout(timeout);
+    if (timeout !== undefined) window.clearTimeout(timeout);
     callerSignal?.removeEventListener("abort", onAbort);
   }
 }
