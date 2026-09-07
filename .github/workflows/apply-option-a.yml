@@ -1,0 +1,81 @@
+name: Apply Yuniko Option A
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Apply targeted API fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          create = Path('artifacts/yuniko/src/pages/create.tsx')
+          s = create.read_text()
+          if 'import { apiJson } from "@/lib/api";' not in s:
+              s = s.replace('import BottomNav from "@/components/BottomNav";\n', 'import BottomNav from "@/components/BottomNav";\nimport { apiJson } from "@/lib/api";\n')
+          pattern = re.compile(r'    try \{\n      if \(activeTab === "story"\) \{.*?      setPosted\(true\);', re.S)
+          replacement = '''    try {
+          if (activeTab === "story") {
+            await apiJson<{ story?: unknown }>("/stories", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ mediaUrl: selectedMedia, caption: caption.trim() }),
+            });
+          } else {
+            await apiJson<{ post?: unknown }>("/posts", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                caption: caption.trim(),
+                mediaUrl: selectedMedia,
+                location: locationText.trim() || undefined,
+                hashtags: hashtags.trim() || undefined,
+                isWorldFeed,
+              }),
+            });
+          }
+          setPosted(true);'''
+          s2, n = pattern.subn(replacement, s, count=1)
+          if n != 1:
+              raise SystemExit('create.tsx submit block not found')
+          s2 = s2.replace('    } catch {\n      setError("Network error. Please try again.");\n', '    } catch (error) {\n      console.error("Create post/story failed", error);\n      setError(error instanceof Error ? error.message : "Unable to publish. Please try again.");\n')
+          create.write_text(s2)
+
+          social = Path('artifacts/api-server/src/routes/social.ts')
+          ss = social.read_text()
+          ss2 = ss.replace('if(q.length<2)return res.json({users:[],posts:[]});', 'if(q.length<1)return res.json({users:[],posts:[]});', 1)
+          if ss2 == ss:
+              raise SystemExit('social search minimum-length guard not found')
+          social.write_text(ss2)
+
+          search = Path('artifacts/yuniko/src/pages/search.tsx')
+          q = search.read_text()
+          q2 = q.replace('const q=query.trim();if(!q||q.length<2||authLoading)', 'const q=query.trim().replace(/^@/,"");if(!q||q.length<1||authLoading)', 1)
+          if q2 == q:
+              raise SystemExit('search.tsx query guard not found')
+          search.write_text(q2)
+          PY
+      - name: Verify patch is present
+        run: |
+          grep -q 'apiJson<{ story?: unknown }>("/stories"' artifacts/yuniko/src/pages/create.tsx
+          grep -q 'if(q.length<1)return res.json' artifacts/api-server/src/routes/social.ts
+          grep -q 'q=query.trim().replace(/^@/,"")' artifacts/yuniko/src/pages/search.tsx
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name 'Aora-group-entreprise'
+          git config user.email 'hushengniaina@gmail.com'
+          git add artifacts/yuniko/src/pages/create.tsx artifacts/api-server/src/routes/social.ts artifacts/yuniko/src/pages/search.tsx .github/workflows/apply-option-a.yml
+          git commit -m 'fix: complete API connection diagnostics and search flow' || exit 0
+          git rm .github/workflows/apply-option-a.yml
+          git commit -m 'chore: remove temporary option A patch workflow'
+          git push origin HEAD:main
