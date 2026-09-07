@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, Settings, Grid3X3, BookmarkIcon, BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Trash2 } from "lucide-react";
+import { ArrowLeft, Settings, Grid3X3, BookmarkIcon, BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone } from "lucide-react";
 import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
@@ -10,26 +10,29 @@ type User={id:number;username:string;displayName:string;avatarUrl:string|null;bi
 type Post={id:number;mediaUrl:string|null;mediaType:string;caption:string;mediaItems:string|null};
 const avatar=(u:Pick<User,"avatarUrl"|"displayName">)=>u.avatarUrl??`https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(u.displayName)}&backgroundColor=FF006E`;
 export default function Profile({userId}:{userId?:string}){
- const [,setLocation]=useLocation(); const params=useParams<{userId:string}>(); const {user:me,isLoading:authLoading}=useAuth();
- const target=userId||params?.userId||"me"; const isOwn=target==="me"; const id=isOwn?me?.id:Number(target);
+ const [,setLocation]=useLocation(); const params=useParams<{userId:string}>(); const {user:me,isLoading:authLoading,refreshUser}=useAuth();
+ const target=userId||params?.userId||"me"; const isOwn=target==="me";
+ const [resolvedId,setResolvedId]=useState<number|null>(isOwn?(me?.id??null):Number(target));
  const [data,setData]=useState<{user:User;posts:Post[]}|null>(null); const [loading,setLoading]=useState(true); const [tab,setTab]=useState<"grid"|"saved">("grid");
+ useEffect(()=>{ if(!authLoading && isOwn && !me) void refreshUser(); },[authLoading,isOwn,me,refreshUser]);
+ useEffect(()=>{ if(!isOwn){setResolvedId(Number(target));return;} if(me?.id)setResolvedId(me.id); },[isOwn,target,me?.id]);
  useEffect(()=>{
    if(authLoading)return;
    let cancelled=false;
    const load=async()=>{
-     if(!id||!Number.isSafeInteger(id)||id<=0){if(!cancelled){setData(null);setLoading(false)};return;}
+     if(!resolvedId||!Number.isSafeInteger(resolvedId)||resolvedId<=0){if(!cancelled)setLoading(false);return;}
      setLoading(true);
      try{
-       const result=await apiJson<{user:User;posts:Post[]}>(`/users/${id}`);
+       const result=await apiJson<{user:User;posts?:Post[]}>(`/users/${resolvedId}`);
        if(cancelled)return;
-       setData({user:result.user,posts:Array.isArray(result.posts)?result.posts:[]});
+       if(result?.user?.id) setData({user:result.user,posts:Array.isArray(result.posts)?result.posts:[]});
+       else setData(null);
      }catch{if(!cancelled)setData(null)}finally{if(!cancelled)setLoading(false)}
    };
-   if(!me&&isOwn){setData(null);setLoading(false);return()=>{cancelled=true}};
    load();
    return()=>{cancelled=true};
- },[id,isOwn,authLoading,me]);
- useEffect(()=>{if(!data||!id)return;apiJson<{verificationStatus?:string}>(`/users/${id}/verification`).then(v=>setData(current=>current?{...current,user:{...current.user,verificationStatus:v.verificationStatus}}:current)).catch(()=>{});},[data?.user.id,id]);
+ },[resolvedId,authLoading]);
+ useEffect(()=>{if(!data||!resolvedId)return;apiJson<{verificationStatus?:string}>(`/users/${resolvedId}/verification`).then(v=>setData(current=>current?{...current,user:{...current.user,verificationStatus:v.verificationStatus}}:current)).catch(()=>{});},[data?.user.id,resolvedId]);
  if(authLoading||loading)return <div className="min-h-screen bg-background flex items-center justify-center text-white/50">{t("loading")}</div>;
  if(!data)return <div className="min-h-screen bg-background flex items-center justify-center text-white/50">{t("noResults")}</div>;
  const u=data.user,own=me?.id===u.id,verified=u.verificationStatus==="approved";
