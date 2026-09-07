@@ -14,24 +14,9 @@ export default function Profile({userId}:{userId?:string}){
  const target=userId||params?.userId||"me"; const isOwn=target==="me";
  const [resolvedId,setResolvedId]=useState<number|null>(isOwn?(me?.id??null):Number(target));
  const [data,setData]=useState<{user:User;posts:Post[]}|null>(null); const [loading,setLoading]=useState(true); const [tab,setTab]=useState<"grid"|"saved">("grid");
- useEffect(()=>{ if(!authLoading && isOwn && !me) void refreshUser(); },[authLoading,isOwn,me,refreshUser]);
- useEffect(()=>{ if(!isOwn){setResolvedId(Number(target));return;} if(me?.id)setResolvedId(me.id); },[isOwn,target,me?.id]);
- useEffect(()=>{
-   if(authLoading)return;
-   let cancelled=false;
-   const load=async()=>{
-     if(!resolvedId||!Number.isSafeInteger(resolvedId)||resolvedId<=0){if(!cancelled)setLoading(false);return;}
-     setLoading(true);
-     try{
-       const result=await apiJson<{user:User;posts?:Post[]}>(`/users/${resolvedId}`);
-       if(cancelled)return;
-       if(result?.user?.id) setData({user:result.user,posts:Array.isArray(result.posts)?result.posts:[]});
-       else setData(null);
-     }catch{if(!cancelled)setData(null)}finally{if(!cancelled)setLoading(false)}
-   };
-   load();
-   return()=>{cancelled=true};
- },[resolvedId,authLoading]);
+ useEffect(()=>{if(!authLoading&&isOwn&&!me)void refreshUser();},[authLoading,isOwn,me,refreshUser]);
+ useEffect(()=>{if(!isOwn){setResolvedId(Number(target));return;}if(me?.id)setResolvedId(me.id);},[isOwn,target,me?.id]);
+ useEffect(()=>{if(authLoading)return;let cancelled=false;const load=async()=>{setLoading(true);try{let id=resolvedId;if(isOwn&&!id){const fresh=await apiJson<User>("/auth/me");id=fresh?.id??null;if(id&&!cancelled)setResolvedId(id);}if(!id||!Number.isSafeInteger(id)||id<=0){if(!cancelled){setData(null);setLoading(false)}return;}const result=await apiJson<{user:User;posts?:Post[]}>(`/users/${id}`);if(cancelled)return;if(result?.user?.id)setData({user:result.user,posts:Array.isArray(result.posts)?result.posts:[]});else setData(null);}catch{if(!cancelled)setData(null)}finally{if(!cancelled)setLoading(false)}};void load();return()=>{cancelled=true};},[resolvedId,authLoading,isOwn]);
  useEffect(()=>{if(!data||!resolvedId)return;apiJson<{verificationStatus?:string}>(`/users/${resolvedId}/verification`).then(v=>setData(current=>current?{...current,user:{...current.user,verificationStatus:v.verificationStatus}}:current)).catch(()=>{});},[data?.user.id,resolvedId]);
  if(authLoading||loading)return <div className="min-h-screen bg-background flex items-center justify-center text-white/50">{t("loading")}</div>;
  if(!data)return <div className="min-h-screen bg-background flex items-center justify-center text-white/50">{t("noResults")}</div>;
