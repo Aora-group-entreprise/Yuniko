@@ -2,19 +2,17 @@
  * Authenticated API fetch helper.
  * Yuniko's JWT remains the only session mechanism.
  *
- * The production frontend and API are deployed separately. Keep the deployed
- * Worker URL as the safe production fallback so auth does not depend on a
- * missing Cloudflare Pages build variable.
+ * Production frontend requests stay same-origin through the Cloudflare Pages
+ * /api proxy, which forwards them to the Yuniko API Worker. This avoids
+ * browser cross-origin failures while keeping the API Worker separate.
  */
 const TOKEN_KEY = "yuniko_token";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const UPLOAD_TIMEOUT_MS = 90_000;
-const DEFAULT_API_BASE_URL = "https://yuniko-api.lafatriniainaallane.workers.dev";
-const API_BASE_URL = String(import.meta.env.VITE_API_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, "");
 
 function apiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE_URL}/api${normalizedPath}`;
+  return `/api${normalizedPath}`;
 }
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
