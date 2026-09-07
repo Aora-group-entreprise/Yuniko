@@ -7,6 +7,8 @@
   "vars": {
     "NODE_ENV": "production",
     "CORS_ORIGINS": "https://yuniko-19d.pages.dev",
+    "SUPABASE_URL": "https://pqjrmtkfgwoocbvmwbby.supabase.co",
+    "SUPABASE_MEDIA_BUCKET": "media",
     "VIDEO_ENABLED": "false",
     "LIVE_ENABLED": "false",
     "SFU_ENABLED": "false",
