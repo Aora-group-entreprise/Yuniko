@@ -12,6 +12,9 @@
     "SFU_ENABLED": "false",
     "LIVE_RECORDING_ENABLED": "false"
   },
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
