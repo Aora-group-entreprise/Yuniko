@@ -10,6 +10,7 @@ import socialCompletionRouter from "./social-completion";
 import platformEnhancementsRouter from "./platform-enhancements";
 import liveStreamRouter from "./live-stream";
 import mediaRouter from "./media";
+import unreadRouter from "./unread";
 import { assertLiveEnabled } from "../infrastructure/video-features";
 import { authMiddleware } from "../middlewares/auth";
 import { isSupabaseStorageConfigured, uploadToSupabaseStorage } from "../infrastructure/supabase-storage";
@@ -19,34 +20,19 @@ type AuthedRequest = Request & { userId?: number };
 
 function liveFeatureGate(req: Request, res: Response, next: NextFunction) {
   if (!req.path.startsWith("/live")) return next();
-  try {
-    assertLiveEnabled();
-    return next();
-  } catch (error) {
-    const statusCode = (error as Error & { statusCode?: number }).statusCode ?? 403;
-    return res.status(statusCode).json({ error: (error as Error).message });
-  }
+  try { assertLiveEnabled(); return next(); }
+  catch (error) { const statusCode = (error as Error & { statusCode?: number }).statusCode ?? 403; return res.status(statusCode).json({ error: (error as Error).message }); }
 }
 
 async function handleInlineImage(req: AuthedRequest, res: Response, next: NextFunction) {
   const mediaUrl = req.body?.mediaUrl;
   if (typeof mediaUrl !== "string" || !mediaUrl.startsWith("data:image/")) return next();
   if (!req.userId) return res.status(401).json({ error: "Authentication required" });
-
-  // Storage is optional. If it is configured, upload and store the short HTTPS URL.
-  // Otherwise keep the compressed data URL so image posts/stories remain functional.
   if (!isSupabaseStorageConfigured()) return next();
-
   const match = mediaUrl.match(/^data:([^;]+);base64,/);
   if (!match) return res.status(400).json({ error: "Invalid media data" });
   try {
-    const uploaded = await uploadToSupabaseStorage({
-      dataUrl: mediaUrl,
-      userId: req.userId,
-      filename: req.path === "/stories" ? "story.jpg" : "post.jpg",
-      mimeType: match[1],
-      kind: "image",
-    });
+    const uploaded = await uploadToSupabaseStorage({ dataUrl: mediaUrl, userId: req.userId, filename: req.path === "/stories" ? "story.jpg" : "post.jpg", mimeType: match[1], kind: "image" });
     req.body.mediaUrl = uploaded.url;
     return next();
   } catch (error) {
@@ -68,6 +54,7 @@ function inlineImageUpload(req: AuthedRequest, res: Response, next: NextFunction
 router.use(healthRouter);
 router.use(metricsRouter);
 router.use(authRouter);
+router.use(unreadRouter);
 router.use(inlineImageUpload);
 router.use(postsRouter);
 router.use(storiesRouter);
