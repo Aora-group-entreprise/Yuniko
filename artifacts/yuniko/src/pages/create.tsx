@@ -397,7 +397,6 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
         animate={{ left: value ? "calc(100% - 22px)" : "2px" }}
         transition={{ type: "spring", damping: 22, stiffness: 400 }}
       />
-    </motion.span>
     </motion.button>
   );
 }
