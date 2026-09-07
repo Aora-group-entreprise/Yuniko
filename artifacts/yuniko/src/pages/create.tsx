@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import BottomNav from "@/components/BottomNav";
+import { apiJson } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -107,33 +108,30 @@ export default function Create() {
     setLoading(true);
     setError("");
     try {
-      if (activeTab === "story") {
-        const r = await fetch("https://yuniko-api.lafatriniainaallane.workers.dev/api/stories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ mediaUrl: selectedMedia, caption: caption.trim() }),
-        });
-        const d = await r.json() as { story?: any; error?: string };
-        if (!r.ok) { setError(d.error ?? "Failed to post story"); return; }
-      } else {
-        const r = await fetch("https://yuniko-api.lafatriniainaallane.workers.dev/api/posts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            caption: caption.trim(),
-            mediaUrl: selectedMedia,
-            location: locationText.trim() || undefined,
-            hashtags: hashtags.trim() || undefined,
-            isWorldFeed,
-          }),
-        });
-        const d = await r.json() as { post?: any; error?: string };
-        if (!r.ok) { setError(d.error ?? "Failed to post"); return; }
-      }
-      setPosted(true);
+if (activeTab === "story") {
+  await apiJson<{ story?: unknown }>("/stories", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ mediaUrl: selectedMedia, caption: caption.trim() }),
+  });
+} else {
+  await apiJson<{ post?: unknown }>("/posts", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      caption: caption.trim(),
+      mediaUrl: selectedMedia,
+      location: locationText.trim() || undefined,
+      hashtags: hashtags.trim() || undefined,
+      isWorldFeed,
+    }),
+  });
+}
+setPosted(true);
       setTimeout(() => setLocation("/"), 1400);
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (error) {
+      console.error("Create post/story failed", error);
+      setError(error instanceof Error ? error.message : "Unable to publish. Please try again.");
     } finally {
       setLoading(false);
     }
