@@ -1,7 +1,7 @@
 /**
  * Improved API fetch helper: surface network errors with clearer messages
  * so the UI can display actionable text instead of generic "Failed to fetch".
- * Also logs errors to the console to aid debugging and shows a toast in the UI.
+ * Also logs errors to the console and shows a toast in the UI.
  */
 
 const TOKEN_KEY = "yuniko_token";
@@ -9,11 +9,113 @@ const DEFAULT_TIMEOUT_MS = 20_000;
 const UPLOAD_TIMEOUT_MS = 90_000;
 const DEFAULT_API_BASE_URL = "https://yuniko-api.lafatriniainaallane.workers.dev";
 const API_BASE_URL = String(import.meta.env.VITE_API_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, "");
+const FEED_CACHE_KEY = "yuniko_feed_cache_v2";
+const FEED_CACHE_TTL = 5 * 60_000;
+const FEED_POST_USERS_KEY = "yuniko_feed_post_users_v2";
 
 function apiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}/api${normalizedPath}`;
 }
+
+function isFeedRequest(input: RequestInfo | URL): boolean {
+  try {
+    const url = typeof input === "string" ? new URL(input, window.location.origin) : new URL(input instanceof Request ? input.url : String(input));
+    return url.pathname === "/api/posts/feed" && url.searchParams.get("cursor") === null;
+  } catch {
+    return false;
+  }
+}
+
+function cloneJsonResponse(data: unknown): Response {
+  return new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } });
+}
+
+function installFeedInstantReturn(): void {
+  if (typeof window === "undefined" || (window as any).__yunikoFeedCacheInstalled) return;
+  (window as any).__yunikoFeedCacheInstalled = true;
+  const nativeFetch = window.fetch.bind(window);
+
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (!isFeedRequest(input) || (init?.method && init.method.toUpperCase() !== "GET")) {
+      return nativeFetch(input, init);
+    }
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return nativeFetch(input, init);
+
+    let cached: { at: number; data: any } | null = null;
+    try {
+      const raw = sessionStorage.getItem(FEED_CACHE_KEY);
+      if (raw) cached = JSON.parse(raw);
+    } catch {}
+
+    const refresh = nativeFetch(input, init).then(async response => {
+      if (response.ok) {
+        const data = await response.clone().json().catch(() => null);
+        if (data) {
+          try {
+            sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ at: Date.now(), data }));
+            const posts = Array.isArray(data.posts) ? data.posts : [];
+            const users: Record<string, number> = {};
+            for (const p of posts) if (p?.id != null && p?.userId != null) users[String(p.id)] = Number(p.userId);
+            sessionStorage.setItem(FEED_POST_USERS_KEY, JSON.stringify(users));
+          } catch {}
+        }
+      }
+      return response;
+    });
+
+    if (cached?.data && Date.now() - Number(cached.at || 0) < FEED_CACHE_TTL) {
+      void refresh.catch(() => {});
+      return cloneJsonResponse(cached.data);
+    }
+    return refresh;
+  };
+}
+
+function installFollowInstantAction(): void {
+  if (typeof window === "undefined" || (window as any).__yunikoFollowInstalled) return;
+  (window as any).__yunikoFollowInstalled = true;
+  document.addEventListener("click", async event => {
+    const target = event.target as HTMLElement | null;
+    const button = target?.closest("button");
+    if (!button) return;
+    const card = button.closest('[data-testid^="post-card-"]') as HTMLElement | null;
+    if (!card) return;
+    const label = button.textContent?.trim().toLowerCase() ?? "";
+    if (!/^(follow|suivre|suivi|following)$/.test(label)) return;
+    if (button.dataset.yunikoFollowBusy === "true") return;
+
+    let postId = card.getAttribute("data-testid")?.replace(/^post-card-/, "") ?? "";
+    if (postId.startsWith("live_")) postId = postId.slice(5);
+    let users: Record<string, number> = {};
+    try { users = JSON.parse(sessionStorage.getItem(FEED_POST_USERS_KEY) || "{}"); } catch {}
+    const userId = Number(users[postId]);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    button.dataset.yunikoFollowBusy = "true";
+    const wasFollowing = /^(suivi|following)$/.test(label);
+    try {
+      const res = await apiFetch(`/users/${userId}/follow`, { method: wasFollowing ? "DELETE" : "POST" });
+      if (!res.ok) throw new Error("Follow request failed");
+      const data = await res.json().catch(() => ({}));
+      const following = Boolean(data?.following ?? !wasFollowing);
+      button.textContent = following ? "Following" : "Follow";
+      button.setAttribute("aria-pressed", String(following));
+      button.style.background = following ? "rgba(255,255,255,.1)" : "linear-gradient(135deg, #FF006E, #8B00FF)";
+    } catch {
+      /* keep the current state on failure */
+    } finally {
+      delete button.dataset.yunikoFollowBusy;
+    }
+  }, true);
+}
+
+installFeedInstantReturn();
+installFollowInstantAction();
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -25,8 +127,6 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...providedHeaders,
   };
-  // Prevent a component that is still waiting for AuthContext hydration from
-  // accidentally replacing a valid stored token with "Bearer null".
   if (!hasUsableAuthorization && token) headers.Authorization = `Bearer ${token}`;
   else if (!hasUsableAuthorization && !token) delete headers.Authorization;
 
