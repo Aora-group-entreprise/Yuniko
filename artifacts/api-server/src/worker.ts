@@ -18,13 +18,9 @@ function json(data: unknown, status = 200): Response {
 async function getFetchHandler(): Promise<FetchHandler> {
   if (!fetchHandlerPromise) {
     fetchHandlerPromise = (async () => {
-      const [{ httpServerHandler }, { createServer }] = await Promise.all([
-        import("cloudflare:node"),
-        import("node:http"),
-      ]);
-      const { default: app } = await import("./app");
-      const server = createServer(app);
-      return httpServerHandler(server) as unknown as FetchHandler;
+      const { httpServerHandler } = await import("cloudflare:node");
+      await import("./app");
+      return httpServerHandler({ port: 3000 }) as unknown as FetchHandler;
     })();
   }
   return fetchHandlerPromise;
@@ -38,7 +34,6 @@ export default {
   ) {
     const url = new URL(request.url);
 
-    // Keep liveness independent from Express, Pino, Drizzle and Hyperdrive.
     if (url.pathname === "/api/health") {
       return json({ ok: true, service: "yuniko-api", worker: "alive" });
     }
