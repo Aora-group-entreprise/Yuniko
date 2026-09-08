@@ -18,13 +18,13 @@ function json(data: unknown, status = 200): Response {
 async function getFetchHandler(): Promise<FetchHandler> {
   if (!fetchHandlerPromise) {
     fetchHandlerPromise = (async () => {
-      const [{ httpServerHandler }, { default: app }] = await Promise.all([
+      const [{ httpServerHandler }, { createServer }] = await Promise.all([
         import("cloudflare:node"),
-        import("./app"),
+        import("node:http"),
       ]);
-
-      app.listen(3000);
-      return httpServerHandler({ port: 3000 }) as unknown as FetchHandler;
+      const { default: app } = await import("./app");
+      const server = createServer(app);
+      return httpServerHandler(server) as unknown as FetchHandler;
     })();
   }
   return fetchHandlerPromise;
