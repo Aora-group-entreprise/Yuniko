@@ -42,13 +42,17 @@ export default function BottomNav() {
   }, [location]);
 
   useEffect(() => {
-    if (!location.startsWith("/notifications")) return;
-    setUnreadNotifications(0);
+    if (location.startsWith("/notifications")) {
+      setUnreadNotifications(0);
+      void apiJson("/notifications/read-all", { method: "PATCH" }).catch(() => {});
+    }
   }, [location]);
 
   useEffect(() => {
-    if (!location.startsWith("/messages")) return;
-    setUnreadMessages(0);
+    if (location.startsWith("/messages")) {
+      setUnreadMessages(0);
+      void apiJson("/conversations/read-all", { method: "PATCH" }).catch(() => {});
+    }
   }, [location]);
 
   return (
@@ -56,17 +60,11 @@ export default function BottomNav() {
       <div className="flex items-center justify-around h-16 px-2">
         <NavItem href="/" label={t("home")} active={isActive("/")}><Home size={23} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.3 : 1.7} /></NavItem>
         <NavItem href="/notifications" label={t("notifications")} active={isActive("/notifications")}>
-          <div className="relative">
-            <Bell size={23} style={{ color: isActive("/notifications") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/notifications") ? 2.3 : 1.7} />
-            {unreadNotifications > 0 && <Badge count={unreadNotifications} label={t("notifications")} />}
-          </div>
+          <div className="relative"><Bell size={23} style={{ color: isActive("/notifications") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/notifications") ? 2.3 : 1.7} />{unreadNotifications > 0 && <Badge count={unreadNotifications} label={t("notifications")} />}</div>
         </NavItem>
         <Link href="/create"><motion.button aria-label={t("create")} data-testid="nav-create" className="flex items-center justify-center w-[54px] h-[54px] rounded-full" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 24px rgba(255,0,110,0.5), 0 4px 16px rgba(0,0,0,0.3)" }} whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.05 }}><Plus size={26} className="text-white" strokeWidth={2.8} /></motion.button></Link>
         <NavItem href="/messages" label={t("messages")} active={isActive("/messages")}>
-          <div className="relative">
-            <MessageCircle size={23} style={{ color: isActive("/messages") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/messages") ? 2.3 : 1.7} />
-            {unreadMessages > 0 && <Badge count={unreadMessages} label={t("unreadMessages")} />}
-          </div>
+          <div className="relative"><MessageCircle size={23} style={{ color: isActive("/messages") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/messages") ? 2.3 : 1.7} />{unreadMessages > 0 && <Badge count={unreadMessages} label={t("unreadMessages")} />}</div>
         </NavItem>
         <NavItem href="/profile" label={t("profile")} active={isActive("/profile")}><User size={23} style={{ color: isActive("/profile") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/profile") ? 2.3 : 1.7} /></NavItem>
       </div>
