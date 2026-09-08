@@ -17,11 +17,19 @@ function apiUrl(path: string): string {
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem(TOKEN_KEY);
+  const providedHeaders = { ...((options.headers ?? {}) as Record<string, string>) };
+  const providedAuthorization = providedHeaders.Authorization ?? providedHeaders.authorization;
+  const hasUsableAuthorization = typeof providedAuthorization === "string" && /^Bearer\s+[^\s]+$/i.test(providedAuthorization) && !/^Bearer\s+(null|undefined)$/i.test(providedAuthorization);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...((options.headers ?? {}) as Record<string, string>),
+    ...providedHeaders,
   };
+  // Prevent a component that is still waiting for AuthContext hydration from
+  // accidentally replacing a valid stored token with "Bearer null".
+  if (!hasUsableAuthorization && token) headers.Authorization = `Bearer ${token}`;
+  else if (!hasUsableAuthorization && !token) delete headers.Authorization;
+
   const isRealtime = headers.Accept === "text/event-stream";
   const controller = new AbortController();
   const timeout = isRealtime ? undefined : window.setTimeout(() => controller.abort(), path.includes("/media/upload") ? UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
@@ -30,30 +38,21 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   callerSignal?.addEventListener("abort", onAbort, { once: true });
 
   try {
-    // Attempt the network request and surface clearer errors for the UI/logs.
     const response = await fetch(apiUrl(path), { ...options, headers, signal: controller.signal });
     return response;
   } catch (err: unknown) {
-    // Normalize error message
     let message = "Network error";
     try {
-      if (err && typeof err === "object" && "message" in err) {
-        // @ts-ignore
-        message = String((err as any).message ?? err);
-      } else {
-        message = String(err ?? "Unknown network error");
-      }
+      if (err && typeof err === "object" && "message" in err) message = String((err as any).message ?? err);
+      else message = String(err ?? "Unknown network error");
     } catch {
       message = "Network error";
     }
-
-    // Provide more helpful error text for timeouts/aborts
     if (message.toLowerCase().includes("aborted") || message.toLowerCase().includes("timeout") || message.toLowerCase().includes("request timed out")) {
       const errMsg = `Request timed out or was aborted while calling ${path}`;
       console.error(errMsg, err);
       throw new Error(errMsg);
     }
-
     const errMsg = `Network error while calling ${path}: ${message}`;
     console.error(errMsg, err);
     throw new Error(errMsg);
@@ -75,21 +74,14 @@ export async function apiJson<T>(path: string, options: RequestInit = {}): Promi
     if (data === null) throw new Error("Invalid server response");
     return data as T;
   } catch (err: any) {
-    // Log for debugging
     console.error(`apiJson error for ${path}:`, err);
-
-    // Try to show a UI toast if the toast helper is available.
     try {
       const mod = await import("@/hooks/use-toast");
       if (mod && typeof mod.toast === "function") {
         const title = err?.message && typeof err.message === "string" ? (err.message.length > 100 ? err.message.slice(0, 97) + "..." : err.message) : "Network error";
-        // description can contain more detail when present
-        mod.toast({ title: title, description: typeof err === "string" ? err : (err?.message ?? String(err)), open: true });
+        mod.toast({ title, description: typeof err === "string" ? err : (err?.message ?? String(err)), open: true });
       }
-    } catch (e) {
-      // ignore failures to show UI toast (non-React runtimes)
-    }
-
+    } catch {}
     throw err;
   }
 }
