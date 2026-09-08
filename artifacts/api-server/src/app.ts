@@ -19,15 +19,20 @@ const allowedOrigins = String(workerEnv["CORS_ORIGINS"] ?? process.env["CORS_ORI
 app.set("trust proxy", true);
 app.disable("x-powered-by");
 
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    callback(null, allowedOrigins.includes(origin));
+const corsOptions = {
+  origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(null, false);
   },
+  credentials: true,
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+  exposedHeaders: ["Content-Type", "Set-Cookie"],
   maxAge: 600,
-}));
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -38,8 +43,6 @@ app.use((req, res, next) => {
   return next();
 });
 
-// Keep this endpoint before the database middleware so it proves that the Worker
-// itself is reachable even when the database binding is unavailable.
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "yuniko-api" }));
 
 const activeStreams = new Map<string, number>();
@@ -77,7 +80,6 @@ app.use((req, res, next) => {
   }, databaseUrl);
 });
 
-// This check runs after Hyperdrive middleware and therefore validates DB connectivity.
 app.get("/api/health/db", async (_req, res) => {
   try {
     await ensureRequestClientConnected();
