@@ -1,65 +1,42 @@
-type FetchHandler = (request: Request, env: unknown, ctx: ExecutionContext) => Response | Promise<Response>;
-let fetchHandlerPromise: Promise<FetchHandler> | undefined;
+import { httpServerHandler } from "cloudflare:node";
+import { env } from "cloudflare:workers";
+import app from "./app";
+import { cleanupExpiredStories } from "./jobs/story-cleanup";
+import { closeRequestDb, ensureRequestClientConnected, runWithRequestDb } from "@workspace/db";
 
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-    },
-  });
-}
+type WorkerEnv = {
+  HYPERDRIVE?: { connectionString?: string };
+};
 
-async function getFetchHandler(): Promise<FetchHandler> {
-  if (!fetchHandlerPromise) {
-    fetchHandlerPromise = (async () => {
-      // Keep both imports out of module scope. A failure in Express, Node
-      // compatibility, or one of its dependencies must not prevent the Worker
-      // from starting and answering /api/health.
-      const [{ httpServerHandler }, { default: app }] = await Promise.all([
-        import("cloudflare:node"),
-        import("./app"),
-      ]);
-
-      app.listen(3000);
-      return httpServerHandler({ port: 3000 }) as unknown as FetchHandler;
-    })();
-  }
-  return fetchHandlerPromise;
-}
+// Cloudflare's documented Express integration expects the Worker module to
+// export a concrete fetch handler. Keep this at module scope so Wrangler and
+// the Workers runtime can detect it reliably.
+app.listen(3000);
+const fetchHandler = httpServerHandler({ port: 3000 });
 
 export default {
-  async fetch(request: Request, env: unknown, ctx: ExecutionContext) {
-    const url = new URL(request.url);
-
-    // Diagnostic/liveness endpoint. It intentionally does not import Express,
-    // the database client, Drizzle, or any application dependency.
-    if (url.pathname === "/api/health") {
-      return json({ ok: true, service: "yuniko-api", worker: "alive" });
-    }
-
-    try {
-      const handler = await getFetchHandler();
-      return await handler(request, env, ctx);
-    } catch (error) {
-      console.error("Yuniko API Worker startup/request failure", error);
-      fetchHandlerPromise = undefined;
-      return json(
-        {
-          ok: false,
-          error: "Yuniko API startup failed",
-          details: error instanceof Error ? error.message : String(error),
-        },
-        500,
-      );
-    }
-  },
+  fetch: fetchHandler,
 
   async scheduled() {
+    const workerEnv = env as unknown as WorkerEnv;
+    const databaseUrl = workerEnv.HYPERDRIVE?.connectionString;
+
+    // Cron runs in the Worker environment, where DATABASE_URL is not a
+    // process.env variable. Use the Hyperdrive binding just like HTTP requests.
+    if (!databaseUrl) {
+      console.error("Yuniko story cleanup skipped: HYPERDRIVE is not configured");
+      return;
+    }
+
     try {
-      const { cleanupExpiredStories } = await import("./jobs/story-cleanup");
-      await cleanupExpiredStories();
+      await runWithRequestDb(async () => {
+        try {
+          await ensureRequestClientConnected();
+          await cleanupExpiredStories();
+        } finally {
+          await closeRequestDb();
+        }
+      }, databaseUrl);
     } catch (error) {
       console.error("Yuniko story cleanup failed", error);
     }
