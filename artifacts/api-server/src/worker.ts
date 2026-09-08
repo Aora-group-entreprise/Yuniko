@@ -1,29 +1,71 @@
-import { httpServerHandler } from "cloudflare:node";
-import { env } from "cloudflare:workers";
-import app from "./app";
-import { cleanupExpiredStories } from "./jobs/story-cleanup";
-import { closeRequestDb, ensureRequestClientConnected, runWithRequestDb } from "@workspace/db";
+type FetchHandler = (request: Request, env: unknown, ctx: ExecutionContext) => Response | Promise<Response>;
+let fetchHandlerPromise: Promise<FetchHandler> | undefined;
 
-type WorkerEnv = {
-  HYPERDRIVE?: { connectionString?: string };
-};
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
 
-app.listen(3000);
-const fetchHandler = httpServerHandler({ port: 3000 });
+async function getFetchHandler(): Promise<FetchHandler> {
+  if (!fetchHandlerPromise) {
+    fetchHandlerPromise = (async () => {
+      const [{ httpServerHandler }, { default: app }] = await Promise.all([
+        import("cloudflare:node"),
+        import("./app"),
+      ]);
+
+      app.listen(3000);
+      return httpServerHandler({ port: 3000 }) as unknown as FetchHandler;
+    })();
+  }
+  return fetchHandlerPromise;
+}
 
 export default {
-  fetch: fetchHandler,
+  async fetch(request: Request, env: unknown, ctx: ExecutionContext) {
+    const url = new URL(request.url);
 
-  async scheduled() {
-    const workerEnv = env as unknown as WorkerEnv;
-    const databaseUrl = workerEnv.HYPERDRIVE?.connectionString;
-
-    if (!databaseUrl) {
-      console.error("Yuniko story cleanup skipped: HYPERDRIVE is not configured");
-      return;
+    // Keep liveness independent from Express, Pino, Drizzle and Hyperdrive.
+    if (url.pathname === "/api/health") {
+      return json({ ok: true, service: "yuniko-api", worker: "alive" });
     }
 
     try {
+      const handler = await getFetchHandler();
+      return await handler(request, env, ctx);
+    } catch (error) {
+      console.error("Yuniko API startup/request failure", error);
+      fetchHandlerPromise = undefined;
+      return json(
+        {
+          ok: false,
+          error: "Yuniko API startup failed",
+          details: error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+  },
+
+  async scheduled() {
+    try {
+      const { env } = await import("cloudflare:workers");
+      const workerEnv = env as unknown as { HYPERDRIVE?: { connectionString?: string } };
+      const databaseUrl = workerEnv.HYPERDRIVE?.connectionString;
+
+      if (!databaseUrl) {
+        console.error("Yuniko story cleanup skipped: HYPERDRIVE is not configured");
+        return;
+      }
+
+      const { cleanupExpiredStories } = await import("./jobs/story-cleanup");
+      const { closeRequestDb, ensureRequestClientConnected, runWithRequestDb } = await import("@workspace/db");
+
       await runWithRequestDb(async () => {
         try {
           await ensureRequestClientConnected();
