@@ -51,15 +51,46 @@ function writeFollowState(userId: number, following: boolean): void {
   } catch {}
 }
 
+function followLabel(following: boolean, currentLabel: string): string {
+  const french = /^(suivre|suivi)$/i.test(currentLabel);
+  return following ? (french ? "Suivi" : "Following") : (french ? "Suivre" : "Follow");
+}
+
 function applyFollowState(button: HTMLButtonElement, following: boolean): void {
-  button.textContent = following ? "Following" : "Follow";
+  const currentLabel = button.textContent?.trim() ?? "";
+  button.textContent = followLabel(following, currentLabel);
   button.setAttribute("aria-pressed", String(following));
   button.dataset.yunikoFollowing = String(following);
   button.style.background = following ? "rgba(255,255,255,.1)" : "linear-gradient(135deg, #FF006E, #8B00FF)";
 }
 
+function getPostUserId(postId: string): number | null {
+  try {
+    const users = JSON.parse(sessionStorage.getItem(FEED_POST_USERS_KEY) || "{}");
+    const userId = Number(users[postId]);
+    return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
+  } catch {
+    return null;
+  }
+}
+
+function syncFollowButtonsForUser(userId: number, following: boolean): void {
+  const buttons = document.querySelectorAll<HTMLButtonElement>('[data-testid^="post-card-"] button');
+  for (const button of buttons) {
+    const card = button.closest('[data-testid^="post-card-"]') as HTMLElement | null;
+    if (!card) continue;
+    let postId = card.getAttribute("data-testid")?.replace(/^post-card-/, "") ?? "";
+    if (postId.startsWith("live_")) postId = postId.slice(5);
+    if (getPostUserId(postId) !== userId) continue;
+    const label = button.textContent?.trim().toLowerCase() ?? "";
+    if (!/^(follow|suivre|suivi|following)$/.test(label) && button.dataset.yunikoFollowing == null) continue;
+    applyFollowState(button, following);
+  }
+}
+
 let feedRefreshPromise: Promise<Response> | null = null;
 let lastFeedRefreshAt = 0;
+const followRequests = new Map<number, Promise<boolean>>();
 
 function installFeedInstantReturn(): void {
   if (typeof window === "undefined" || (window as any).__yunikoFeedCacheInstalled) return;
@@ -122,40 +153,52 @@ function installFollowInstantAction(): void {
     if (!button) return;
     const card = button.closest('[data-testid^="post-card-"]') as HTMLElement | null;
     if (!card) return;
+
     const label = button.textContent?.trim().toLowerCase() ?? "";
-    if (!/^(follow|suivre|suivi|following)$/.test(label)) return;
+    if (!/^(follow|suivre|suivi|following)$/.test(label) && button.dataset.yunikoFollowing == null) return;
     if (button.dataset.yunikoFollowBusy === "true") return;
 
     let postId = card.getAttribute("data-testid")?.replace(/^post-card-/, "") ?? "";
     if (postId.startsWith("live_")) postId = postId.slice(5);
-    let users: Record<string, number> = {};
-    try { users = JSON.parse(sessionStorage.getItem(FEED_POST_USERS_KEY) || "{}"); } catch {}
-    const userId = Number(users[postId]);
-    if (!Number.isSafeInteger(userId) || userId <= 0) return;
+    const userId = getPostUserId(postId);
+    if (!userId) return;
 
     event.preventDefault();
     event.stopPropagation();
-    button.dataset.yunikoFollowBusy = "true";
+
     const states = readFollowStates();
     const wasFollowing = states[String(userId)] ?? /^(suivi|following)$/.test(label);
     const next = !wasFollowing;
+    const existing = followRequests.get(userId);
+    if (existing) return;
 
+    button.dataset.yunikoFollowBusy = "true";
     writeFollowState(userId, next);
     applyFollowState(button, next);
+    syncFollowButtonsForUser(userId, next);
 
-    try {
-      const res = await apiFetch(`/users/${userId}/follow`, { method: next ? "POST" : "DELETE" });
-      if (!res.ok) throw new Error("Follow request failed");
-      const data = await res.json().catch(() => ({}));
-      const following = Boolean(data?.following ?? next);
-      writeFollowState(userId, following);
-      applyFollowState(button, following);
-    } catch {
-      writeFollowState(userId, wasFollowing);
-      applyFollowState(button, wasFollowing);
-    } finally {
-      delete button.dataset.yunikoFollowBusy;
-    }
+    const request = (async () => {
+      try {
+        const res = await apiFetch(`/users/${userId}/follow`, { method: next ? "POST" : "DELETE" });
+        if (!res.ok) throw new Error("Follow request failed");
+        const data = await res.json().catch(() => ({}));
+        const following = Boolean(data?.following ?? next);
+        writeFollowState(userId, following);
+        syncFollowButtonsForUser(userId, following);
+        return following;
+      } catch {
+        writeFollowState(userId, wasFollowing);
+        syncFollowButtonsForUser(userId, wasFollowing);
+        return wasFollowing;
+      } finally {
+        followRequests.delete(userId);
+        const buttons = document.querySelectorAll<HTMLButtonElement>('[data-testid^="post-card-"] button');
+        for (const b of buttons) delete b.dataset.yunikoFollowBusy;
+      }
+    })();
+
+    followRequests.set(userId, request);
+    await request;
   }, true);
 }
 
