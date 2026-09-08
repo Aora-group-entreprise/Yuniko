@@ -3,5 +3,6 @@ declare module "cloudflare:workers" {
 }
 
 declare module "cloudflare:node" {
+  export function httpServerHandler(server: import("node:http").Server): unknown;
   export function httpServerHandler(options: { port: number }): unknown;
 }
