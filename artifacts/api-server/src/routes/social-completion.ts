@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { notificationsTable, conversationMembersTable, messagesTable } from "@workspace/db/schema";
 import { authMiddleware } from "../middlewares/auth";
@@ -45,6 +45,18 @@ router.get("/conversations/unread-count", authMiddleware, async (req: R, res) =>
         sql`(${conversationMembersTable.lastReadAt} is null or ${messagesTable.createdAt} > ${conversationMembersTable.lastReadAt})`
       ));
     return res.json({ count: row?.count ?? 0 });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.patch("/conversations/read-all", authMiddleware, async (req: R, res) => {
+  try {
+    await db.update(conversationMembersTable)
+      .set({ lastReadAt: new Date() })
+      .where(eq(conversationMembersTable.userId, req.userId!));
+    return res.json({ success: true });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Server error" });
