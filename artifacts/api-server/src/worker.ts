@@ -1,9 +1,9 @@
-type FetchHandler = (
+type NodeRequestHandler = (
+  port: number,
   request: Request,
-  env: unknown,
-  ctx: { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void },
 ) => Response | Promise<Response>;
-let fetchHandlerPromise: Promise<FetchHandler> | undefined;
+
+let nodeRequestHandlerPromise: Promise<NodeRequestHandler> | undefined;
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -15,23 +15,24 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-async function getFetchHandler(): Promise<FetchHandler> {
-  if (!fetchHandlerPromise) {
-    fetchHandlerPromise = (async () => {
-      const { httpServerHandler } = await import("cloudflare:node");
-      await import("./app");
-      return httpServerHandler({ port: 3000 }) as unknown as FetchHandler;
+async function getNodeRequestHandler(): Promise<NodeRequestHandler> {
+  if (!nodeRequestHandlerPromise) {
+    nodeRequestHandlerPromise = (async () => {
+      const { handleAsNodeRequest } = await import("cloudflare:node");
+      const { createServer } = await import("node:http");
+      const { default: app } = await import("./app");
+
+      const server = createServer(app);
+      server.listen(3000);
+
+      return handleAsNodeRequest as NodeRequestHandler;
     })();
   }
-  return fetchHandlerPromise;
+  return nodeRequestHandlerPromise;
 }
 
 export default {
-  async fetch(
-    request: Request,
-    env: unknown,
-    ctx: { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void },
-  ) {
+  async fetch(request: Request) {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/health") {
@@ -39,11 +40,11 @@ export default {
     }
 
     try {
-      const handler = await getFetchHandler();
-      return await handler(request, env, ctx);
+      const handleAsNodeRequest = await getNodeRequestHandler();
+      return await handleAsNodeRequest(3000, request);
     } catch (error) {
       console.error("Yuniko API startup/request failure", error);
-      fetchHandlerPromise = undefined;
+      nodeRequestHandlerPromise = undefined;
       return json(
         {
           ok: false,
