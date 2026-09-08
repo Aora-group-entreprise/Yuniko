@@ -1,4 +1,8 @@
-type FetchHandler = (request: Request, env: unknown, ctx: ExecutionContext) => Response | Promise<Response>;
+type FetchHandler = (
+  request: Request,
+  env: unknown,
+  ctx: { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void },
+) => Response | Promise<Response>;
 let fetchHandlerPromise: Promise<FetchHandler> | undefined;
 
 function json(data: unknown, status = 200): Response {
@@ -27,7 +31,11 @@ async function getFetchHandler(): Promise<FetchHandler> {
 }
 
 export default {
-  async fetch(request: Request, env: unknown, ctx: ExecutionContext) {
+  async fetch(
+    request: Request,
+    env: unknown,
+    ctx: { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void },
+  ) {
     const url = new URL(request.url);
 
     // Keep liveness independent from Express, Pino, Drizzle and Hyperdrive.
