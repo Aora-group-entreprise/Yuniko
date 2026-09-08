@@ -37,11 +37,8 @@ export default function StoryViewer() {
         const data = await apiJson<{stories:Story[]}>("/stories");
         if (cancelled) return;
         const numeric = routeId.startsWith("live_") ? Number(routeId.slice(5)) : Number(routeId);
-        const targetUserId = routeId.startsWith("live_")
-          ? data.stories.find(s => s.id === numeric)?.userId
-          : numeric;
-        const targetStories = data.stories.filter(s => s.userId === targetUserId);
-        setStories(targetStories);
+        const targetUserId = routeId.startsWith("live_") ? data.stories.find(s => s.id === numeric)?.userId : numeric;
+        setStories(data.stories.filter(s => s.userId === targetUserId));
       } catch {
         if (!cancelled) setStories([]);
       } finally {
@@ -52,71 +49,50 @@ export default function StoryViewer() {
   }, [routeId]);
 
   const currentStory = stories[currentIndex];
-
   useEffect(() => {
     if (!currentStory || paused) return;
     startedAtRef.current = Date.now();
-    const tickMs = 50;
     intervalRef.current = window.setInterval(() => {
-      const elapsed = Date.now() - startedAtRef.current;
-      const nextProgress = Math.min(100, (elapsed / STORY_DURATION_MS) * 100);
+      const nextProgress = Math.min(100, ((Date.now() - startedAtRef.current) / STORY_DURATION_MS) * 100);
       setProgress(nextProgress);
       if (nextProgress >= 100) {
-        if (currentIndex < stories.length - 1) {
-          setCurrentIndex(i => i + 1);
-          setProgress(0);
-        } else {
-          setLocation("/");
-        }
+        if (currentIndex < stories.length - 1) { setCurrentIndex(i => i + 1); setProgress(0); }
+        else setLocation("/");
       }
-    }, tickMs);
-    return () => {
-      if (intervalRef.current !== null) window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    };
+    }, 50);
+    return () => { if (intervalRef.current !== null) window.clearInterval(intervalRef.current); intervalRef.current = null; };
   }, [currentIndex, paused, stories.length, currentStory, setLocation]);
 
-  useEffect(() => {
-    if (!currentStory) return;
-    apiJson(`/stories/${currentStory.id}/view`, { method:"POST" }).catch(() => undefined);
-  }, [currentStory?.id]);
-
-  const goNext = () => {
-    if (currentIndex < stories.length - 1) { setCurrentIndex(i => i + 1); setProgress(0); }
-    else setLocation("/");
-  };
-  const goPrev = () => {
-    if (currentIndex > 0) { setCurrentIndex(i => i - 1); setProgress(0); }
-  };
-  const handleReaction = (emoji:string) => {
-    setReactionShown(emoji);
-    if (currentStory) apiJson(`/stories/${currentStory.id}/reaction`, { method:"POST", body:JSON.stringify({emoji}) }).catch(() => {});
-    window.setTimeout(() => setReactionShown(null), 1500);
-  };
-  const sendReply = async () => {
-    const text = replyText.trim();
-    if (!text || !currentStory) return;
-    await apiJson(`/stories/${currentStory.id}/replies`, { method:"POST", body:JSON.stringify({text}) }).catch(() => {});
-    setReplyText("");
-  };
+  useEffect(() => { if (currentStory) apiJson(`/stories/${currentStory.id}/view`, { method:"POST" }).catch(() => undefined); }, [currentStory?.id]);
+  const goNext = () => currentIndex < stories.length - 1 ? (setCurrentIndex(i => i + 1), setProgress(0)) : setLocation("/");
+  const goPrev = () => { if (currentIndex > 0) { setCurrentIndex(i => i - 1); setProgress(0); } };
+  const handleReaction = (emoji:string) => { setReactionShown(emoji); if (currentStory) apiJson(`/stories/${currentStory.id}/reaction`, { method:"POST", body:JSON.stringify({emoji}) }).catch(() => {}); window.setTimeout(() => setReactionShown(null), 1500); };
+  const sendReply = async () => { const text = replyText.trim(); if (!text || !currentStory) return; await apiJson(`/stories/${currentStory.id}/replies`, { method:"POST", body:JSON.stringify({text}) }).catch(() => {}); setReplyText(""); };
   const deleteStory = async () => {
     if (!currentStory || currentStory.userId !== me?.id || deleting) return;
     setDeleting(true);
-    const ok = await apiJson<{success:boolean}>(`/stories/${currentStory.id}`, {method:"DELETE"}).then(d => d.success).catch(() => false);
-    setDeleting(false);
-    if (!ok) return;
-    const remaining = stories.filter(s => s.id !== currentStory.id);
-    if (!remaining.length) { setLocation("/"); return; }
-    setStories(remaining); setCurrentIndex(i => Math.min(i, remaining.length - 1)); setProgress(0); setShowMenu(false);
+    const storyId = currentStory.id;
+    const previousStories = stories;
+    const remaining = previousStories.filter(s => s.id !== storyId);
+    const nextIndex = Math.min(currentIndex, Math.max(0, remaining.length - 1));
+    try {
+      const result = await apiJson<{success:boolean}>(`/stories/${storyId}`, {method:"DELETE"});
+      if (!result.success) throw new Error("Story deletion failed");
+      setStories(remaining);
+      setCurrentIndex(nextIndex);
+      setProgress(0);
+      setShowMenu(false);
+      if (!remaining.length) setLocation("/");
+    } catch {
+      setStories(previousStories);
+    } finally { setDeleting(false); }
   };
 
   if (loading) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-black flex items-center justify-center"><div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-pink-500 animate-spin" aria-label={t("loading")} /></div>;
   if (!currentStory) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-black flex items-center justify-center"><div className="text-center"><p className="text-white/50">{t("noStories")}</p><button onClick={() => setLocation("/")} className="mt-4" style={{color:"#FF3D9A"}}>{t("back")}</button></div></div>;
-
   const avatar = currentStory.authorAvatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(currentStory.authorDisplayName)}&backgroundColor=FF006E`;
   const verified = currentStory.verificationStatus === "approved";
   const own = currentStory.userId === me?.id;
-
   return <div className="w-full max-w-[430px] mx-auto min-h-screen relative overflow-hidden bg-black" data-testid="story-viewer">
     {currentStory.mediaType === "video" ? <video src={currentStory.mediaUrl} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover" onPointerDown={() => setPaused(true)} onPointerUp={() => setPaused(false)} /> : <img src={currentStory.mediaUrl} alt={currentStory.caption || "Story"} className="absolute inset-0 w-full h-full object-cover" onPointerDown={() => setPaused(true)} onPointerUp={() => setPaused(false)} />}
     <div className="absolute inset-0 flex z-10"><div className="flex-1" onClick={goPrev}/><div className="flex-1" onClick={goNext}/></div>
