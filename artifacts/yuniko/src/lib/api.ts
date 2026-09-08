@@ -11,6 +11,7 @@ const DEFAULT_API_BASE_URL = "https://yuniko-api.lafatriniainaallane.workers.dev
 const API_BASE_URL = String(import.meta.env.VITE_API_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, "");
 const FEED_CACHE_KEY = "yuniko_feed_cache_v2";
 const FEED_CACHE_TTL = 5 * 60_000;
+const FEED_REFRESH_COOLDOWN = 30_000;
 const FEED_POST_USERS_KEY = "yuniko_feed_post_users_v2";
 const FOLLOW_STATE_KEY = "yuniko_follow_state_v1";
 
@@ -57,23 +58,18 @@ function applyFollowState(button: HTMLButtonElement, following: boolean): void {
   button.style.background = following ? "rgba(255,255,255,.1)" : "linear-gradient(135deg, #FF006E, #8B00FF)";
 }
 
+let feedRefreshPromise: Promise<Response> | null = null;
+let lastFeedRefreshAt = 0;
+
 function installFeedInstantReturn(): void {
   if (typeof window === "undefined" || (window as any).__yunikoFeedCacheInstalled) return;
   (window as any).__yunikoFeedCacheInstalled = true;
   const nativeFetch = window.fetch.bind(window);
 
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    if (!isFeedRequest(input) || (init?.method && init.method.toUpperCase() !== "GET")) return nativeFetch(input, init);
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) return nativeFetch(input, init);
-
-    let cached: { at: number; data: any } | null = null;
-    try {
-      const raw = sessionStorage.getItem(FEED_CACHE_KEY);
-      if (raw) cached = JSON.parse(raw);
-    } catch {}
-
-    const refresh = nativeFetch(input, init).then(async response => {
+  const refreshFeed = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (feedRefreshPromise) return feedRefreshPromise;
+    lastFeedRefreshAt = Date.now();
+    feedRefreshPromise = nativeFetch(input, init).then(async response => {
       if (response.ok) {
         const data = await response.clone().json().catch(() => null);
         if (data) {
@@ -87,42 +83,38 @@ function installFeedInstantReturn(): void {
         }
       }
       return response;
+    }).finally(() => {
+      feedRefreshPromise = null;
     });
+    return feedRefreshPromise;
+  };
 
-    if (cached?.data && Date.now() - Number(cached.at || 0) < FEED_CACHE_TTL) {
-      void refresh.catch(() => {});
-      return cloneJsonResponse(cached.data);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (!isFeedRequest(input) || (init?.method && init.method.toUpperCase() !== "GET")) return nativeFetch(input, init);
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return nativeFetch(input, init);
+
+    let cached: { at: number; data: any } | null = null;
+    try {
+      const raw = sessionStorage.getItem(FEED_CACHE_KEY);
+      if (raw) cached = JSON.parse(raw);
+    } catch {}
+
+    const cacheIsFresh = Boolean(cached?.data && Date.now() - Number(cached?.at || 0) < FEED_CACHE_TTL);
+    const canRefresh = Date.now() - lastFeedRefreshAt >= FEED_REFRESH_COOLDOWN;
+
+    if (cacheIsFresh) {
+      if (canRefresh) void refreshFeed(input, init).catch(() => {});
+      return cloneJsonResponse(cached!.data);
     }
-    return refresh;
+
+    return refreshFeed(input, init);
   };
 }
 
 function installFollowInstantAction(): void {
   if (typeof window === "undefined" || (window as any).__yunikoFollowInstalled) return;
   (window as any).__yunikoFollowInstalled = true;
-
-  const syncRenderedButtons = () => {
-    const states = readFollowStates();
-    document.querySelectorAll<HTMLButtonElement>('[data-testid^="post-card-"] button').forEach(button => {
-      const card = button.closest('[data-testid^="post-card-"]') as HTMLElement | null;
-      if (!card) return;
-      const label = button.textContent?.trim().toLowerCase() ?? "";
-      if (!/^(follow|suivre|suivi|following)$/.test(label) && button.dataset.yunikoFollowManaged !== "true") return;
-      let postId = card.getAttribute("data-testid")?.replace(/^post-card-/, "") ?? "";
-      if (postId.startsWith("live_")) postId = postId.slice(5);
-      let users: Record<string, number> = {};
-      try { users = JSON.parse(sessionStorage.getItem(FEED_POST_USERS_KEY) || "{}"); } catch {}
-      const userId = Number(users[postId]);
-      if (Number.isSafeInteger(userId) && userId > 0 && states[String(userId)] !== undefined) {
-        button.dataset.yunikoFollowManaged = "true";
-        applyFollowState(button, Boolean(states[String(userId)]));
-      }
-    });
-  };
-
-  const observer = new MutationObserver(() => syncRenderedButtons());
-  observer.observe(document.documentElement, { subtree: true, childList: true });
-  window.setTimeout(syncRenderedButtons, 0);
 
   document.addEventListener("click", async event => {
     const target = event.target as HTMLElement | null;
@@ -148,7 +140,6 @@ function installFollowInstantAction(): void {
     const wasFollowing = states[String(userId)] ?? /^(suivi|following)$/.test(label);
     const next = !wasFollowing;
 
-    // Update immediately and remember it so React/feed refreshes cannot flip it back.
     writeFollowState(userId, next);
     applyFollowState(button, next);
 
@@ -160,7 +151,6 @@ function installFollowInstantAction(): void {
       writeFollowState(userId, following);
       applyFollowState(button, following);
     } catch {
-      // Roll back only when the server rejected the action.
       writeFollowState(userId, wasFollowing);
       applyFollowState(button, wasFollowing);
     } finally {
