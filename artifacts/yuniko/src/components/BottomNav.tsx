@@ -10,7 +10,8 @@ const INACTIVE_COLOR = "rgba(255,255,255,0.45)";
 
 export default function BottomNav() {
   const [location] = useLocation();
-  const [unread, setUnread] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const isActive = (path: string) => path === "/" ? location === "/" : location.startsWith(path);
 
@@ -18,27 +19,53 @@ export default function BottomNav() {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const data = await apiJson<{count?: number}>("/conversations/unread-count");
-        if (!cancelled) setUnread(Math.max(0, Math.floor(Number(data?.count ?? 0))));
+        const [messages, notifications] = await Promise.all([
+          apiJson<{count?: number}>("/conversations/unread-count"),
+          apiJson<{count?: number}>("/notifications/unread-count"),
+        ]);
+        if (!cancelled) {
+          setUnreadMessages(Math.max(0, Math.floor(Number(messages?.count ?? 0))));
+          setUnreadNotifications(Math.max(0, Math.floor(Number(notifications?.count ?? 0))));
+        }
       } catch {
-        if (!cancelled) setUnread(0);
+        if (!cancelled) {
+          setUnreadMessages(0);
+          setUnreadNotifications(0);
+        }
       }
     };
     void refresh();
-    const timer = window.setInterval(refresh, 15000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    const timer = window.setInterval(refresh, 10000);
+    const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+  }, [location]);
+
+  useEffect(() => {
+    if (!location.startsWith("/notifications")) return;
+    setUnreadNotifications(0);
+  }, [location]);
+
+  useEffect(() => {
+    if (!location.startsWith("/messages")) return;
+    setUnreadMessages(0);
   }, [location]);
 
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50" style={{ background: "rgba(10,8,18,0.95)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderTop: "1px solid rgba(255,61,154,0.15)" }} data-testid="bottom-nav">
       <div className="flex items-center justify-around h-16 px-2">
         <NavItem href="/" label={t("home")} active={isActive("/")}><Home size={23} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.3 : 1.7} /></NavItem>
-        <NavItem href="/notifications" label={t("notifications")} active={isActive("/notifications")}><Bell size={23} style={{ color: isActive("/notifications") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/notifications") ? 2.3 : 1.7} /></NavItem>
+        <NavItem href="/notifications" label={t("notifications")} active={isActive("/notifications")}>
+          <div className="relative">
+            <Bell size={23} style={{ color: isActive("/notifications") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/notifications") ? 2.3 : 1.7} />
+            {unreadNotifications > 0 && <Badge count={unreadNotifications} label={t("notifications")} />}
+          </div>
+        </NavItem>
         <Link href="/create"><motion.button aria-label={t("create")} data-testid="nav-create" className="flex items-center justify-center w-[54px] h-[54px] rounded-full" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 24px rgba(255,0,110,0.5), 0 4px 16px rgba(0,0,0,0.3)" }} whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.05 }}><Plus size={26} className="text-white" strokeWidth={2.8} /></motion.button></Link>
         <NavItem href="/messages" label={t("messages")} active={isActive("/messages")}>
           <div className="relative">
             <MessageCircle size={23} style={{ color: isActive("/messages") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/messages") ? 2.3 : 1.7} />
-            {unread > 0 && <span aria-label={`${unread} ${t("unreadMessages")}`} className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full text-white text-[9px] flex items-center justify-center font-bold" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)" }}>{unread > 99 ? "99+" : unread}</span>}
+            {unreadMessages > 0 && <Badge count={unreadMessages} label={t("unreadMessages")} />}
           </div>
         </NavItem>
         <NavItem href="/profile" label={t("profile")} active={isActive("/profile")}><User size={23} style={{ color: isActive("/profile") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/profile") ? 2.3 : 1.7} /></NavItem>
@@ -46,6 +73,10 @@ export default function BottomNav() {
       <div className="h-safe-area-inset-bottom" />
     </nav>
   );
+}
+
+function Badge({ count, label }: { count: number; label: string }) {
+  return <span aria-label={`${count} ${label}`} className="absolute -top-2 -right-2 min-w-4 h-4 px-1 rounded-full text-white text-[9px] flex items-center justify-center font-bold" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 2px 8px rgba(0,0,0,.35)" }}>{count > 99 ? "99+" : count}</span>;
 }
 
 function NavItem({ href, label, active, children }: { href: string; label: string; active: boolean; children: React.ReactNode }) {
