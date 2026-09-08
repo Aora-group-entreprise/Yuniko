@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
+import { apiJson } from "@/lib/api";
 import { Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import { t } from "@/lib/i18n";
@@ -16,54 +17,32 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
   const [, setLocation] = useLocation();
   const { user: authUser } = useAuth();
 
-  const handleClick = () => {
-    if (isOwn) {
-      setLocation("/create?mode=story");
-    } else {
+  const handleClick = async () => {
+    if (!isOwn) {
       setLocation(`/story/${userId}`);
+      return;
+    }
+    try {
+      const data = await apiJson<{stories?:Array<{userId:number;id:number}>}>("/stories");
+      const ownId = authUser?.id;
+      const hasOwnStory = ownId != null && (data.stories ?? []).some(story => story.userId === ownId);
+      setLocation(hasOwnStory ? `/story/${ownId}` : "/create?mode=story");
+    } catch {
+      setLocation("/create?mode=story");
     }
   };
 
   const displayName = isOwn ? t("yourStory") : (label ?? "");
-
-  const ownAvatarSrc =
-    authUser?.avatarUrl ??
-    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "U")}&backgroundColor=FF006E`;
-
+  const ownAvatarSrc = authUser?.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "U")}&backgroundColor=FF006E`;
   const resolvedAvatarUrl = isOwn ? ownAvatarSrc : (avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName || userId)}&backgroundColor=FF006E`);
 
-  return (
-    <motion.button
-      data-testid={`story-avatar-${userId}`}
-      onClick={handleClick}
-      className="flex flex-col items-center gap-1 flex-shrink-0"
-      style={{ minWidth: 64 }}
-      whileTap={{ scale: 0.9 }}
-    >
-      <div className="relative">
-        <div
-          className="w-[54px] h-[54px] rounded-full p-[2px]"
-          style={
-            isOwn
-              ? { background: "rgba(255,61,154,0.2)", border: "2px dashed rgba(255,61,154,0.5)" }
-              : viewed
-              ? { background: "rgba(255,255,255,0.15)" }
-              : {
-                  background: "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)",
-                  boxShadow: "0 0 10px rgba(255,0,110,0.35)",
-                }
-          }
-        >
-          <img src={resolvedAvatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" style={{ border: "2px solid #0D0B14" }} loading="lazy" />
-        </div>
-        {isOwn && (
-          <div className="absolute bottom-0 right-0 w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", border: "2px solid #0D0B14" }}>
-            <Plus size={9} className="text-white" strokeWidth={3} />
-          </div>
-        )}
-        {false && <div className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-green-400" style={{ border: "1.5px solid #0D0B14" }} />}
+  return <motion.button data-testid={`story-avatar-${userId}`} onClick={handleClick} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ minWidth: 64 }} whileTap={{ scale: 0.9 }}>
+    <div className="relative">
+      <div className="w-[54px] h-[54px] rounded-full p-[2px]" style={isOwn ? { background: "rgba(255,61,154,0.2)", border: "2px dashed rgba(255,61,154,0.5)" } : viewed ? { background: "rgba(255,255,255,0.15)" } : { background: "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}>
+        <img src={resolvedAvatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" style={{ border: "2px solid #0D0B14" }} loading="lazy" />
       </div>
-      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">{displayName}</span>
-    </motion.button>
-  );
+      {isOwn && <div className="absolute bottom-0 right-0 w-[18px] h-[18px] rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", border: "2px solid #0D0B14" }}><Plus size={9} className="text-white" strokeWidth={3} /></div>}
+    </div>
+    <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">{displayName}</span>
+  </motion.button>;
 }
