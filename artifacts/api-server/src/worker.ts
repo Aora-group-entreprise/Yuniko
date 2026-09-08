@@ -1,4 +1,4 @@
-import { handleAsNodeRequest } from "cloudflare:node";
+import { httpServerHandler } from "cloudflare:node";
 import { env } from "cloudflare:workers";
 import app from "./app";
 import { cleanupExpiredStories } from "./jobs/story-cleanup";
@@ -8,17 +8,11 @@ type WorkerEnv = {
   HYPERDRIVE?: { connectionString?: string };
 };
 
-const PORT = 3000;
-
-// Express runs on Cloudflare's Node.js HTTP compatibility layer.
-// Use the explicit request bridge so every Worker request is routed to the
-// Express server without relying on handler auto-discovery.
-app.listen(PORT);
+app.listen(3000);
+const fetchHandler = httpServerHandler({ port: 3000 });
 
 export default {
-  async fetch(request: Request) {
-    return handleAsNodeRequest(PORT, request);
-  },
+  fetch: fetchHandler,
 
   async scheduled() {
     const workerEnv = env as unknown as WorkerEnv;
