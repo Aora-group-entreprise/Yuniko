@@ -77,6 +77,7 @@ function getPostUserId(postId: string): number | null {
 function syncFollowButtonsForUser(userId: number, following: boolean): void {
   const buttons = document.querySelectorAll<HTMLButtonElement>('[data-testid^="post-card-"] button');
   for (const button of buttons) {
+    if (button.dataset.reactFollow === "true") continue;
     const card = button.closest('[data-testid^="post-card-"]') as HTMLElement | null;
     if (!card) continue;
     let postId = card.getAttribute("data-testid")?.replace(/^post-card-/, "") ?? "";
@@ -151,6 +152,7 @@ function installFollowInstantAction(): void {
     const target = event.target as HTMLElement | null;
     const button = target?.closest("button") as HTMLButtonElement | null;
     if (!button) return;
+    if (button.dataset.reactFollow === "true") return;
     const card = button.closest('[data-testid^="post-card-"]') as HTMLElement | null;
     if (!card) return;
 
