@@ -179,6 +179,31 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
     }
   }, [commentText, numericId, submitting]);
 
+  const [following, setFollowing] = useState(Boolean(author?.isFollowing));
+  const [followPending, setFollowPending] = useState(false);
+
+  useEffect(() => {
+    setFollowing(Boolean(author?.isFollowing));
+  }, [author?.isFollowing, post.userId]);
+
+  const toggleFollow = useCallback(async () => {
+    const userId = Number(String(post.userId).replace(/^live_/, ""));
+    if (!Number.isSafeInteger(userId) || userId <= 0 || followPending || post.isSponsored) return;
+    const next = !following;
+    setFollowPending(true);
+    setFollowing(next);
+    try {
+      const res = await apiFetch(`/users/${userId}/follow`, { method: next ? "POST" : "DELETE" });
+      if (!res.ok) throw new Error("follow_failed");
+      const data = await res.json().catch(() => ({})) as { following?: boolean };
+      setFollowing(typeof data.following === "boolean" ? data.following : next);
+    } catch {
+      setFollowing(!next);
+    } finally {
+      setFollowPending(false);
+    }
+  }, [following, followPending, post.isSponsored, post.userId]);
+
   if (!author) return null;
 
   const avatarSrc =
@@ -249,9 +274,14 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
               {post.location && <span className="text-white/55 text-xs">· {post.location}</span>}
             </div>
           </div>
-          {!author.isFollowing && !post.isSponsored && (
-            <motion.button whileTap={{ scale: 0.93 }} className="px-3.5 py-1 rounded-full text-xs font-semibold text-white flex-shrink-0" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 2px 12px rgba(255,0,110,0.35)" }}>
+          {!following && !post.isSponsored && (
+            <motion.button whileTap={{ scale: 0.93 }} onClick={toggleFollow} disabled={followPending} data-react-follow="true" aria-pressed={following} className="px-3.5 py-1 rounded-full text-xs font-semibold text-white flex-shrink-0 disabled:opacity-60" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 2px 12px rgba(255,0,110,0.35)" }}>
               {t("follow")}
+            </motion.button>
+          )}
+          {following && !post.isSponsored && (
+            <motion.button whileTap={{ scale: 0.93 }} onClick={toggleFollow} disabled={followPending} data-react-follow="true" aria-pressed={following} className="px-3.5 py-1 rounded-full text-xs font-semibold text-white/90 flex-shrink-0 disabled:opacity-60" style={{ background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.18)" }}>
+              {t("following") || "Following"}
             </motion.button>
           )}
           {post.isSponsored && post.sponsorCta && (
@@ -315,6 +345,6 @@ function ActionBtn({ icon, label, onClick, testId, active }: { icon: React.React
         {icon}
       </motion.div>
       <span className="text-white text-[11px] font-medium">{label}</span>
-    </motion.button>
+    </motion.div>
   );
 }
