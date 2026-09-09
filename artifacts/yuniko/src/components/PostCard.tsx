@@ -345,6 +345,6 @@ function ActionBtn({ icon, label, onClick, testId, active }: { icon: React.React
         {icon}
       </motion.div>
       <span className="text-white text-[11px] font-medium">{label}</span>
-    </motion.div>
+    </motion.button>
   );
 }
