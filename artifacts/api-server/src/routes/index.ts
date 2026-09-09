@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { commentsTable, notificationsTable, postsTable, usersTable } from "@workspace/db/schema";
+import { commentsTable, notificationsTable, postsTable, postEngagementsTable, usersTable } from "@workspace/db/schema";
 import healthRouter from "./health";
 import metricsRouter from "./metrics";
 import authRouter from "./auth";
@@ -57,6 +57,30 @@ router.use(authRouter);
 router.use(unreadRouter);
 router.use(verificationRouter);
 router.use(inlineImageUpload);
+
+router.get("/posts/:id", authMiddleware, async (req: AuthedRequest, res: Response) => {
+  const postId = positiveId(req.params.id);
+  if (!postId) return res.status(400).json({ error: "Invalid post id" });
+  try {
+    const [post] = await db.select({
+      id: postsTable.id, userId: postsTable.userId, caption: postsTable.caption,
+      mediaUrl: postsTable.mediaUrl, mediaType: postsTable.mediaType, mediaItems: postsTable.mediaItems,
+      location: postsTable.location, hashtags: postsTable.hashtags, isWorldFeed: postsTable.isWorldFeed,
+      likes: postsTable.likes, comments: postsTable.comments, shares: postsTable.shares, saves: postsTable.saves,
+      views: postsTable.views, reports: postsTable.reports, viralScore: postsTable.viralScore,
+      distributionTier: postsTable.distributionTier, distributionCountries: postsTable.distributionCountries,
+      createdAt: postsTable.createdAt, updatedAt: postsTable.updatedAt,
+      authorDisplayName: usersTable.displayName, authorUsername: usersTable.username, authorAvatarUrl: usersTable.avatarUrl,
+      liked: postEngagementsTable.liked, saved: postEngagementsTable.saved,
+    }).from(postsTable)
+      .innerJoin(usersTable, eq(postsTable.userId, usersTable.id))
+      .leftJoin(postEngagementsTable, and(eq(postEngagementsTable.postId, postsTable.id), eq(postEngagementsTable.userId, req.userId!)))
+      .where(eq(postsTable.id, postId)).limit(1);
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    return res.json({ post });
+  } catch (error) { console.error(error); return res.status(500).json({ error: "Server error" }); }
+});
+
 router.use(postsRouter);
 router.use(repostsRouter);
 router.use(storiesRouter);
