@@ -18,7 +18,7 @@ import unreadRouter from "./unread";
 import verificationRouter from "./verification";
 import { assertLiveEnabled } from "../infrastructure/video-features";
 import { authMiddleware } from "../middlewares/auth";
-import { positiveId, textField } from "../middlewares/validation";
+import { nonNegativeInt, positiveId, textField } from "../middlewares/validation";
 import { isSupabaseStorageConfigured, uploadToSupabaseStorage } from "../infrastructure/supabase-storage";
 
 const router: IRouter = Router();
@@ -34,10 +34,27 @@ router.use("/posts/:id/comments", authMiddleware, async (req: AuthedRequest, res
   try {
     const [post] = await db.select({ id: postsTable.id, userId: postsTable.userId }).from(postsTable).where(eq(postsTable.id, postId)).limit(1);
     if (!post) return res.status(404).json({ error: "Post not found" });
+
     if (req.method === "GET") {
-      const comments = await db.select({ id: commentsTable.id, text: commentsTable.text, createdAt: commentsTable.createdAt, userId: commentsTable.userId, authorDisplayName: usersTable.displayName, authorUsername: usersTable.username, authorAvatarUrl: usersTable.avatarUrl }).from(commentsTable).innerJoin(usersTable, eq(usersTable.id, commentsTable.userId)).where(eq(commentsTable.postId, postId)).orderBy(desc(commentsTable.createdAt)).limit(100);
-      return res.json({ comments });
+      const cursor = nonNegativeInt(req.query.cursor, 0, Number.MAX_SAFE_INTEGER);
+      const limit = nonNegativeInt(req.query.limit, 20, 50) || 20;
+      const base = db.select({
+        id: commentsTable.id,
+        text: commentsTable.text,
+        createdAt: commentsTable.createdAt,
+        userId: commentsTable.userId,
+        authorDisplayName: usersTable.displayName,
+        authorUsername: usersTable.username,
+        authorAvatarUrl: usersTable.avatarUrl,
+      }).from(commentsTable)
+        .innerJoin(usersTable, eq(usersTable.id, commentsTable.userId));
+      const comments = cursor > 0
+        ? await base.where(and(eq(commentsTable.postId, postId), sql`${commentsTable.id}<${cursor}`)).orderBy(desc(commentsTable.id)).limit(limit)
+        : await base.where(eq(commentsTable.postId, postId)).orderBy(desc(commentsTable.id)).limit(limit);
+      const nextCursor = comments.length === limit ? comments[comments.length - 1].id : null;
+      return res.json({ comments, nextCursor, hasMore: comments.length === limit });
     }
+
     if (req.method === "POST") {
       const text = textField(req.body?.text, 2000, true);
       if (text === null) return res.status(400).json({ error: "Comment text is required and must be 2000 characters or less" });
