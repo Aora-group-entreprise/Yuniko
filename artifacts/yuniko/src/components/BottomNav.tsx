@@ -12,8 +12,23 @@ export default function BottomNav() {
   const [location] = useLocation();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [newFeedPosts, setNewFeedPosts] = useState(0);
 
   const isActive = (path: string) => path === "/" ? location === "/" : location.startsWith(path);
+
+  useEffect(() => {
+    const onNewPosts = (event: Event) => {
+      const count = Number((event as CustomEvent).detail ?? 0);
+      if (Number.isFinite(count) && count > 0) setNewFeedPosts(prev => Math.min(99, prev + Math.floor(count)));
+    };
+    const onCleared = () => setNewFeedPosts(0);
+    window.addEventListener("yuniko-feed-new-posts", onNewPosts);
+    window.addEventListener("yuniko-feed-new-posts-cleared", onCleared);
+    return () => {
+      window.removeEventListener("yuniko-feed-new-posts", onNewPosts);
+      window.removeEventListener("yuniko-feed-new-posts-cleared", onCleared);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,10 +70,17 @@ export default function BottomNav() {
     }
   }, [location]);
 
+  const handleFeedClick = () => {
+    setNewFeedPosts(0);
+    window.dispatchEvent(new CustomEvent("yuniko-feed-refresh"));
+  };
+
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50" style={{ background: "rgba(10,8,18,0.95)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderTop: "1px solid rgba(255,61,154,0.15)" }} data-testid="bottom-nav">
       <div className="flex items-center justify-around h-16 px-2">
-        <NavItem href="/" label={t("home")} active={isActive("/")}><Home size={23} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.3 : 1.7} /></NavItem>
+        <NavItem href="/" label={t("home")} active={isActive("/")} onClick={handleFeedClick}>
+          <div className="relative"><Home size={23} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.3 : 1.7} />{newFeedPosts > 0 && <Badge count={newFeedPosts} label={t("home")} />}</div>
+        </NavItem>
         <NavItem href="/notifications" label={t("notifications")} active={isActive("/notifications")}>
           <div className="relative"><Bell size={23} style={{ color: isActive("/notifications") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/notifications") ? 2.3 : 1.7} />{unreadNotifications > 0 && <Badge count={unreadNotifications} label={t("notifications")} />}</div>
         </NavItem>
@@ -77,6 +99,6 @@ function Badge({ count, label }: { count: number; label: string }) {
   return <span aria-label={`${count} ${label}`} className="absolute -top-2 -right-2 min-w-4 h-4 px-1 rounded-full text-white text-[9px] flex items-center justify-center font-bold" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 2px 8px rgba(0,0,0,.35)" }}>{count > 99 ? "99+" : count}</span>;
 }
 
-function NavItem({ href, label, active, children }: { href: string; label: string; active: boolean; children: React.ReactNode }) {
-  return <Link href={href}><motion.button aria-label={label} className="flex flex-col items-center gap-0.5 min-w-[44px] py-1 relative" whileTap={{ scale: 0.88 }}>{children}<span className="text-[10px] font-medium" style={{ color: active ? ACTIVE_COLOR : "rgba(255,255,255,0.38)" }}>{label}</span><span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: ACTIVE_COLOR, opacity: active ? 1 : 0, transform: `translateX(-50%) scale(${active ? 1 : 0})`, transition: "opacity 0.15s ease, transform 0.15s ease" }} /></motion.button></Link>;
+function NavItem({ href, label, active, children, onClick }: { href: string; label: string; active: boolean; children: React.ReactNode; onClick?: () => void }) {
+  return <Link href={href}><motion.button onClick={onClick} aria-label={label} className="flex flex-col items-center gap-0.5 min-w-[44px] py-1 relative" whileTap={{ scale: 0.88 }}>{children}<span className="text-[10px] font-medium" style={{ color: active ? ACTIVE_COLOR : "rgba(255,255,255,0.38)" }}>{label}</span><span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: ACTIVE_COLOR, opacity: active ? 1 : 0, transform: `translateX(-50%) scale(${active ? 1 : 0})`, transition: "opacity 0.15s ease, transform 0.15s ease" }} /></motion.button></Link>;
 }
