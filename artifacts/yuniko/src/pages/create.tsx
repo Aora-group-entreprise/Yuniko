@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Video, MapPin, Hash, Globe, AlertCircle, Camera, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,31 +8,30 @@ import BottomNav from "@/components/BottomNav";
 import { apiFetch, apiJson } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
+type TabMode = "post" | "story";
+type SelectedMedia = { file: File; previewUrl: string };
 
-async function processImage(file: File): Promise<{ file: File; previewUrl: string }> {
+async function processImage(file: File): Promise<SelectedMedia> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = e => {
       const img = new Image();
       img.onload = () => {
-        const MAX = 1080;
-        const scale = img.width > MAX ? MAX / img.width : 1;
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
+        const max = 1080;
+        const scale = img.width > max ? max / img.width : 1;
         const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
         const ctx = canvas.getContext("2d");
-        if (!ctx) { reject(new Error("Canvas error")); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        canvas.toBlob((blob) => {
-          if (!blob) { reject(new Error("Could not encode image")); return; }
-          const processed = new File([blob], `yuniko-${Date.now()}.jpg`, { type: "image/jpeg" });
-          resolve({ file: processed, previewUrl: URL.createObjectURL(blob) });
+        if (!ctx) return reject(new Error("Canvas error"));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          if (!blob) return reject(new Error("Could not encode image"));
+          resolve({ file: new File([blob], `yuniko-${Date.now()}.jpg`, { type: "image/jpeg" }), previewUrl: URL.createObjectURL(blob) });
         }, "image/jpeg", 0.82);
       };
       img.onerror = () => reject(new Error("Could not decode image"));
-      img.src = e.target?.result as string;
+      img.src = String(e.target?.result ?? "");
     };
     reader.onerror = () => reject(new Error("Could not read image"));
     reader.readAsDataURL(file);
@@ -50,19 +49,13 @@ async function uploadImage(file: File): Promise<string> {
   return String(data.url);
 }
 
-type TabMode = "post" | "story";
-
 export default function Create() {
   const [, setLocation] = useLocation();
   const { user, token } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabMode>(() => {
-    if (typeof window !== "undefined") return new URLSearchParams(window.location.search).get("mode") === "story" ? "story" : "post";
-    return "post";
-  });
+  const [activeTab, setActiveTab] = useState<TabMode>(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("mode") === "story" ? "story" : "post");
   const [caption, setCaption] = useState("");
   const [isWorldFeed, setIsWorldFeed] = useState(true);
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [media, setMedia] = useState<SelectedMedia | null>(null);
   const [locationText, setLocationText] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [loading, setLoading] = useState(false);
@@ -71,31 +64,27 @@ export default function Create() {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useLayoutEffect(() => {
-    const mode = new URLSearchParams(window.location.search).get("mode");
-    setActiveTab(mode === "story" ? "story" : "post");
-  }, []);
-
-  useEffect(() => () => {
-    if (selectedMedia?.startsWith("blob:")) URL.revokeObjectURL(selectedMedia);
-  }, [selectedMedia]);
+  useEffect(() => () => { if (media?.previewUrl.startsWith("blob:")) URL.revokeObjectURL(media.previewUrl); }, [media]);
 
   const avatarSrc = user?.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(user?.displayName ?? "U")}&backgroundColor=FF006E`;
+  const canSubmit = !loading && (activeTab === "story" ? media !== null : Boolean(media || caption.trim()));
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     try {
-      const processed = await processImage(file);
-      setSelectedMedia(processed.previewUrl);
-      setSelectedFile(processed.file);
+      const nextMedia = await processImage(file);
+      setMedia(nextMedia);
       setError("");
       requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
-    } catch {
-      setError("Could not process image. Please try another.");
-    }
-    e.target.value = "";
+    } catch { setError("Could not process image. Please try another."); }
   };
+
+  const clearMedia = () => setMedia(current => {
+    if (current?.previewUrl.startsWith("blob:")) URL.revokeObjectURL(current.previewUrl);
+    return null;
+  });
 
   const switchTab = (tab: TabMode) => {
     setActiveTab(tab);
@@ -105,18 +94,13 @@ export default function Create() {
   };
 
   const handleSubmit = async () => {
-    if (activeTab === "story") {
-      if (!selectedFile) { setError("Please add a photo for your story"); return; }
-    } else if (!caption.trim() && !selectedFile) {
-      setError("Add a caption or photo");
-      return;
-    }
+    if (activeTab === "story" && !media) { setError("Please add a photo for your story"); return; }
+    if (activeTab === "post" && !caption.trim() && !media) { setError("Add a caption or photo"); return; }
     if (!token) { setError("Please log in first"); return; }
     setLoading(true);
     setError("");
     try {
-      let mediaUrl: string | null = null;
-      if (selectedFile) mediaUrl = await uploadImage(selectedFile);
+      const mediaUrl = media ? await uploadImage(media.file) : null;
       if (activeTab === "story") {
         await apiJson<{ story?: unknown }>("/stories", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ mediaUrl, caption: caption.trim() }) });
       } else {
@@ -125,36 +109,32 @@ export default function Create() {
       sessionStorage.setItem("yuniko_feed_refresh_pending", "1");
       setPosted(true);
       setTimeout(() => setLocation("/"), 900);
-    } catch (error) {
-      console.error("Create post/story failed", error);
-      setError(error instanceof Error ? error.message : "Unable to publish. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) {
+      console.error("Create post/story failed", err);
+      setError(err instanceof Error ? err.message : "Unable to publish. Please try again.");
+    } finally { setLoading(false); }
   };
 
-  if (posted) return <div className="w-full max-w-[430px] mx-auto min-h-screen flex flex-col items-center justify-center gap-5" style={{ background: "hsl(250, 30%, 7%)" }}><motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", damping: 18, stiffness: 280 }} className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: GRADIENT, boxShadow: "0 0 50px rgba(255,0,110,0.4)" }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></motion.div><motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-white font-semibold text-xl">{activeTab === "story" ? "Story posted!" : "Posted!"}</motion.p></div>;
+  if (posted) return <div className="w-full max-w-[430px] mx-auto min-h-screen flex flex-col items-center justify-center gap-5" style={{ background: "hsl(250,30%,7%)" }}><motion.div initial={{ scale: .5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: GRADIENT }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg></motion.div><p className="text-white font-semibold text-xl">{activeTab === "story" ? "Story posted!" : "Posted!"}</p></div>;
 
-  const canSubmit = activeTab === "story" ? !!selectedMedia : !!(caption.trim() || selectedMedia);
-
-  return <div className="w-full max-w-[430px] mx-auto min-h-[100dvh] pb-24" style={{ background: "hsl(250, 30%, 7%)" }}>
+  return <div className="w-full max-w-[430px] mx-auto min-h-[100dvh] pb-24" style={{ background: "hsl(250,30%,7%)" }}>
     <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-    <header className="sticky top-0 z-40 px-4 pt-4 pb-0 flex flex-col gap-0" style={{ background: "rgba(10,8,18,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-      <div className="flex items-center justify-between pb-3"><motion.button whileTap={{ scale: 0.88 }} onClick={() => setLocation("/")}><X size={22} className="text-white/80" /></motion.button><h1 className="text-base font-semibold text-white">{activeTab === "story" ? "New Story" : t("newPost")}</h1><motion.button whileTap={{ scale: 0.9 }} onClick={handleSubmit} disabled={loading || !canSubmit} className="px-4 py-1.5 rounded-full text-sm font-semibold text-white" style={{ background: canSubmit ? GRADIENT : "rgba(255,255,255,0.1)", opacity: loading ? 0.75 : canSubmit ? 1 : 0.5, boxShadow: canSubmit ? "0 2px 12px rgba(255,0,110,0.35)" : "none" }}>{loading ? <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : activeTab === "story" ? "Share" : t("postButton")}</motion.button></div>
-      <div className="flex border-b border-white/8">{(["post", "story"] as TabMode[]).map(tab => <button key={tab} onClick={() => switchTab(tab)} className="flex-1 pb-2.5 text-sm font-semibold capitalize relative" style={{ color: activeTab === tab ? "white" : "rgba(255,255,255,0.4)" }}>{tab}{activeTab === tab && <motion.div layoutId="tab-indicator" className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-8 rounded-full" style={{ background: GRADIENT }} />}</button>)}</div>
+    <header className="sticky top-0 z-40 px-4 pt-4" style={{ background: "rgba(10,8,18,.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+      <div className="flex items-center justify-between pb-3"><motion.button type="button" whileTap={{ scale: .88 }} onClick={() => setLocation("/")}><X size={22} className="text-white/80" /></motion.button><h1 className="text-base font-semibold text-white">{activeTab === "story" ? "New Story" : t("newPost")}</h1><motion.button type="button" whileTap={{ scale: .9 }} onClick={handleSubmit} disabled={!canSubmit} aria-disabled={!canSubmit} className="px-4 py-1.5 rounded-full text-sm font-semibold text-white" style={{ background: canSubmit ? GRADIENT : "rgba(255,255,255,.1)", opacity: canSubmit ? 1 : .5, boxShadow: canSubmit ? "0 2px 12px rgba(255,0,110,.35)" : "none" }}>{loading ? <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : activeTab === "story" ? "Share" : t("postButton")}</motion.button></div>
+      <div className="flex border-b border-white/8">{(["post", "story"] as TabMode[]).map(tab => <button type="button" key={tab} onClick={() => switchTab(tab)} className="flex-1 pb-2.5 text-sm font-semibold capitalize relative" style={{ color: activeTab === tab ? "white" : "rgba(255,255,255,.4)" }}>{tab}{activeTab === tab && <motion.div layoutId="tab-indicator" className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-8 rounded-full" style={{ background: GRADIENT }} />}</button>)}</div>
     </header>
-
     <main className="px-4 py-4">
-      <div className="flex gap-3 mb-4"><img src={avatarSrc} alt={user?.username ?? ""} className="w-10 h-10 rounded-full object-cover flex-shrink-0" style={{ boxShadow: "0 0 0 2px rgba(255,61,154,0.5)" }} /><div className="flex-1"><p className="text-white font-semibold text-sm mb-1.5">{user?.username ?? ""}</p><textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder={activeTab === "story" ? "Add a caption (optional)" : t("addCaption")} className="w-full bg-transparent text-white/85 text-sm resize-none outline-none placeholder:text-white/30" rows={activeTab === "story" ? 2 : 4} /></div></div>
-      <AnimatePresence>{selectedMedia && <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="relative mb-4 rounded-2xl overflow-hidden bg-white flex items-center justify-center" style={{ maxHeight: "65dvh" }}><img src={selectedMedia} alt="Selected" className="w-full max-h-[65dvh] object-contain rounded-2xl" /><button onClick={() => { setSelectedMedia(null); setSelectedFile(null); }} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/65 flex items-center justify-center"><X size={14} className="text-white" /></button></motion.div>}</AnimatePresence>
-      <div className="flex gap-3 mb-6"><motion.button whileTap={{ scale: 0.95 }} onClick={() => fileInputRef.current?.click()} className="flex-1 py-4 rounded-2xl flex flex-col items-center gap-2" style={{ background: "rgba(255,0,110,0.08)", border: "1px solid rgba(255,0,110,0.25)" }}><Camera size={24} style={{ color: "#FF3D9A" }} /><span className="text-white/70 text-xs font-medium">{selectedFile ? "Change Photo" : "Add Photo"}</span></motion.button>{activeTab === "post" && <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowVideoModal(true)} className="flex-1 py-4 rounded-2xl flex flex-col items-center gap-2" style={{ background: "rgba(139,0,255,0.08)", border: "1px solid rgba(139,0,255,0.25)" }}><Video size={24} style={{ color: "#B060FF" }} /><span className="text-white/70 text-xs font-medium">{t("video")}</span></motion.button>}</div>
-      {activeTab === "post" && <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}><div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><MapPin size={18} className="text-pink-400 flex-shrink-0" /><input value={locationText} onChange={e => setLocationText(e.target.value)} placeholder={t("location")} className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/30" /></div><div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}><Hash size={18} className="text-blue-400 flex-shrink-0" /><input value={hashtags} onChange={e => setHashtags(e.target.value)} placeholder={t("hashtags")} className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/30" /></div><div className="flex items-center gap-3 px-4 py-3.5"><Globe size={18} style={{ color: "#FF3D9A" }} className="flex-shrink-0" /><span className="flex-1 text-white/80 text-sm">{t("worldFeed")}</span><Toggle value={isWorldFeed} onChange={setIsWorldFeed} /></div></div>}
+      <div className="flex gap-3 mb-4"><img src={avatarSrc} alt={user?.username ?? ""} className="w-10 h-10 rounded-full object-cover flex-shrink-0" /><div className="flex-1"><p className="text-white font-semibold text-sm mb-1.5">{user?.username ?? ""}</p><textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder={activeTab === "story" ? "Add a caption (optional)" : t("addCaption")} className="w-full bg-transparent text-white/85 text-sm resize-none outline-none placeholder:text-white/30" rows={activeTab === "story" ? 2 : 4} /></div></div>
+      <AnimatePresence>{media && <motion.div initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: .98 }} className="relative mb-4 rounded-2xl overflow-hidden bg-white flex items-center justify-center" style={{ maxHeight: "65dvh" }}><img src={media.previewUrl} alt="Selected" className="w-full max-h-[65dvh] object-contain rounded-2xl" /><button type="button" onClick={clearMedia} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/65 flex items-center justify-center"><X size={14} className="text-white" /></button></motion.div>}</AnimatePresence>
+      <div className="flex gap-3 mb-6"><motion.button type="button" whileTap={{ scale: .95 }} onClick={() => fileInputRef.current?.click()} className="flex-1 py-4 rounded-2xl flex flex-col items-center gap-2" style={{ background: "rgba(255,0,110,.08)", border: "1px solid rgba(255,0,110,.25)" }}><Camera size={24} style={{ color: "#FF3D9A" }} /><span className="text-white/70 text-xs font-medium">{media ? "Change Photo" : "Add Photo"}</span></motion.button>{activeTab === "post" && <motion.button type="button" whileTap={{ scale: .95 }} onClick={() => setShowVideoModal(true)} className="flex-1 py-4 rounded-2xl flex flex-col items-center gap-2" style={{ background: "rgba(139,0,255,.08)", border: "1px solid rgba(139,0,255,.25)" }}><Video size={24} style={{ color: "#B060FF" }} /><span className="text-white/70 text-xs font-medium">{t("video")}</span></motion.button>}</div>
+      {activeTab === "post" && <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.07)" }}><div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,.06)" }}><MapPin size={18} className="text-pink-400" /><input value={locationText} onChange={e => setLocationText(e.target.value)} placeholder={t("location")} className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/30" /></div><div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,.06)" }}><Hash size={18} className="text-blue-400" /><input value={hashtags} onChange={e => setHashtags(e.target.value)} placeholder={t("hashtags")} className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/30" /></div><div className="flex items-center gap-3 px-4 py-3.5"><Globe size={18} style={{ color: "#FF3D9A" }} /><span className="flex-1 text-white/80 text-sm">{t("worldFeed")}</span><Toggle value={isWorldFeed} onChange={setIsWorldFeed} /></div></div>}
       {error && <p className="text-red-400 text-xs text-center mt-4">{error}</p>}
     </main>
     <BottomNav />
-    <AnimatePresence>{showVideoModal && <><motion.div key="video-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/70" onClick={() => setShowVideoModal(false)} /><motion.div key="video-modal" initial={{ opacity: 0, scale: 0.88, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.88, y: 20 }} transition={{ type: "spring", damping: 22, stiffness: 300 }} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-72 z-50 rounded-3xl p-6 text-center" style={{ background: "rgba(16,12,28,0.98)", border: "1px solid rgba(255,61,154,0.25)", boxShadow: "0 20px 60px rgba(0,0,0,0.7)" }}><div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(255,0,110,0.12)", border: "1px solid rgba(255,0,110,0.25)" }}><AlertCircle size={28} style={{ color: "#FF3D9A" }} /></div><h3 className="text-white font-bold text-base mb-2">Not Available Yet</h3><p className="text-white/55 text-sm leading-relaxed mb-5">Video uploads are coming soon. Stay tuned! 🎬</p><motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowVideoModal(false)} className="w-full py-3 rounded-2xl text-white font-semibold text-sm" style={{ background: GRADIENT }}>Got it</motion.button></motion.div></>}
-    </AnimatePresence>
+    <AnimatePresence>{showVideoModal && <><motion.div key="video-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/70" onClick={() => setShowVideoModal(false)} /><motion.div key="video-modal" initial={{ opacity: 0, scale: .88, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .88, y: 20 }} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-72 z-50 rounded-3xl p-6 text-center" style={{ background: "rgba(16,12,28,.98)", border: "1px solid rgba(255,61,154,.25)" }}><div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(255,0,110,.12)" }}><AlertCircle size={28} style={{ color: "#FF3D9A" }} /></div><h3 className="text-white font-bold text-base mb-2">Not Available Yet</h3><p className="text-white/55 text-sm leading-relaxed mb-5">Video uploads are coming soon. Stay tuned! 🎬</p><motion.button type="button" whileTap={{ scale: .95 }} onClick={() => setShowVideoModal(false)} className="w-full py-3 rounded-2xl text-white font-semibold text-sm" style={{ background: GRADIENT }}>Got it</motion.button></motion.div></>}</AnimatePresence>
   </div>;
 }
 
-function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) { return <motion.button onClick={() => onChange(!value)} className="relative w-10 h-6 rounded-full flex-shrink-0" style={{ background: value ? GRADIENT : "rgba(255,255,255,0.15)" }}><motion.span className="absolute top-0.5 w-5 h-5 rounded-full bg-white" animate={{ left: value ? "calc(100% - 22px)" : "2px" }} transition={{ type: "spring", damping: 22, stiffness: 400 }} /></motion.button>; }
+function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return <motion.button type="button" onClick={() => onChange(!value)} className="relative w-10 h-6 rounded-full flex-shrink-0" style={{ background: value ? GRADIENT : "rgba(255,255,255,.15)" }}><motion.span className="absolute top-0.5 w-5 h-5 rounded-full bg-white" animate={{ left: value ? "calc(100% - 22px)" : "2px" }} transition={{ type: "spring", damping: 22, stiffness: 400 }} /></motion.button>;
+}
