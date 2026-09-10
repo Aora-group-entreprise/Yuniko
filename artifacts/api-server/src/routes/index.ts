@@ -98,6 +98,51 @@ router.get("/posts/:id", authMiddleware, async (req: AuthedRequest, res: Respons
   } catch (error) { console.error(error); return res.status(500).json({ error: "Server error" }); }
 });
 
+// V1: count at most one view per user/post every 5 minutes.
+// Uses the existing post_engagements unique (user_id, post_id) index and last_viewed_at field.
+router.post("/posts/:id/view", authMiddleware, async (req: AuthedRequest, res: Response) => {
+  const postId = positiveId(req.params.id);
+  if (!postId) return res.status(400).json({ error: "Invalid post id" });
+  const watchMs = nonNegativeInt(req.body?.watchMs, 0, 600_000) ?? 0;
+  const completionRate = nonNegativeInt(req.body?.completionRate, 0, 100) ?? 0;
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 5 * 60 * 1000);
+  try {
+    const [engagement] = await db.insert(postEngagementsTable).values({
+      postId,
+      userId: req.userId!,
+      viewCount: 1,
+      watchMs,
+      completionRate,
+      lastViewedAt: now,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: [postEngagementsTable.userId, postEngagementsTable.postId],
+      set: {
+        viewCount: sql`${postEngagementsTable.viewCount} + 1`,
+        watchMs,
+        completionRate,
+        lastViewedAt: now,
+        updatedAt: now,
+      },
+      where: sql`${postEngagementsTable.lastViewedAt} IS NULL OR ${postEngagementsTable.lastViewedAt} < ${cutoff}`,
+    }).returning({ viewCount: postEngagementsTable.viewCount, lastViewedAt: postEngagementsTable.lastViewedAt });
+
+    if (!engagement) {
+      const [post] = await db.select({ id: postsTable.id, views: postsTable.views }).from(postsTable).where(eq(postsTable.id, postId)).limit(1);
+      if (!post) return res.status(404).json({ error: "Post not found" });
+      return res.json({ viewed: false, deduplicated: true, post });
+    }
+
+    const [post] = await db.update(postsTable)
+      .set({ views: sql`${postsTable.views}+1`, updatedAt: now })
+      .where(eq(postsTable.id, postId))
+      .returning({ id: postsTable.id, views: postsTable.views });
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    return res.json({ viewed: true, deduplicated: false, post });
+  } catch (error) { console.error(error); return res.status(500).json({ error: "Server error" }); }
+});
+
 router.use(postsRouter);
 router.use(repostsRouter);
 router.use(storiesRouter);
