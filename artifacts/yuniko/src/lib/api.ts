@@ -28,7 +28,8 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   const providedHeaders = { ...((options.headers ?? {}) as Record<string, string>) };
   const providedAuthorization = providedHeaders.Authorization ?? providedHeaders.authorization;
   const hasUsableAuthorization = typeof providedAuthorization === "string" && /^Bearer\s+[^\s]+$/i.test(providedAuthorization) && !/^Bearer\s+(null|undefined)$/i.test(providedAuthorization);
-  const headers: Record<string, string> = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...providedHeaders };
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers: Record<string, string> = { ...(isFormData ? {} : { "Content-Type": "application/json" }), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...providedHeaders };
   if (!hasUsableAuthorization && token) headers.Authorization = `Bearer ${token}`;
   else if (!hasUsableAuthorization && !token) delete headers.Authorization;
 

@@ -96,7 +96,12 @@ app.use((req, res, next) => {
 });
 
 app.use("/api", rateLimit({ windowMs: 60_000, max: 240 }));
+
+// IMPORTANT: multipart uploads must reach /media/upload untouched. Express JSON parsing
+// consumes the request stream, which would leave the media route with no file bytes.
 app.use((req, res, next) => {
+  const contentType = String(req.headers["content-type"] ?? "").toLowerCase();
+  if (contentType.startsWith("multipart/form-data")) return next();
   const isMediaUpload = req.path === "/api/media/upload" || req.path === "/media/upload";
   return express.json({ limit: isMediaUpload ? "40mb" : "14mb" })(req, res, next);
 });
