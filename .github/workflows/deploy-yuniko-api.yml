@@ -51,15 +51,17 @@ jobs:
           const { createHash } = require("node:crypto");
           const { writeFileSync } = require("node:fs");
           const token = process.env.CLOUDFLARE_API_TOKEN;
+          const storageKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
           if (!token) throw new Error("CLOUDFLARE_API_TOKEN is not configured");
-          const secret = createHash("sha256")
+          if (!storageKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+          const sessionSecret = createHash("sha256")
             .update("yuniko-production-jwt-v1:")
             .update(token)
             .digest("hex");
-          const secrets = { SESSION_SECRET: secret };
-          if (process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
-            secrets.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
-          }
+          const secrets = {
+            SESSION_SECRET: sessionSecret,
+            SUPABASE_SERVICE_ROLE_KEY: storageKey,
+          };
           writeFileSync("/tmp/yuniko-secrets.json", JSON.stringify(secrets));
           NODE
 
