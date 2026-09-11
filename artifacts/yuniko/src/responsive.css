@@ -1,189 +1,46 @@
-/* Yuniko responsive foundation
- * Presentation-only responsive rules. Do not change API, database,
- * storage or deployment configuration here.
+/* Yuniko responsive foundation — Yusheng-style fluid layout.
+ * Presentation only. Do not change API, database, storage or deployment.
  */
+html,body,#root{width:100%;min-width:0;max-width:100%;}
+html{overflow-x:hidden;-webkit-text-size-adjust:100%;}
+body{margin:0;min-height:100dvh;min-height:100svh;overflow-x:hidden;}
+*,*::before,*::after{box-sizing:border-box;}
+img,video,canvas,svg{max-width:100%;}
+img,video{display:block;height:auto;}
+button,input,textarea,select{min-width:0;max-width:100%;}
 
-html,
-body,
-#root {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
+/* Yuniko pages historically use max-w-[430px]. Keep the mobile width,
+ * but let the same page shell grow on tablets/desktops instead of remaining
+ * a phone-sized column. Attribute selectors avoid Tailwind escaping issues. */
+[class~="max-w-[430px]"]{width:100%;min-width:0;}
+[class~="max-w-[430px]"][class~="min-h-screen"]{max-width:430px;}
+@media (max-width:359px){[class~="max-w-[430px]"][class~="min-h-screen"]{max-width:100%;}}
+@media (min-width:480px){[class~="max-w-[430px]"][class~="min-h-screen"]{max-width:600px!important;}}
+@media (min-width:768px){[class~="max-w-[430px]"][class~="min-h-screen"]{max-width:760px!important;}}
+@media (min-width:1024px){[class~="max-w-[430px]"][class~="min-h-screen"]{max-width:960px!important;}}
+@media (min-width:1440px){[class~="max-w-[430px]"][class~="min-h-screen"]{max-width:1120px!important;}}
+
+/* Prevent long text and media from creating horizontal overflow. */
+.break-words,.break-anywhere,.truncate{min-width:0;}
+button,[role="button"],input,textarea,select,.break-anywhere{overflow-wrap:anywhere;}
+.yuniko-chat-media{display:block;width:auto;max-width:100%;max-height:55dvh;height:auto;object-fit:contain;border-radius:.75rem;}
+.yuniko-chat-composer{width:100%;max-width:430px;min-width:0;}
+@media (min-width:480px){.yuniko-chat-composer{max-width:600px;}}
+@media (min-width:768px){.yuniko-chat-composer{max-width:760px;}}
+@media (min-width:1024px){.yuniko-chat-composer{max-width:960px;}}
+@media (min-width:1440px){.yuniko-chat-composer{max-width:1120px;}}
+
+/* Bottom navigation is viewport-wide; only its content has a readable width. */
+.yuniko-bottom-nav{width:100%;max-width:100vw;}
+.yuniko-bottom-nav>div{width:100%;max-width:600px;margin-inline:auto;height:clamp(60px,8vh,72px);padding-inline:clamp(4px,2vw,32px);}
+@media (min-width:768px){.yuniko-bottom-nav>div{max-width:760px;}}
+@media (min-width:1024px){.yuniko-bottom-nav>div{max-width:960px;}}
+@media (min-width:1440px){.yuniko-bottom-nav>div{max-width:1120px;}}
+.yuniko-bottom-nav .yuniko-nav-item{width:clamp(44px,12vw,72px);}
+.yuniko-bottom-nav .yuniko-create-button{width:clamp(48px,13vw,58px);height:clamp(48px,13vw,58px);}
+
+@media (max-height:520px) and (orientation:landscape){
+ .yuniko-bottom-nav>div{height:56px;}
+ .yuniko-chat-media{max-height:45dvh;}
 }
-
-html {
-  overflow-x: hidden;
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
-  margin: 0;
-  overflow-x: hidden;
-  min-height: 100dvh;
-  min-height: 100svh;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-img,
-video,
-canvas,
-svg {
-  max-width: 100%;
-}
-
-img,
-video {
-  display: block;
-}
-
-button,
-input,
-textarea,
-select {
-  max-width: 100%;
-  min-width: 0;
-}
-
-button,
-[role="button"],
-input,
-textarea,
-select,
-.break-anywhere {
-  overflow-wrap: anywhere;
-}
-
-.break-words,
-.break-anywhere,
-.truncate {
-  min-width: 0;
-}
-
-/* The existing app uses max-w-[430px] for the page shell. Use an attribute
- * selector so the Tailwind-generated class does not need CSS escaping. The
- * min-h-screen guard prevents nested cards/sheets using the same width token
- * from being resized accidentally. */
-[class~="max-w-[430px]"][class~="min-h-screen"] {
-  width: 100%;
-  max-width: 430px;
-  min-width: 0;
-}
-
-@media (max-width: 359px) {
-  [class~="max-w-[430px]"][class~="min-h-screen"] {
-    width: 100%;
-    max-width: 100%;
-  }
-}
-
-@media (min-width: 480px) {
-  [class~="max-w-[430px]"][class~="min-h-screen"] {
-    max-width: min(100%, 600px) !important;
-  }
-}
-
-@media (min-width: 768px) {
-  [class~="max-w-[430px]"][class~="min-h-screen"] {
-    max-width: min(100%, 760px) !important;
-  }
-
-  #root {
-    padding-left: max(0px, env(safe-area-inset-left));
-    padding-right: max(0px, env(safe-area-inset-right));
-  }
-
-  .fixed {
-    max-width: 100vw;
-  }
-}
-
-@media (min-width: 1024px) {
-  [class~="max-w-[430px]"][class~="min-h-screen"] {
-    max-width: min(100%, 960px) !important;
-  }
-}
-
-@media (min-width: 1440px) {
-  [class~="max-w-[430px]"][class~="min-h-screen"] {
-    max-width: min(100%, 1120px) !important;
-  }
-}
-
-/* Chat media is always bounded by the message bubble and viewport. */
-.yuniko-chat-media {
-  display: block;
-  width: auto;
-  max-width: min(100%, 420px);
-  max-height: min(55dvh, 520px);
-  height: auto;
-  object-fit: contain;
-  border-radius: 0.75rem;
-}
-
-.yuniko-chat-composer {
-  width: 100%;
-  max-width: 430px;
-  min-width: 0;
-}
-
-@media (min-width: 480px) {
-  .yuniko-chat-composer {
-    max-width: min(100%, 600px);
-  }
-}
-
-@media (min-width: 768px) {
-  .yuniko-chat-composer {
-    max-width: min(100%, 760px);
-  }
-}
-
-@media (min-width: 1024px) {
-  .yuniko-chat-composer {
-    max-width: min(100%, 960px);
-  }
-}
-
-@media (min-width: 1440px) {
-  .yuniko-chat-composer {
-    max-width: min(100%, 1120px);
-  }
-}
-
-/* Bottom navigation remains five items and keeps its existing visual design,
- * but its dimensions scale with the viewport instead of a single fixed size. */
-.yuniko-bottom-nav > div {
-  height: clamp(60px, 8vh, 72px);
-  padding-inline: clamp(4px, 2vw, 32px);
-}
-
-.yuniko-bottom-nav .yuniko-nav-item {
-  width: clamp(44px, 12vw, 72px);
-}
-
-.yuniko-bottom-nav .yuniko-create-button {
-  width: clamp(48px, 13vw, 58px);
-  height: clamp(48px, 13vw, 58px);
-}
-
-@media (max-height: 520px) and (orientation: landscape) {
-  .yuniko-bottom-nav > div {
-    height: 56px;
-  }
-
-  .yuniko-chat-media {
-    max-height: 45dvh;
-  }
-}
-
-@supports (padding: max(0px)) {
-  body {
-    padding-left: max(0px, env(safe-area-inset-left));
-    padding-right: max(0px, env(safe-area-inset-right));
-  }
-}
+@supports(padding:max(0px)){body{padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right));}}
