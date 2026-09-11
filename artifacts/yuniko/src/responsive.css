@@ -1,170 +1,60 @@
-/* Yuniko responsive foundation — fluid layout, following Yusheng's natural-width approach. */
-html, body, #root {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-}
-
-html {
-  overflow-x: hidden;
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
+/* Yuniko responsive foundation — follows Yusheng's natural-width layout model. */
+html, body, #root { width: 100%; min-width: 0; max-width: 100%; }
+html { overflow-x: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { margin: 0; min-height: 100vh; overflow-x: hidden; }
 *, *::before, *::after { box-sizing: border-box; }
 img, video, canvas, svg { max-width: 100%; }
 img, video { display: block; height: auto; }
 button, input, textarea, select { min-width: 0; max-width: 100%; }
 
-/* Every routed page gets a real containing block and a legacy-safe height. */
-.yuniko-root,
-.yuniko-route-shell,
-.yuniko-route-page {
-  width: 100%;
-  min-width: 0;
-  min-height: 100vh;
-}
+/* Yusheng uses a normal fluid document rather than a fixed 430px canvas. */
+.yuniko-root, .yuniko-route-shell, .yuniko-route-page { width: 100%; min-width: 0; max-width: none; min-height: 100vh; }
+.yuniko-root { overflow-x: hidden; }
+.yuniko-route-shell { overflow-x: hidden; }
+.yuniko-route-page { overflow-x: hidden; }
 
-/* Home uses absolute children, so its parent must have a real viewport height. */
-.yuniko-app-shell {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-  min-height: 100vh;
-  height: 100vh;
-  overflow: hidden;
-}
+/* Home is intentionally full-screen, but uses legacy-safe vh as the base. */
+.yuniko-app-shell { position: relative; width: 100%; min-width: 0; max-width: none; min-height: 100vh; height: 100vh; overflow: hidden; }
 
-/* Legacy Chrome-safe replacement for viewport units. Modern units are only an upgrade. */
+/* Modern viewport units are an optional upgrade, never the only layout mechanism. */
 @supports (height: 100dvh) {
-  .yuniko-root,
-  .yuniko-route-shell,
-  .yuniko-route-page {
-    min-height: 100dvh;
-  }
-  .yuniko-app-shell {
-    min-height: 100dvh;
-    height: 100dvh;
-  }
+  .yuniko-root, .yuniko-route-shell, .yuniko-route-page { min-height: 100dvh; }
+  .yuniko-app-shell { min-height: 100dvh; height: 100dvh; }
 }
 
-/* Do not force the old 430px mobile shell on larger screens. */
-[class~="max-w-[430px]"] {
-  width: 100%;
-  min-width: 0;
-}
+/* Remove the legacy 430px application constraint everywhere it appears. */
+[class~="max-w-[430px]"] { width: 100%; min-width: 0; }
+[class~="max-w-[430px]"][class~="min-h-screen"] { width: 100%; max-width: none !important; margin-left: auto; margin-right: auto; }
+[class~="min-h-[100dvh]"] { min-height: 100vh !important; }
+@supports (min-height: 100dvh) { [class~="min-h-[100dvh]"] { min-height: 100dvh !important; } }
 
-[class~="max-w-[430px]"][class~="min-h-screen"] {
-  width: 100%;
-  max-width: none !important;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-[class~="min-h-[100dvh]"] {
-  min-height: 100vh !important;
-}
-
-@supports (min-height: 100dvh) {
-  [class~="min-h-[100dvh]"] { min-height: 100dvh !important; }
-}
-
-/* Media stays inside narrow phones without depending on dvh. */
+/* Media fallbacks for old Android/Chrome. */
 [style*="55dvh"] { max-height: 55vh !important; }
 [style*="65dvh"] { max-height: 65vh !important; }
-@supports (max-height: 55dvh) {
-  [style*="55dvh"] { max-height: 55dvh !important; }
-}
-@supports (max-height: 65dvh) {
-  [style*="65dvh"] { max-height: 65dvh !important; }
-}
+@supports (max-height: 55dvh) { [style*="55dvh"] { max-height: 55dvh !important; } }
+@supports (max-height: 65dvh) { [style*="65dvh"] { max-height: 65dvh !important; } }
 
 .break-words, .break-anywhere, .truncate { min-width: 0; }
 button, [role="button"], input, textarea, select, .break-anywhere { overflow-wrap: anywhere; }
 
-.yuniko-chat-media {
-  display: block;
-  width: auto;
-  max-width: 100%;
-  max-height: 55vh;
-  height: auto;
-  object-fit: contain;
-  border-radius: .75rem;
-}
-@supports (max-height: 55dvh) {
-  .yuniko-chat-media { max-height: 55dvh; }
-}
-
-.yuniko-chat-composer {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-}
-
-@media (min-width: 480px) {
-  .yuniko-chat-composer { max-width: 600px; margin-left: auto; margin-right: auto; }
-}
+.yuniko-chat-media { display: block; width: auto; max-width: 100%; max-height: 55vh; height: auto; object-fit: contain; border-radius: .75rem; }
+@supports (max-height: 55dvh) { .yuniko-chat-media { max-height: 55dvh; } }
+.yuniko-chat-composer { width: 100%; max-width: 100%; min-width: 0; }
+@media (min-width: 480px) { .yuniko-chat-composer { max-width: 600px; margin-left: auto; margin-right: auto; } }
 @media (min-width: 768px) { .yuniko-chat-composer { max-width: 760px; } }
 @media (min-width: 1024px) { .yuniko-chat-composer { max-width: 960px; } }
 @media (min-width: 1440px) { .yuniko-chat-composer { max-width: 1120px; } }
 
-.yuniko-bottom-nav {
-  width: 100%;
-  max-width: 100vw;
-  left: 0;
-  right: 0;
-}
-
-.yuniko-bottom-nav > div {
-  width: 100%;
-  max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-  height: 64px;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-@media (min-width: 360px) {
-  .yuniko-bottom-nav > div { padding-left: 8px; padding-right: 8px; }
-}
-@media (min-width: 480px) {
-  .yuniko-bottom-nav > div { max-width: 600px; padding-left: 16px; padding-right: 16px; }
-}
-@media (min-width: 768px) {
-  .yuniko-bottom-nav > div { max-width: 760px; padding-left: 24px; padding-right: 24px; }
-}
-@media (min-width: 1024px) {
-  .yuniko-bottom-nav > div { max-width: 960px; padding-left: 32px; padding-right: 32px; }
-}
+.yuniko-bottom-nav { width: 100%; max-width: 100vw; left: 0; right: 0; }
+.yuniko-bottom-nav > div { width: 100%; max-width: 100%; margin-left: auto; margin-right: auto; height: 64px; padding-left: 4px; padding-right: 4px; }
+@media (min-width: 360px) { .yuniko-bottom-nav > div { padding-left: 8px; padding-right: 8px; } }
+@media (min-width: 480px) { .yuniko-bottom-nav > div { max-width: 600px; padding-left: 16px; padding-right: 16px; } }
+@media (min-width: 768px) { .yuniko-bottom-nav > div { max-width: 760px; padding-left: 24px; padding-right: 24px; } }
+@media (min-width: 1024px) { .yuniko-bottom-nav > div { max-width: 960px; padding-left: 32px; padding-right: 32px; } }
 @media (min-width: 1440px) { .yuniko-bottom-nav > div { max-width: 1120px; } }
-
 .yuniko-bottom-nav .yuniko-nav-item { width: 52px; max-width: 20vw; }
 .yuniko-bottom-nav .yuniko-create-button { width: 52px; height: 52px; }
-
-@media (max-width: 359px) {
-  .yuniko-bottom-nav .yuniko-nav-item { width: 46px; }
-  .yuniko-bottom-nav .yuniko-create-button { width: 48px; height: 48px; }
-}
-@media (min-width: 768px) {
-  .yuniko-bottom-nav .yuniko-nav-item { width: 64px; }
-  .yuniko-bottom-nav .yuniko-create-button { width: 56px; height: 56px; }
-}
-
-@media (max-height: 520px) and (orientation: landscape) {
-  .yuniko-bottom-nav > div { height: 56px; }
-  .yuniko-chat-media { max-height: 45vh; }
-}
-
-@supports (padding: max(0px)) {
-  body {
-    padding-left: max(0px, env(safe-area-inset-left));
-    padding-right: max(0px, env(safe-area-inset-right));
-  }
-}
+@media (max-width: 359px) { .yuniko-bottom-nav .yuniko-nav-item { width: 46px; } .yuniko-bottom-nav .yuniko-create-button { width: 48px; height: 48px; } }
+@media (min-width: 768px) { .yuniko-bottom-nav .yuniko-nav-item { width: 64px; } .yuniko-bottom-nav .yuniko-create-button { width: 56px; height: 56px; } }
+@media (max-height: 520px) and (orientation: landscape) { .yuniko-bottom-nav > div { height: 56px; } .yuniko-chat-media { max-height: 45vh; } }
+@supports (padding: max(0px)) { body { padding-left: max(0px, env(safe-area-inset-left)); padding-right: max(0px, env(safe-area-inset-right)); } }
