@@ -64,32 +64,31 @@ select,
   min-width: 0;
 }
 
-/* Existing pages use this Tailwind class for their phone-first page shell.
- * Only a direct child of #root is widened: nested cards, sheets and controls
- * keep their original dimensions, so the existing design is not distorted. */
-#root > .max-w-\\[430px\\] {
+/* The existing app uses max-w-[430px] for the page shell. Use an attribute
+ * selector so the Tailwind-generated class does not need CSS escaping. The
+ * min-h-screen guard prevents nested cards/sheets using the same width token
+ * from being resized accidentally. */
+[class~="max-w-[430px]"][class~="min-h-screen"] {
   width: 100%;
   max-width: 430px;
+  min-width: 0;
 }
 
 @media (max-width: 359px) {
-  #root > .max-w-\\[430px\\] {
+  [class~="max-w-[430px]"][class~="min-h-screen"] {
     width: 100%;
     max-width: 100%;
   }
 }
 
-/* Large phones / small tablets: use the available width without forcing a
- * fixed desktop column. */
 @media (min-width: 480px) {
-  #root > .max-w-\\[430px\\] {
+  [class~="max-w-[430px]"][class~="min-h-screen"] {
     max-width: min(100%, 600px) !important;
   }
 }
 
-/* Tablets. */
 @media (min-width: 768px) {
-  #root > .max-w-\\[430px\\] {
+  [class~="max-w-[430px]"][class~="min-h-screen"] {
     max-width: min(100%, 760px) !important;
   }
 
@@ -103,23 +102,21 @@ select,
   }
 }
 
-/* Laptops / desktop. */
 @media (min-width: 1024px) {
-  #root > .max-w-\\[430px\\] {
+  [class~="max-w-[430px]"][class~="min-h-screen"] {
     max-width: min(100%, 960px) !important;
   }
 }
 
-/* Large desktop screens: readable application width, not an oversized
- * stretched column. */
 @media (min-width: 1440px) {
-  #root > .max-w-\\[430px\\] {
+  [class~="max-w-[430px]"][class~="min-h-screen"] {
     max-width: min(100%, 1120px) !important;
   }
 }
 
-/* Chat media must remain inside its message bubble on every screen. */
+/* Chat media is always bounded by the message bubble and viewport. */
 .yuniko-chat-media {
+  display: block;
   width: auto;
   max-width: min(100%, 420px);
   max-height: min(55dvh, 520px);
@@ -131,6 +128,7 @@ select,
 .yuniko-chat-composer {
   width: 100%;
   max-width: 430px;
+  min-width: 0;
 }
 
 @media (min-width: 480px) {
@@ -157,8 +155,8 @@ select,
   }
 }
 
-/* Bottom navigation scales with the viewport while preserving the current
- * five-item layout and visual style. */
+/* Bottom navigation remains five items and keeps its existing visual design,
+ * but its dimensions scale with the viewport instead of a single fixed size. */
 .yuniko-bottom-nav > div {
   height: clamp(60px, 8vh, 72px);
   padding-inline: clamp(4px, 2vw, 32px);
@@ -173,8 +171,6 @@ select,
   height: clamp(48px, 13vw, 58px);
 }
 
-/* Very short landscape screens: keep controls usable without consuming the
- * entire viewport. */
 @media (max-height: 520px) and (orientation: landscape) {
   .yuniko-bottom-nav > div {
     height: 56px;
