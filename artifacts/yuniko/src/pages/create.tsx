@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Video, MapPin, Hash, Globe, AlertCircle, Camera, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "wouter";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import BottomNav from "@/components/BottomNav";
