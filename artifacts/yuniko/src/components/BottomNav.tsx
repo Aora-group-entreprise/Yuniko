@@ -76,8 +76,8 @@ export default function BottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50" style={{ background: "rgba(10,8,18,0.95)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderTop: "1px solid rgba(255,61,154,0.15)" }} data-testid="bottom-nav">
-      <div className="flex items-center justify-around h-16 px-2">
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] md:max-w-[900px] z-50" style={{ background: "rgba(10,8,18,0.95)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderTop: "1px solid rgba(255,61,154,0.15)" }} data-testid="bottom-nav">
+      <div className="flex items-center justify-around h-16 px-2 sm:px-4 md:px-8">
         <NavItem href="/" label={t("home")} active={isActive("/")} onClick={handleFeedClick}>
           <div className="relative"><Home size={23} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.3 : 1.7} />{newFeedPosts > 0 && <Badge count={newFeedPosts} label={t("home")} />}</div>
         </NavItem>
