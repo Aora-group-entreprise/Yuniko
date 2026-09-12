@@ -75,9 +75,11 @@ router.use(unreadRouter);
 router.use(verificationRouter);
 router.use(inlineImageUpload);
 
-router.get("/posts/:id", authMiddleware, async (req: AuthedRequest, res: Response) => {
+// NOTE: ":id" also matches literal sub-paths such as "/posts/feed". When the id is
+// not numeric, fall through so the dedicated routes (e.g. GET /posts/feed) can run.
+router.get("/posts/:id", authMiddleware, async (req: AuthedRequest, res: Response, next: NextFunction) => {
   const postId = positiveId(req.params.id);
-  if (!postId) return res.status(400).json({ error: "Invalid post id" });
+  if (!postId) return next();
   try {
     const [post] = await db.select({
       id: postsTable.id, userId: postsTable.userId, caption: postsTable.caption,
