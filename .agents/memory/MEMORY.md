@@ -1,2 +1,0 @@
-- [Yuniko branding & gradient](yuniko-branding.md) — All purple replaced with pink-purple gradient; User type needs website field.
-- [Auth system](auth-system.md) — Full JWT auth implemented; DB schema pushed; lib/db uses lazy Proxy init to avoid crash without DATABASE_URL.
