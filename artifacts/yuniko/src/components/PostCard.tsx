@@ -4,6 +4,7 @@ import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, Spa
 import { motion, AnimatePresence } from "framer-motion";
 import { Post, getUserById, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
+import { apiJson } from "@/lib/api";
 
 export interface LiveAuthor {
   displayName: string;
@@ -41,6 +42,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
   const [likeCount, setLikeCount] = useState(post.likes);
   const [heartBurst, setHeartBurst] = useState(false);
   const [lastTap, setLastTap] = useState(0);
+  const livePostId = post.id.startsWith("live_") ? post.id.slice("live_".length) : null;
 
   if (!author) return null;
 
@@ -48,23 +50,52 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
     author.avatarUrl ??
     `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(author.displayName)}&backgroundColor=FF006E`;
 
-  const handleLike = useCallback(() => {
-    setLiked((prev) => !prev);
-    setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
-  }, [liked]);
+  const handleLike = useCallback(async () => {
+    const nextLiked = !liked;
+    setLiked(nextLiked);
+    setLikeCount((prev) => Math.max(0, prev + (nextLiked ? 1 : -1)));
+    if (!livePostId) return;
+
+    try {
+      const result = await apiJson<{ liked: boolean; likes: number }>(
+        `/posts/${livePostId}/like`,
+        { method: "POST" },
+      );
+      setLiked(result.liked);
+      setLikeCount(result.likes);
+    } catch {
+      setLiked(liked);
+      setLikeCount((prev) => Math.max(0, prev + (nextLiked ? -1 : 1)));
+    }
+  }, [liked, livePostId]);
+
+  const handleSave = useCallback(async () => {
+    const nextSaved = !saved;
+    setSaved(nextSaved);
+    if (!livePostId) return;
+
+    try {
+      const result = await apiJson<{ saved: boolean; saves: number }>(
+        `/posts/${livePostId}/save`,
+        { method: "POST" },
+      );
+      setSaved(result.saved);
+    } catch {
+      setSaved(saved);
+    }
+  }, [livePostId, saved]);
 
   const handleDoubleTap = useCallback(() => {
     const now = Date.now();
     if (now - lastTap < 320) {
       if (!liked) {
-        setLiked(true);
-        setLikeCount((prev) => prev + 1);
+        void handleLike();
       }
       setHeartBurst(true);
       setTimeout(() => setHeartBurst(false), 800);
     }
     setLastTap(now);
-  }, [lastTap, liked]);
+  }, [handleLike, lastTap, liked]);
 
   return (
     <div className="relative w-full h-full" data-testid={`post-card-${post.id}`}>
@@ -166,7 +197,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
             />
           }
           label={formatCount(post.saves)}
-          onClick={() => setSaved((prev) => !prev)}
+          onClick={handleSave}
           testId="btn-save"
           active={saved}
         />

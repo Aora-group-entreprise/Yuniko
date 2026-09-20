@@ -8,6 +8,7 @@ import { getUserById, getPostsByUser, formatCount } from "@/data/mockData";
 import { useAuth, AuthUser } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
+import { apiJson } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -165,6 +166,22 @@ export default function Profile({ userId }: ProfilePageProps) {
     else setLocation("/");
   };
 
+  const toggleFollowing = async () => {
+    const numericId = Number(user.id);
+    const nextFollowing = !following;
+    setFollowing(nextFollowing);
+    if (!Number.isInteger(numericId) || numericId <= 0) return;
+    try {
+      const result = await apiJson<{ following: boolean }>(
+        `/users/${numericId}/follow`,
+        { method: "POST" },
+      );
+      setFollowing(result.following);
+    } catch {
+      setFollowing(following);
+    }
+  };
+
   return (
     <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20">
       {/* Header */}
@@ -258,7 +275,7 @@ export default function Profile({ userId }: ProfilePageProps) {
           ) : (
             <div className="flex gap-2">
               <button
-                onClick={() => setFollowing((p) => !p)}
+                onClick={toggleFollowing}
                 className="px-5 py-2 rounded-xl text-sm font-semibold text-white"
                 style={{
                   background: following ? "rgba(255,255,255,0.1)" : GRADIENT,
