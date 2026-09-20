@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, TrendingUp, Users, X, Hash, Sparkles } from "lucide-react";
-import { users, posts, formatCount } from "@/data/mockData";
+import { users, posts, formatCount, type User } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
+import { useAuth } from "@/lib/auth-context";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -22,22 +23,71 @@ type Tab = "forYou" | "people" | "hashtags";
 
 export default function SearchPage() {
   const [, setLocation] = useLocation();
+  const { token } = useAuth();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("forYou");
   const [followStates, setFollowStates] = useState<Record<string, boolean>>({});
+  const [apiUsers, setApiUsers] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const toggleFollow = (uid: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setFollowStates((prev) => ({ ...prev, [uid]: !prev[uid] }));
   };
 
-  const filteredUsers = query
-    ? users.filter(
-        (u) =>
-          u.displayName.toLowerCase().includes(query.toLowerCase()) ||
-          u.username.toLowerCase().includes(query.toLowerCase())
-      )
-    : [];
+  useEffect(() => {
+    const normalizedQuery = query.trim();
+    if (!token || normalizedQuery.length < 2) {
+      setApiUsers([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsSearching(true);
+    fetch(`/api/users/search?q=${encodeURIComponent(normalizedQuery)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Search failed");
+        const data = (await response.json()) as {
+          users?: Array<{
+            id: number;
+            username: string;
+            displayName: string;
+            avatarUrl: string | null;
+            bio: string;
+            countryFlag: string | null;
+          }>;
+        };
+        setApiUsers((data.users ?? []).map((user) => ({
+          id: String(user.id),
+          username: user.username,
+          displayName: user.displayName,
+          avatar: user.avatarUrl ??
+            `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(user.displayName)}&backgroundColor=FF006E`,
+          bio: user.bio,
+          location: "",
+          flag: user.countryFlag ?? "",
+          verified: false,
+          followers: 0,
+          following: 0,
+          posts: 0,
+          isOnline: false,
+          coverPhoto: "",
+          isFollowing: false,
+          isFriend: false,
+        })));
+      })
+      .catch((error: unknown) => {
+        if ((error as { name?: string }).name !== "AbortError") setApiUsers([]);
+      })
+      .finally(() => setIsSearching(false));
+
+    return () => controller.abort();
+  }, [query, token]);
+
+  const filteredUsers = query ? apiUsers : [];
 
   const filteredHashtags = query
     ? TRENDING_HASHTAGS.filter((h) => h.tag.toLowerCase().includes(query.toLowerCase()))
@@ -136,6 +186,9 @@ export default function SearchPage() {
                 );
               })}
             </div>
+          )}
+          {(tab === "forYou" || tab === "people") && query.length >= 2 && !isSearching && filteredUsers.length === 0 && (
+            <p className="px-4 pt-6 text-center text-white/45 text-sm">No registered users found.</p>
           )}
 
           {(tab === "forYou" || tab === "hashtags") && filteredHashtags.length > 0 && (
