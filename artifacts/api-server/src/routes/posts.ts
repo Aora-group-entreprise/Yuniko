@@ -8,6 +8,11 @@ import { authMiddleware } from "../middlewares/auth";
 const postsRouter = Router();
 
 function dbError(res: any, err: unknown) {
+  if (!process.env["DATABASE_URL"]) {
+    return res.status(503).json({
+      error: "Database not configured. Please provision a database and set DATABASE_URL.",
+    });
+  }
   console.error(err);
   return res.status(500).json({ error: "Server error" });
 }

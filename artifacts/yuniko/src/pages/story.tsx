@@ -3,15 +3,80 @@ import { useLocation, useParams } from "wouter";
 import { X, Send, MoreHorizontal, BadgeCheck } from "lucide-react";
 import { stories, getUserById } from "@/data/mockData";
 import { t } from "@/lib/i18n";
+import { useAuth } from "@/lib/auth-context";
 
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🔥", "👏"];
+
+function relativeTime(iso: string): string {
+  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+interface LiveStory {
+  id: number;
+  userId: number;
+  mediaUrl: string;
+  caption: string;
+  createdAt: string;
+  authorDisplayName: string;
+  authorUsername: string;
+  authorAvatarUrl: string | null;
+}
 
 export default function StoryViewer() {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
   const userId = params?.userId ?? "u1";
-  const user = getUserById(userId);
-  const userStories = stories.filter((s) => s.userId === userId);
+  const { token } = useAuth();
+  const isLiveStory = userId.startsWith("live_");
+  const mockUser = getUserById(userId);
+  const [liveStory, setLiveStory] = useState<LiveStory | null>(null);
+  const [liveStoryLoading, setLiveStoryLoading] = useState(isLiveStory);
+
+  useEffect(() => {
+    if (!isLiveStory || !token) return;
+    const storyId = Number(userId.slice("live_".length));
+    if (!Number.isInteger(storyId) || storyId <= 0) {
+      setLiveStoryLoading(false);
+      return;
+    }
+
+    fetch(`/api/stories/${storyId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Story unavailable");
+        const data = (await response.json()) as { story?: LiveStory };
+        setLiveStory(data.story ?? null);
+      })
+      .catch(() => setLiveStory(null))
+      .finally(() => setLiveStoryLoading(false));
+  }, [isLiveStory, token, userId]);
+
+  const user = isLiveStory && liveStory
+    ? {
+        id: String(liveStory.userId),
+        displayName: liveStory.authorDisplayName,
+        username: liveStory.authorUsername,
+        avatar: liveStory.authorAvatarUrl ??
+          `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(liveStory.authorDisplayName)}&backgroundColor=FF006E`,
+        verified: false,
+      }
+    : mockUser;
+  const userStories = isLiveStory
+    ? liveStory
+      ? [{
+          id: String(liveStory.id),
+          userId: String(liveStory.userId),
+          imageUrl: liveStory.mediaUrl,
+          timestamp: relativeTime(liveStory.createdAt),
+        }]
+      : []
+    : stories.filter((s) => s.userId === userId);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -61,6 +126,14 @@ export default function StoryViewer() {
     setReactionShown(emoji);
     setTimeout(() => setReactionShown(null), 1500);
   };
+
+  if (liveStoryLoading) {
+    return (
+      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
+        <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
+      </div>
+    );
+  }
 
   if (!user || userStories.length === 0) {
     return (

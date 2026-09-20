@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
 function getSecret(): string {
-  return process.env["SESSION_SECRET"] ?? "yuniko-dev-secret-change-in-prod";
+  const configured = process.env["SESSION_SECRET"];
+  if (configured) return configured;
+  if (process.env["NODE_ENV"] === "production") {
+    throw new Error("SESSION_SECRET must be set in production");
+  }
+  return "yuniko-dev-secret-change-in-prod";
 }
 
 export interface AuthPayload {

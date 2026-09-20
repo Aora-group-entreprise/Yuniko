@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Search, UserPlus, Globe, ChevronDown, Bookmark, Share2, Flag, EyeOff, WifiOff, Radio } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getFeedWithAds, type Post } from "@/data/mockData";
+import type { Post } from "@/data/mockData";
 import StoryAvatar from "@/components/StoryAvatar";
 import PostCard, { type LiveAuthor } from "@/components/PostCard";
 import BottomNav from "@/components/BottomNav";
@@ -54,8 +54,6 @@ function relativeTime(iso: string): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-const mockFeedItems = getFeedWithAds();
-
 export default function Home() {
   const [, setLocation] = useLocation();
   const { token } = useAuth();
@@ -101,7 +99,7 @@ export default function Home() {
         }));
         setLivePosts(converted);
       })
-      .catch(() => {/* keep mock feed on error */});
+      .catch(() => setLivePosts([]));
 
     fetch("/api/stories", { headers })
       .then((r) => r.json())
@@ -111,11 +109,10 @@ export default function Home() {
       .catch(() => {});
   }, [token]);
 
-  // Merge: live posts first, then mock feed
-  const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> = [
-    ...livePosts.map(({ post, author }) => ({ post, author })),
-    ...mockFeedItems.map((post) => ({ post })),
-  ];
+  // Only render persisted posts. Mock data made a fresh installation look
+  // populated while hiding API/database failures from the user.
+  const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> =
+    livePosts.map(({ post, author }) => ({ post, author }));
 
   return (
     <div
@@ -229,10 +226,6 @@ export default function Home() {
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
 
-          {/* Mock stories (only shown if no live stories yet) */}
-          {liveStories.length === 0 && (
-            <StoryAvatar userId="u1" />
-          )}
         </div>
       </div>
 
@@ -265,7 +258,22 @@ export default function Home() {
         }}
         data-testid="posts-feed"
       >
-        {allFeedItems.map(({ post, author }) => (
+        {allFeedItems.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center px-8 text-center">
+            <Globe size={34} className="text-pink-400/70 mb-3" />
+            <p className="text-white font-semibold">Your feed is empty</p>
+            <p className="text-white/45 text-sm mt-1">
+              Be the first to share something with the Yuniko community.
+            </p>
+            <button
+              onClick={() => setLocation("/create")}
+              className="mt-5 px-5 py-2.5 rounded-full text-white text-sm font-semibold"
+              style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)" }}
+            >
+              Create a post
+            </button>
+          </div>
+        ) : allFeedItems.map(({ post, author }) => (
           <div
             key={post.id}
             className="relative px-2.5"

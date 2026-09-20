@@ -25,9 +25,17 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(
+  cors({
+    origin: process.env["FRONTEND_ORIGIN"] ?? true,
+    credentials: false,
+  }),
+);
+// Posts and stories are currently sent as compressed data URLs by the
+// frontend. Express' 100kb default rejects almost every real phone photo.
+// Keep the limit bounded while allowing the documented client-side resize.
+app.use(express.json({ limit: "12mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.use("/api", router);
 
