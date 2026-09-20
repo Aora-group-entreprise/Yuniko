@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2,
@@ -38,23 +38,101 @@ interface ProfilePageProps {
   userId?: string;
 }
 
+interface RemoteProfile {
+  user: {
+    id: number;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    bio: string;
+    country: string | null;
+    countryFlag: string | null;
+    website: string | null;
+  };
+  posts: Array<{
+    id: number;
+    caption: string;
+    mediaUrl: string | null;
+  }>;
+  stats: { posts: number; followers: number; following: number };
+}
+
 export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
-  const { user: authUser } = useAuth();
+  const { user: authUser, token } = useAuth();
 
   const targetId = userId || params?.userId || "me";
   const isOwn = targetId === "me" || (authUser && targetId === String(authUser.id));
+  const isDatabaseProfile = isOwn || /^\d+$/.test(targetId);
+  const [remoteProfile, setRemoteProfile] = useState<RemoteProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(isDatabaseProfile && !!token);
 
-  // For own profile use real auth data; for others use mock data
-  const user = isOwn
-    ? (authUser ? authUserToDisplay(authUser) : null)
+  useEffect(() => {
+    if (!isDatabaseProfile || !token || !authUser) return;
+    const id = isOwn ? authUser.id : Number(targetId);
+    if (!Number.isInteger(id) || id <= 0) {
+      setProfileLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setProfileLoading(true);
+    fetch(`/api/users/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Profile unavailable");
+        setRemoteProfile((await response.json()) as RemoteProfile);
+      })
+      .catch((error: unknown) => {
+        if ((error as { name?: string }).name !== "AbortError") setRemoteProfile(null);
+      })
+      .finally(() => setProfileLoading(false));
+
+    return () => controller.abort();
+  }, [authUser, isDatabaseProfile, isOwn, targetId, token]);
+
+  // Database-backed profiles are used whenever the route contains a real
+  // user id. Legacy mock profiles remain available for old design-only routes.
+  const remoteUser = remoteProfile
+    ? {
+        id: String(remoteProfile.user.id),
+        username: remoteProfile.user.username,
+        displayName: remoteProfile.user.displayName,
+        avatar: remoteProfile.user.avatarUrl ??
+          `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(remoteProfile.user.displayName)}&backgroundColor=FF006E`,
+        bio: remoteProfile.user.bio,
+        location: [remoteProfile.user.countryFlag, remoteProfile.user.country].filter(Boolean).join(" "),
+        flag: remoteProfile.user.countryFlag ?? "",
+        verified: false,
+        followers: remoteProfile.stats.followers,
+        following: remoteProfile.stats.following,
+        posts: remoteProfile.stats.posts,
+        isOnline: true,
+        coverPhoto: "",
+        isFollowing: false,
+        isFriend: false,
+        website: remoteProfile.user.website ?? undefined,
+      }
+    : null;
+  const user = isDatabaseProfile
+    ? (remoteUser ?? (isOwn && authUser ? authUserToDisplay(authUser) : null))
     : getUserById(targetId);
 
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
   const [tab, setTab] = useState<"grid" | "saved" | "analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+
+  if (profileLoading) {
+    return (
+      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
+        <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -64,7 +142,13 @@ export default function Profile({ userId }: ProfilePageProps) {
     );
   }
 
-  const userPosts = isOwn ? [] : getPostsByUser(user.id);
+  const userPosts = remoteProfile
+    ? remoteProfile.posts.map((post) => ({
+        id: String(post.id),
+        imageUrl: post.mediaUrl ?? `https://picsum.photos/seed/post_${post.id}/600/600`,
+        caption: post.caption,
+      }))
+    : isOwn ? [] : getPostsByUser(user.id);
   const samplePosts = Array.from({ length: 9 }).map((_, i) => ({
     id: `sample-${i}`,
     src: `https://picsum.photos/seed/profile_${user.id}_${i}/200/200`,
@@ -287,7 +371,7 @@ export default function Profile({ userId }: ProfilePageProps) {
               </button>
             ))
           ) : (
-            samplePosts.map((sp, i) => (
+            (!isDatabaseProfile ? samplePosts : []).map((sp, i) => (
               <button
                 key={sp.id}
                 onClick={() => setLocation(`/post/sample-${i}`)}
