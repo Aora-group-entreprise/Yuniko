@@ -56,6 +56,7 @@ interface RemoteProfile {
     mediaUrl: string | null;
   }>;
   stats: { posts: number; followers: number; following: number };
+  following: boolean;
 }
 
 export default function Profile({ userId }: ProfilePageProps) {
@@ -113,7 +114,7 @@ export default function Profile({ userId }: ProfilePageProps) {
         posts: remoteProfile.stats.posts,
         isOnline: true,
         coverPhoto: "",
-        isFollowing: false,
+        isFollowing: remoteProfile.following,
         isFriend: false,
         website: remoteProfile.user.website ?? undefined,
       }

@@ -87,8 +87,8 @@ export default function Home() {
             shares: p.shares ?? 0,
             saves: p.saves ?? 0,
             timestamp: relativeTime(p.createdAt),
-            isLiked: false,
-            isSaved: false,
+            isLiked: Boolean(p.liked),
+            isSaved: Boolean(p.saved),
             location: p.location ?? undefined,
           } satisfies Post,
           author: {

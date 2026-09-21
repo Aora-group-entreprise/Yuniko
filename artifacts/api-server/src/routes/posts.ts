@@ -1,8 +1,8 @@
 import { Router, Request } from "express";
 import { db } from "@workspace/db";
-import { postsTable } from "@workspace/db/schema";
+import { postLikesTable, postSavesTable, postsTable } from "@workspace/db/schema";
 import { usersTable } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { authMiddleware } from "../middlewares/auth";
 
 const postsRouter = Router();
@@ -51,7 +51,7 @@ postsRouter.post("/posts", authMiddleware, async (req: Request & { userId?: numb
 });
 
 // GET /api/posts/feed — get feed with author info
-postsRouter.get("/posts/feed", authMiddleware, async (_req, res) => {
+postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: number }, res) => {
   try {
     const rows = await db
       .select({
@@ -76,7 +76,24 @@ postsRouter.get("/posts/feed", authMiddleware, async (_req, res) => {
       .orderBy(desc(postsTable.createdAt))
       .limit(50);
 
-    return res.json({ posts: rows });
+    const postIds = rows.map((row) => row.id);
+    const [likes, saves] = postIds.length > 0
+      ? await Promise.all([
+          db.select({ postId: postLikesTable.postId }).from(postLikesTable)
+            .where(eq(postLikesTable.userId, req.userId!)),
+          db.select({ postId: postSavesTable.postId }).from(postSavesTable)
+            .where(eq(postSavesTable.userId, req.userId!)),
+        ])
+      : [[], []];
+    const likedIds = new Set(likes.map((row) => row.postId));
+    const savedIds = new Set(saves.map((row) => row.postId));
+    return res.json({
+      posts: rows.map((row) => ({
+        ...row,
+        liked: likedIds.has(row.id),
+        saved: savedIds.has(row.id),
+      })),
+    });
   } catch (err) {
     return dbError(res, err);
   }
