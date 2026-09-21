@@ -1,12 +1,27 @@
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, BookmarkIcon } from "lucide-react";
-import { posts } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
+import { apiJson } from "@/lib/api";
+
+interface SavedPost {
+  id: number;
+  caption: string;
+  mediaUrl: string | null;
+}
 
 export default function Saved() {
   const [, setLocation] = useLocation();
-  const savedPosts = posts.filter((p) => p.isSaved);
+  const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiJson<{ posts: SavedPost[] }>("/posts/saved")
+      .then((result) => setSavedPosts(result.posts))
+      .catch(() => setSavedPosts([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20">
@@ -21,7 +36,11 @@ export default function Saved() {
         <h1 className="text-base font-semibold text-white">{t("saved")}</h1>
       </header>
 
-      {savedPosts.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
+        </div>
+      ) : savedPosts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <BookmarkIcon size={48} className="text-white/20" />
           <p className="text-white/40 text-sm">No saved posts yet</p>
@@ -32,11 +51,11 @@ export default function Saved() {
           {savedPosts.map((post) => (
             <button
               key={post.id}
-              onClick={() => setLocation(`/post/${post.id}`)}
+              onClick={() => setLocation(`/post/live_${post.id}`)}
               className="aspect-square overflow-hidden"
               data-testid={`saved-post-${post.id}`}
             >
-              <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
+              <img src={post.mediaUrl ?? `https://picsum.photos/seed/saved_${post.id}/600/600`} alt={post.caption} className="w-full h-full object-cover" />
             </button>
           ))}
         </div>

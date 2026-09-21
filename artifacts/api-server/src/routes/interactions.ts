@@ -38,6 +38,38 @@ async function countRows(table: typeof postLikesTable | typeof postSavesTable, p
   return Number(result?.count ?? 0);
 }
 
+// GET /api/posts/saved — posts saved by the current user
+interactionsRouter.get("/posts/saved", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const posts = await db
+      .select({
+        id: postsTable.id,
+        userId: postsTable.userId,
+        caption: postsTable.caption,
+        mediaUrl: postsTable.mediaUrl,
+        location: postsTable.location,
+        hashtags: postsTable.hashtags,
+        likes: postsTable.likes,
+        comments: postsTable.comments,
+        shares: postsTable.shares,
+        saves: postsTable.saves,
+        createdAt: postsTable.createdAt,
+        authorDisplayName: usersTable.displayName,
+        authorUsername: usersTable.username,
+        authorAvatarUrl: usersTable.avatarUrl,
+      })
+      .from(postSavesTable)
+      .innerJoin(postsTable, eq(postSavesTable.postId, postsTable.id))
+      .innerJoin(usersTable, eq(postsTable.userId, usersTable.id))
+      .where(eq(postSavesTable.userId, req.userId!))
+      .orderBy(desc(postSavesTable.createdAt))
+      .limit(100);
+    return res.json({ posts });
+  } catch (err) {
+    return dbError(res, err);
+  }
+});
+
 // GET /api/posts/:id — one persisted post with the current user's state
 interactionsRouter.get("/posts/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
   const postId = parseId(req.params["id"]);
