@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Search, UserPlus, Globe, ChevronDown, Bookmark, Share2, Flag, EyeOff, WifiOff, Radio } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,6 +13,15 @@ const HEADER_H = 56;
 const STORIES_H = 78;
 const NAV_H = 64;
 const TOP_OFFSET = HEADER_H + STORIES_H;
+const FEED_LAST_SEEN_KEY = "yuniko_feed_last_seen_at";
+const FEED_FORCE_REFRESH_KEY = "yuniko_feed_force_refresh";
+
+type FeedScope = {
+  mode: "countries" | "world";
+  countries: string[];
+  countryCount: number;
+  label: string;
+};
 
 function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -44,6 +53,41 @@ interface LiveStory {
   authorAvatarUrl: string | null;
 }
 
+interface FeedResponse {
+  posts?: Array<{
+    id: number;
+    userId: number;
+    mediaUrl: string | null;
+    caption: string;
+    hashtags: string | null;
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+    createdAt: string;
+    location: string | null;
+    liked: boolean;
+    saved: boolean;
+    authorDisplayName: string;
+    authorUsername: string;
+    authorAvatarUrl: string | null;
+  }>;
+  latestCreatedAt?: string | null;
+  newPostsCount?: number;
+  scope?: FeedScope;
+}
+
+interface FeedMemoryCache {
+  userId: number | string;
+  posts: LiveFeedPost[];
+  stories: LiveStory[];
+  scope: FeedScope | null;
+  latestCreatedAt: string | null;
+  scrollTop: number;
+}
+
+let feedMemoryCache: FeedMemoryCache | null = null;
+
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -56,63 +100,184 @@ function relativeTime(iso: string): string {
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [optionsPostId, setOptionsPostId] = useState<string | null>(null);
   const [worldFeedOpen, setWorldFeedOpen] = useState(false);
   const isOnline = useOnlineStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isScrollingRef = useRef(false);
+  const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restorePositionRef = useRef(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [newPostsCount, setNewPostsCount] = useState(0);
+  const [feedScope, setFeedScope] = useState<FeedScope | null>(null);
 
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
   const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
 
-  // Load real posts + stories from API
+  const convertPosts = useCallback((posts: FeedResponse["posts"] = []): LiveFeedPost[] =>
+    posts.map((p) => ({
+      post: {
+        id: `live_${p.id}`,
+        userId: `live_${p.userId}`,
+        imageUrl: p.mediaUrl ?? `https://picsum.photos/seed/live${p.id}/600/900`,
+        caption: p.caption ?? "",
+        hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
+        likes: p.likes ?? 0,
+        comments: p.comments ?? 0,
+        shares: p.shares ?? 0,
+        saves: p.saves ?? 0,
+        timestamp: relativeTime(p.createdAt),
+        isLiked: Boolean(p.liked),
+        isSaved: Boolean(p.saved),
+        location: p.location ?? undefined,
+      } satisfies Post,
+      author: {
+        displayName: p.authorDisplayName,
+        username: p.authorUsername,
+        avatarUrl: p.authorAvatarUrl,
+      },
+    })), []);
+
+  const loadFeed = useCallback(async (reset: boolean) => {
+    if (!token || !user) return;
+    setIsRefreshing(true);
+    try {
+      const since = localStorage.getItem(FEED_LAST_SEEN_KEY);
+      const query = since && !reset ? `?since=${encodeURIComponent(since)}` : "";
+      const headers = { Authorization: `Bearer ${token}` };
+      const [feedResponse, storiesResponse] = await Promise.all([
+        fetch(`/api/posts/feed${query}`, { headers }),
+        fetch("/api/stories", { headers }),
+      ]);
+      if (!feedResponse.ok) throw new Error("Feed unavailable");
+      const feedData = await feedResponse.json() as FeedResponse;
+      const converted = convertPosts(feedData.posts);
+      const storiesData = storiesResponse.ok
+        ? await storiesResponse.json() as { stories?: LiveStory[] }
+        : { stories: [] };
+      const nextStories = storiesData.stories ?? [];
+      const nextLatest = feedData.latestCreatedAt ?? null;
+
+      restorePositionRef.current = !reset;
+      setLivePosts(converted);
+      setLiveStories(nextStories);
+      setFeedScope(feedData.scope ?? null);
+      setNewPostsCount(reset ? 0 : Math.min(feedData.newPostsCount ?? 0, 99));
+      feedMemoryCache = {
+        userId: user.id,
+        posts: converted,
+        stories: nextStories,
+        scope: feedData.scope ?? null,
+        latestCreatedAt: nextLatest,
+        scrollTop: reset ? 0 : feedMemoryCache?.scrollTop ?? 0,
+      };
+      if (reset && nextLatest) localStorage.setItem(FEED_LAST_SEEN_KEY, nextLatest);
+    } catch {
+      if (!feedMemoryCache || feedMemoryCache.userId !== user.id) {
+        setLivePosts([]);
+        setLiveStories([]);
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [convertPosts, token, user]);
+
   useEffect(() => {
-    if (!token) return;
+    if (!token || !user) return;
+    const forced = sessionStorage.getItem(FEED_FORCE_REFRESH_KEY) === "1";
+    sessionStorage.removeItem(FEED_FORCE_REFRESH_KEY);
+    if (!forced && feedMemoryCache?.userId === user.id) {
+      setLivePosts(feedMemoryCache.posts);
+      setLiveStories(feedMemoryCache.stories);
+      setFeedScope(feedMemoryCache.scope);
+      restorePositionRef.current = true;
+      return;
+    }
+    void loadFeed(forced);
+  }, [loadFeed, token, user]);
 
-    const headers = { Authorization: `Bearer ${token}` };
+  const refreshForHome = useCallback(() => {
+    restorePositionRef.current = false;
+    feedMemoryCache = feedMemoryCache
+      ? { ...feedMemoryCache, scrollTop: 0 }
+      : null;
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    void loadFeed(true);
+  }, [loadFeed]);
 
-    fetch("/api/posts/feed", { headers })
-      .then((r) => r.json())
-      .then((d: { posts?: any[] }) => {
-        if (!d.posts) return;
-        const converted: LiveFeedPost[] = d.posts.map((p) => ({
-          post: {
-            id: `live_${p.id}`,
-            userId: `live_${p.userId}`,
-            imageUrl: p.mediaUrl ?? `https://picsum.photos/seed/live${p.id}/600/900`,
-            caption: p.caption ?? "",
-            hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
-            likes: p.likes ?? 0,
-            comments: p.comments ?? 0,
-            shares: p.shares ?? 0,
-            saves: p.saves ?? 0,
-            timestamp: relativeTime(p.createdAt),
-            isLiked: Boolean(p.liked),
-            isSaved: Boolean(p.saved),
-            location: p.location ?? undefined,
-          } satisfies Post,
-          author: {
-            displayName: p.authorDisplayName,
-            username: p.authorUsername,
-            avatarUrl: p.authorAvatarUrl,
-          },
-        }));
-        setLivePosts(converted);
-      })
-      .catch(() => setLivePosts([]));
+  useEffect(() => {
+    const handleHomeRefresh = () => refreshForHome();
+    window.addEventListener("yuniko:home-refresh", handleHomeRefresh);
+    return () => window.removeEventListener("yuniko:home-refresh", handleHomeRefresh);
+  }, [refreshForHome]);
 
-    fetch("/api/stories", { headers })
-      .then((r) => r.json())
-      .then((d: { stories?: any[] }) => {
-        if (d.stories) setLiveStories(d.stories);
-      })
-      .catch(() => {});
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const onScroll = () => {
+      isScrollingRef.current = true;
+      if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current);
+      const scrollTop = element.scrollTop;
+      if (feedMemoryCache) feedMemoryCache.scrollTop = scrollTop;
+      sessionStorage.setItem("yuniko_feed_scroll_top", String(scrollTop));
+      scrollEndTimerRef.current = setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 650);
+    };
+    element.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (scrollEndTimerRef.current) clearTimeout(scrollEndTimerRef.current);
+      if (feedMemoryCache) feedMemoryCache.scrollTop = element.scrollTop;
+      element.removeEventListener("scroll", onScroll);
+    };
+  }, [livePosts.length]);
+
+  useEffect(() => {
+    if (!restorePositionRef.current || !livePosts.length) return;
+    const cachedPosition = feedMemoryCache?.scrollTop ??
+      Number(sessionStorage.getItem("yuniko_feed_scroll_top") ?? 0);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: cachedPosition, behavior: "auto" }));
+    restorePositionRef.current = false;
+  }, [livePosts.length]);
+
+  const checkForNewPosts = useCallback(async () => {
+    if (!token || isScrollingRef.current) return;
+    const since = localStorage.getItem(FEED_LAST_SEEN_KEY);
+    if (!since) return;
+    try {
+      const response = await fetch(`/api/posts/feed/updates?since=${encodeURIComponent(since)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const data = await response.json() as { newPostsCount?: number };
+      setNewPostsCount(Math.min(data.newPostsCount ?? 0, 99));
+    } catch {
+      // The existing feed remains usable if the lightweight check is offline.
+    }
   }, [token]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void checkForNewPosts();
+    };
+    window.addEventListener("focus", onVisibilityChange);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", onVisibilityChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [checkForNewPosts]);
 
   // Only render persisted posts. Mock data made a fresh installation look
   // populated while hiding API/database failures from the user.
   const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> =
     livePosts.map(({ post, author }) => ({ post, author }));
+
+  const visibleScopeLabel =
+    feedScope?.mode === "countries"
+      ? `${feedScope.countryCount} pays`
+      : "Mondial";
 
   return (
     <div
@@ -131,7 +296,11 @@ export default function Home() {
         }}
         data-testid="home-header"
       >
-        <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}>
+        <button
+          onClick={refreshForHome}
+          className="relative"
+          aria-label="Refresh home feed"
+        >
           <span
             className="text-2xl font-black tracking-tight"
             style={{
@@ -143,6 +312,15 @@ export default function Home() {
           >
             Yuniko
           </span>
+          {newPostsCount > 0 && (
+            <span
+              className="absolute -right-4 -top-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white"
+              style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)" }}
+              aria-label={`${newPostsCount > 15 ? "15+" : newPostsCount} new posts`}
+            >
+              {newPostsCount >= 15 ? "15+" : newPostsCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -156,7 +334,7 @@ export default function Home() {
           data-testid="btn-world-feed"
         >
           <Globe size={13} style={{ color: "#FF3D9A" }} />
-          <span className="text-white/90 text-sm font-medium">{t("worldFeed")}</span>
+          <span className="text-white/90 text-sm font-medium">{visibleScopeLabel}</span>
           <ChevronDown size={12} className="text-white/55" />
         </button>
 
@@ -258,6 +436,11 @@ export default function Home() {
         }}
         data-testid="posts-feed"
       >
+        {isRefreshing && livePosts.length > 0 && (
+          <div className="absolute left-1/2 top-2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-[10px] font-semibold text-white/80 backdrop-blur">
+            Updating feed…
+          </div>
+        )}
         {allFeedItems.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center px-8 text-center">
             <Globe size={34} className="text-pink-400/70 mb-3" />
@@ -300,7 +483,7 @@ export default function Home() {
       </div>
 
       {/* ── BOTTOM NAV ── */}
-      <BottomNav />
+      <BottomNav homeBadge={newPostsCount} />
 
       {/* ── POST OPTIONS SHEET ── */}
       <AnimatePresence>
