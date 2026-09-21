@@ -1,18 +1,54 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Heart, MessageCircle, UserPlus, Reply, AtSign, Tag, Bell } from "lucide-react";
-import { notifications, getUserById } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
+import { apiJson } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
+interface NotificationItem {
+  id: number;
+  type: string;
+  text: string;
+  read: boolean;
+  postId: number | null;
+  createdAt: string;
+  actor: {
+    id: number;
+    displayName: string;
+    avatar: string;
+  };
+}
+
 export default function Notifications() {
   const [, setLocation] = useLocation();
-  const [items, setItems] = useState(notifications);
+  const [items, setItems] = useState<NotificationItem[]>([]);
   const [activeTab, setActiveTab] = useState<"all" | "mentions">("all");
 
-  const markAllRead = () => setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+  useEffect(() => {
+    apiJson<{ notifications: Array<any> }>("/notifications")
+      .then((result) => setItems(result.notifications.map((notification) => ({
+        id: notification.id,
+        type: notification.type,
+        text: notification.text,
+        read: notification.read,
+        postId: notification.postId,
+        createdAt: notification.createdAt,
+        actor: {
+          id: notification.actorId,
+          displayName: notification.actorDisplayName,
+          avatar: notification.actorAvatarUrl ??
+            `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(notification.actorDisplayName)}&backgroundColor=FF006E`,
+        },
+      }))))
+      .catch(() => setItems([]));
+  }, []);
+
+  const markAllRead = () => {
+    setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    void apiJson("/notifications/read-all", { method: "PATCH" }).catch(() => undefined);
+  };
   const unreadCount = items.filter((n) => !n.read).length;
 
   const displayed = activeTab === "mentions"
@@ -93,14 +129,12 @@ export default function Notifications() {
           </div>
         ) : (
           displayed.map((notif) => {
-            const user = getUserById(notif.userId);
-            if (!user) return null;
             return (
               <button
                 key={notif.id}
                 onClick={() => {
-                  if (notif.postId) setLocation(`/post/${notif.postId}`);
-                  else setLocation(`/user/${notif.userId}`);
+                  if (notif.postId) setLocation(`/post/live_${notif.postId}`);
+                  else setLocation(`/user/${notif.actor.id}`);
                 }}
                 className="w-full flex items-center gap-3 py-3 text-left"
                 style={{
@@ -111,10 +145,10 @@ export default function Notifications() {
               >
                 <div className="relative flex-shrink-0">
                   <img
-                    src={user.avatar}
-                    alt={user.displayName}
+                    src={notif.actor.avatar}
+                    alt={notif.actor.displayName}
                     className="w-11 h-11 rounded-full object-cover"
-                    onClick={(e) => { e.stopPropagation(); setLocation(`/user/${user.id}`); }}
+                    onClick={(e) => { e.stopPropagation(); setLocation(`/user/${notif.actor.id}`); }}
                   />
                   <div
                     className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
@@ -125,10 +159,10 @@ export default function Notifications() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white/90 text-sm leading-snug">
-                    <span className="font-semibold">{user.displayName}</span>{" "}
+                    <span className="font-semibold">{notif.actor.displayName}</span>{" "}
                     {notif.text}
                   </p>
-                  <p className="text-white/40 text-xs mt-0.5">{notif.timestamp} {t("ago")}</p>
+                  <p className="text-white/40 text-xs mt-0.5">{new Date(notif.createdAt).toLocaleDateString()} {t("ago")}</p>
                 </div>
                 {!notif.read && (
                   <div

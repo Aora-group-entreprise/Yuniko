@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import {
   commentsTable,
   followsTable,
+  notificationsTable,
   postLikesTable,
   postSavesTable,
   postsTable,
@@ -37,6 +38,53 @@ async function countRows(table: typeof postLikesTable | typeof postSavesTable, p
     .where(eq(table.postId, postId));
   return Number(result?.count ?? 0);
 }
+
+async function notify(
+  recipientId: number,
+  actorId: number,
+  type: string,
+  text: string,
+  postId?: number,
+) {
+  if (recipientId === actorId) return;
+  await db.insert(notificationsTable).values({ recipientId, actorId, type, text, postId });
+}
+
+interactionsRouter.get("/notifications", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const notifications = await db
+      .select({
+        id: notificationsTable.id,
+        type: notificationsTable.type,
+        text: notificationsTable.text,
+        read: notificationsTable.read,
+        postId: notificationsTable.postId,
+        createdAt: notificationsTable.createdAt,
+        actorId: usersTable.id,
+        actorUsername: usersTable.username,
+        actorDisplayName: usersTable.displayName,
+        actorAvatarUrl: usersTable.avatarUrl,
+      })
+      .from(notificationsTable)
+      .innerJoin(usersTable, eq(notificationsTable.actorId, usersTable.id))
+      .where(eq(notificationsTable.recipientId, req.userId!))
+      .orderBy(desc(notificationsTable.createdAt))
+      .limit(100);
+    return res.json({ notifications });
+  } catch (err) {
+    return dbError(res, err);
+  }
+});
+
+interactionsRouter.patch("/notifications/read-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    await db.update(notificationsTable).set({ read: true })
+      .where(eq(notificationsTable.recipientId, req.userId!));
+    return res.json({ ok: true });
+  } catch (err) {
+    return dbError(res, err);
+  }
+});
 
 // GET /api/posts/saved — posts saved by the current user
 interactionsRouter.get("/posts/saved", authMiddleware, async (req: AuthenticatedRequest, res) => {
@@ -126,6 +174,11 @@ interactionsRouter.post("/posts/:id/like", authMiddleware, async (req: Authentic
     }
     const likes = await countRows(postLikesTable, postId);
     await db.update(postsTable).set({ likes }).where(eq(postsTable.id, postId));
+    if (existing.length === 0) {
+      const [post] = await db.select({ userId: postsTable.userId }).from(postsTable)
+        .where(eq(postsTable.id, postId)).limit(1);
+      if (post) await notify(post.userId, req.userId!, "like", "liked your post", postId);
+    }
     return res.json({ liked: existing.length === 0, likes });
   } catch (err) {
     return dbError(res, err);
@@ -198,6 +251,9 @@ interactionsRouter.post("/posts/:id/comments", authMiddleware, async (req: Authe
     await db.update(postsTable)
       .set({ comments: Number(commentCount?.count ?? 0) })
       .where(eq(postsTable.id, postId));
+    const [post] = await db.select({ userId: postsTable.userId }).from(postsTable)
+      .where(eq(postsTable.id, postId)).limit(1);
+    if (post) await notify(post.userId, req.userId!, "comment", "commented on your post", postId);
     return res.status(201).json({ comment });
   } catch (err) {
     return dbError(res, err);
@@ -217,6 +273,7 @@ interactionsRouter.post("/users/:id/follow", authMiddleware, async (req: Authent
       await db.delete(followsTable).where(and(eq(followsTable.followerId, req.userId!), eq(followsTable.followingId, followingId)));
     } else {
       await db.insert(followsTable).values({ followerId: req.userId!, followingId }).onConflictDoNothing();
+      await notify(followingId, req.userId!, "follow", "started following you");
     }
     return res.json({ following: existing.length === 0 });
   } catch (err) {

@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   primaryKey,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { postsTable } from "./posts";
 import { usersTable } from "./users";
@@ -52,3 +53,14 @@ export const followsTable = pgTable(
     primaryKey: primaryKey({ columns: [table.followerId, table.followingId] }),
   }),
 );
+
+export const notificationsTable = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  recipientId: integer("recipient_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  actorId: integer("actor_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  postId: integer("post_id").references(() => postsTable.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  text: text("text").notNull(),
+  read: boolean("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
