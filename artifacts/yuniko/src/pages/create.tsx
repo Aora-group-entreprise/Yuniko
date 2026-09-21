@@ -130,6 +130,7 @@ export default function Create() {
         const d = await r.json() as { post?: any; error?: string };
         if (!r.ok) { setError(d.error ?? "Failed to post"); return; }
       }
+      sessionStorage.setItem("yuniko_feed_force_refresh", "1");
       setPosted(true);
       setTimeout(() => setLocation("/"), 1400);
     } catch {

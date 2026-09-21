@@ -6,7 +6,7 @@ import { t } from "@/lib/i18n";
 const ACTIVE_COLOR = "#FF3D9A";
 const INACTIVE_COLOR = "rgba(255,255,255,0.45)";
 
-export default function BottomNav() {
+export default function BottomNav({ homeBadge = 0 }: { homeBadge?: number }) {
   const [location] = useLocation();
 
   const isActive = (path: string) => {
@@ -26,12 +26,26 @@ export default function BottomNav() {
       data-testid="bottom-nav"
     >
       <div className="flex items-center justify-around h-16 px-2">
-        <NavItem href="/" label={t("home")} active={isActive("/")}>
+        <NavItem
+          href="/"
+          label={t("home")}
+          active={isActive("/")}
+          onClick={() => window.dispatchEvent(new Event("yuniko:home-refresh"))}
+        >
           <Home
             size={23}
             style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }}
             strokeWidth={isActive("/") ? 2.3 : 1.7}
           />
+          {homeBadge > 0 && (
+            <span
+              className="absolute -right-1 -top-1 min-w-4 rounded-full px-1 text-center text-[9px] font-bold leading-4 text-white"
+              style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)" }}
+              aria-label={`${homeBadge >= 15 ? "15+" : homeBadge} new posts`}
+            >
+              {homeBadge >= 15 ? "15+" : homeBadge}
+            </span>
+          )}
         </NavItem>
 
         <NavItem href="/notifications" label={t("notifications")} active={isActive("/notifications")}>
@@ -91,17 +105,20 @@ function NavItem({
   label,
   active,
   children,
+  onClick,
 }: {
   href: string;
   label: string;
   active: boolean;
   children: React.ReactNode;
+  onClick?: () => void;
 }) {
   return (
     <Link href={href}>
       <motion.button
         className="flex flex-col items-center gap-0.5 min-w-[44px] py-1 relative"
         whileTap={{ scale: 0.88 }}
+        onClick={onClick}
       >
         {children}
         <span
