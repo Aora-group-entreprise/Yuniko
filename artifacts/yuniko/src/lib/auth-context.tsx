@@ -6,6 +6,7 @@ import {
   useCallback,
   ReactNode,
 } from "react";
+import { apiFetch } from "@/lib/api";
 
 export interface AuthUser {
   id: number;
@@ -79,9 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedToken = localStorage.getItem(TOKEN_KEY);
     if (!storedToken) return;
     try {
-      const res = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${storedToken}` },
-      });
+      const res = await apiFetch("/auth/me");
       if (res.status === 401) {
         // Token expired or invalid — log out
         logout();
