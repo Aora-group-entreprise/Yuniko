@@ -142,4 +142,17 @@ authRouter.post("/auth/reset-password", async (req, res) => {
   }
 });
 
+authRouter.post("/auth/change-password", authMiddleware, async (req, res) => {
+  const userId = (req as any).userId as number;
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: "Current and new password are required" });
+  if (newPassword.length < 6) return res.status(400).json({ error: "New password must be at least 6 characters" });
+  try {
+    const [user] = await selectRows("users", { filters: [eq("id", userId)], limit: 1 });
+    if (!user || !(await bcrypt.compare(currentPassword, String(user.passwordHash)))) return res.status(401).json({ error: "Current password is incorrect" });
+    await updateRows("users", { passwordHash: await bcrypt.hash(newPassword, 12) }, [eq("id", userId)]);
+    return res.json({ success: true });
+  } catch (err) { return supabaseError(res, err); }
+});
+
 export default authRouter;
