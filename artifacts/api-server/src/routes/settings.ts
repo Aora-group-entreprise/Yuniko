@@ -40,6 +40,20 @@ router.patch("/settings", authMiddleware, async (req, res) => {
   updates.updatedAt = new Date();
   try {
     const rows = await updateRows("user_settings", updates, [eq("userId", userId)]);
+    if (updates.pushNotifications !== undefined || updates.emailNotifications !== undefined) {
+      try {
+        const current = await selectRows("notification_preferences", { filters: [eq("userId", userId)], limit: 1 });
+        const pref = {
+          userId,
+          pushEnabled: updates.pushNotifications !== undefined ? updates.pushNotifications : current[0]?.pushEnabled !== false,
+          inAppEnabled: true,
+          digestEnabled: updates.emailNotifications !== undefined ? updates.emailNotifications : current[0]?.digestEnabled !== false,
+          updatedAt: new Date(),
+        };
+        if (current[0]) await updateRows("notification_preferences", pref, [eq("userId", userId)]);
+        else await insertRow("notification_preferences", pref);
+      } catch {}
+    }
     if (!rows[0]) { await insertRow("user_settings", { ...defaults(userId), ...updates }); }
     const [fresh] = await selectRows("user_settings", { filters: [eq("userId", userId)], limit: 1 });
     return res.json(fresh);
