@@ -32,7 +32,7 @@ export default function About() {
         >
           Yuniko
         </span>
-        <p className="text-white/40 text-sm">Version 1.0.0</p>
+        <p className="text-white/40 text-sm">Yuniko web app</p>
         <p className="text-white/30 text-xs">Connect. Share. Inspire.</p>
       </div>
 
@@ -41,7 +41,6 @@ export default function About() {
           { icon: FileText, label: t("termsOfService"), href: "/legal/terms" },
           { icon: Shield, label: t("privacyPolicy"), href: "/legal/privacy" },
           { icon: Info, label: "Open Source Licenses", href: "/legal/licenses" },
-          { icon: ExternalLink, label: "Yuniko", href: "/settings/about" },
         ].map((item) => (
           <button
             key={item.label}
@@ -56,7 +55,7 @@ export default function About() {
         ))}
 
         <p className="text-center text-white/25 text-xs pt-4">
-          © 2026 Yuniko Inc. All rights reserved.
+          © 2026 Yuniko. All rights reserved.
           {"\n"}Made with ❤️ for the world.
         </p>
       </div>
