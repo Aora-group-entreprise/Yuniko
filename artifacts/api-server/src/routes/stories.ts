@@ -1,6 +1,7 @@
 import { Router, type Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
 import { eq, gt, selectRows, sortRows, supabaseError, insertRow } from "../lib/supabase";
+import { canInteract } from "../lib/privacy";
 
 const storiesRouter = Router();
 
@@ -34,20 +35,31 @@ storiesRouter.post("/stories", authMiddleware, async (req: Request & { userId?: 
   }
 });
 
-storiesRouter.get("/stories", authMiddleware, async (_req, res) => {
+storiesRouter.get("/stories", authMiddleware, async (req: Request & { userId?: number }, res) => {
   try {
     const rows = await selectRows("stories", {
       filters: [gt("expiresAt", new Date())],
       order: { column: "createdAt", ascending: false },
       limit: 30,
     });
-    return res.json({ stories: await withAuthors(rows) });
+    const settings = await selectRows("user_settings", { limit: 1000 });
+    const follows = await selectRows("follows", { filters: [eq("followerId", req.userId!)], limit: 5000 });
+    const privateById = new Map(settings.map(r => [Number(r.userId), Boolean(r.privateAccount)]));
+    const followingIds = new Set(follows.map(r => Number(r.followingId)));
+    const visible = rows.filter(story => {
+      const owner = Number(story.userId);
+      return !privateById.get(owner) || owner === req.userId || followingIds.has(owner);
+    }).filter(story => {
+      const owner = Number(story.userId);
+      return owner === req.userId || true;
+    });
+    return res.json({ stories: await withAuthors(visible) });
   } catch (err) {
     return supabaseError(res, err);
   }
 });
 
-storiesRouter.get("/stories/:id", authMiddleware, async (req, res) => {
+storiesRouter.get("/stories/:id", authMiddleware, async (req: Request & { userId?: number }, res) => {
   const id = Number(req.params["id"]);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid story id" });
   try {
@@ -55,6 +67,11 @@ storiesRouter.get("/stories/:id", authMiddleware, async (req, res) => {
     const expiresAt = story?.expiresAt instanceof Date ? story.expiresAt : new Date(String(story?.expiresAt));
     if (!story || expiresAt.getTime() <= Date.now()) {
       return res.status(404).json({ error: "Story not found or expired" });
+    }
+    const [settings] = await selectRows("user_settings", { filters: [eq("userId", Number(story.userId))], limit: 1 });
+    if (Boolean(settings?.privateAccount) && Number(story.userId) !== req.userId) {
+      const follows = await selectRows("follows", { filters: [eq("followerId", req.userId!), eq("followingId", Number(story.userId))], limit: 1 });
+      if (!follows.length) return res.status(403).json({ error: "Story is private" });
     }
     return res.json({ story: (await withAuthors([story]))[0] });
   } catch (err) {
