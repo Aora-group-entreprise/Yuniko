@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { authMiddleware, signToken } from "../middlewares/auth";
-import { eq, insertRow, publicUser, selectRows, supabaseError, updateRows } from "../lib/supabase";
+import { deleteAuthUser, deleteRows, eq, insertRow, publicUser, selectRows, supabaseError, updateRows } from "../lib/supabase";
 
 const authRouter = Router();
 
@@ -153,6 +153,85 @@ authRouter.post("/auth/change-password", authMiddleware, async (req, res) => {
     await updateRows("users", { passwordHash: await bcrypt.hash(newPassword, 12) }, [eq("id", userId)]);
     return res.json({ success: true });
   } catch (err) { return supabaseError(res, err); }
+});
+
+
+authRouter.post("/auth/delete-account", authMiddleware, async (req, res) => {
+  const userId = (req as any).userId as number;
+  const { confirmation } = req.body as { confirmation?: string };
+  if (confirmation !== "DELETE") return res.status(400).json({ error: "Type DELETE to confirm account deletion" });
+
+  try {
+    const [user] = await selectRows("users", { filters: [eq("id", userId)], limit: 1 });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const postRows = await selectRows("posts", { select: "id", filters: [eq("userId", userId)] });
+    const postIds = postRows.map((r) => Number(r.id));
+    for (const postId of postIds) {
+      const postFilters = [eq("postId", postId)];
+      for (const table of ["post_engagements","post_likes","post_saves","comments","post_edits","post_media","events","likes","saves","shares","post_stats","post_distribution","seen_posts","post_hashtags","post_mentions","post_processing_jobs"]) {
+        try { await deleteRows(table, postFilters); } catch {}
+      }
+    }
+
+    const storyRows = await selectRows("stories", { select: "id", filters: [eq("userId", userId)] });
+    for (const story of storyRows) {
+      const storyFilters = [eq("storyId", Number(story.id))];
+      for (const table of ["story_views","story_reactions","story_replies"]) {
+        try { await deleteRows(table, storyFilters); } catch {}
+      }
+    }
+
+    const memberships = await selectRows("conversation_members", { select: "conversationId", filters: [eq("userId", userId)] });
+    for (const member of memberships) {
+      const conversationId = Number(member.conversationId);
+      try { await deleteRows("messages", [eq("conversationId", conversationId)]); } catch {}
+      try { await deleteRows("archived_conversations", [eq("conversationId", conversationId)]); } catch {}
+      try { await deleteRows("conversation_members", [eq("conversationId", conversationId)]); } catch {}
+      try { await deleteRows("conversations", [eq("id", conversationId)]); } catch {}
+    }
+
+    const calls = await selectRows("calls", { select: "id", filters: [eq("callerId", userId)] });
+    const targetCalls = await selectRows("calls", { select: "id", filters: [eq("targetUserId", userId)] });
+    for (const call of [...calls, ...targetCalls]) {
+      try { await deleteRows("call_signals", [eq("callId", String(call.id))]); } catch {}
+      try { await deleteRows("calls", [eq("id", String(call.id))]); } catch {}
+    }
+
+    const lives = await selectRows("live_sessions", { select: "id", filters: [eq("hostUserId", userId)] });
+    for (const live of lives) {
+      try { await deleteRows("live_engagements", [eq("liveId", Number(live.id))]); } catch {}
+      try { await deleteRows("live_comments", [eq("liveId", Number(live.id))]); } catch {}
+      try { await deleteRows("live_sessions", [eq("id", Number(live.id))]); } catch {}
+    }
+
+    const directTables: Array<[string,string]> = [
+      ["posts","userId"],["stories","userId"],["comments","userId"],["follows","followerId"],["follows","followingId"],
+      ["notifications","recipientId"],["notifications","actorId"],["message_requests","senderId"],["message_requests","recipientId"],
+      ["blocked_users","blockerId"],["blocked_users","blockedId"],["archived_conversations","userId"],["story_views","userId"],
+      ["story_reactions","userId"],["story_replies","userId"],["calls","callerId"],["calls","targetUserId"],["call_signals","senderId"],
+      ["live_engagements","userId"],["live_comments","userId"],["feedback","userId"],["user_settings","userId"],["post_engagements","userId"],
+      ["collections","userId"],["user_affinity","userId"],["user_affinity","targetUserId"],["user_topic_affinity","userId"],["likes","userId"],
+      ["saves","userId"],["shares","userId"],["notification_preferences","userId"],["verification_requests","userId"],["events","userId"],
+      ["seen_posts","userId"],["reports","reporterId"],["login_events","userId"],["notification_settings","userId"],["auth_sessions","userId"],
+      ["username_history","userId"],["user_rate_limits","userId"]
+    ];
+    for (const [table,column] of directTables) {
+      try { await deleteRows(table, [eq(column, userId)]); } catch {}
+    }
+
+    for (const postId of postIds) {
+      try { await deleteRows("posts", [eq("id", postId)]); } catch {}
+    }
+    try { await deleteRows("users", [eq("id", userId)]); } catch (err) { throw err; }
+
+    const authUserId = typeof user.authUserId === "string" ? user.authUserId : null;
+    if (authUserId) await deleteAuthUser(authUserId);
+
+    return res.json({ success: true });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
 });
 
 export default authRouter;
