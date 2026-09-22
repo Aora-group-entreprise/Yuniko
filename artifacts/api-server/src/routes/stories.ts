@@ -44,14 +44,15 @@ storiesRouter.get("/stories", authMiddleware, async (req: Request & { userId?: n
     });
     const settings = await selectRows("user_settings", { limit: 1000 });
     const follows = await selectRows("follows", { filters: [eq("followerId", req.userId!)], limit: 5000 });
-    const privateById = new Map(settings.map(r => [Number(r.userId), Boolean(r.privateAccount)]));
+    const settingsById = new Map(settings.map(r => [Number(r.userId), r]));
     const followingIds = new Set(follows.map(r => Number(r.followingId)));
     const visible = rows.filter(story => {
       const owner = Number(story.userId);
-      return !privateById.get(owner) || owner === req.userId || followingIds.has(owner);
-    }).filter(story => {
-      const owner = Number(story.userId);
-      return owner === req.userId || true;
+      const setting = settingsById.get(owner);
+      const privateAccount = Boolean(setting?.privateAccount);
+      const permission = String(setting?.storyPermissions ?? setting?.storyPermission ?? "friendsOnly") as any;
+      const accountVisible = !privateAccount || owner === req.userId || followingIds.has(owner);
+      return accountVisible && (owner === req.userId || permission === "everyone" || (permission === "friendsOnly" && followingIds.has(owner)));
     });
     return res.json({ stories: await withAuthors(visible) });
   } catch (err) {
@@ -69,9 +70,13 @@ storiesRouter.get("/stories/:id", authMiddleware, async (req: Request & { userId
       return res.status(404).json({ error: "Story not found or expired" });
     }
     const [settings] = await selectRows("user_settings", { filters: [eq("userId", Number(story.userId))], limit: 1 });
-    if (Boolean(settings?.privateAccount) && Number(story.userId) !== req.userId) {
+    if (Number(story.userId) !== req.userId) {
       const follows = await selectRows("follows", { filters: [eq("followerId", req.userId!), eq("followingId", Number(story.userId))], limit: 1 });
-      if (!follows.length) return res.status(403).json({ error: "Story is private" });
+      const privateAccount = Boolean(settings?.privateAccount);
+      const permission = String(settings?.storyPermissions ?? settings?.storyPermission ?? "friendsOnly") as any;
+      if ((privateAccount && !follows.length) || !(await canInteract(permission, req.userId!, Number(story.userId)))) {
+        return res.status(403).json({ error: "Story is private" });
+      }
     }
     return res.json({ story: (await withAuthors([story]))[0] });
   } catch (err) {
