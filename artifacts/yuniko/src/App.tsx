@@ -31,6 +31,7 @@ import Help from "@/pages/help";
 import Feedback from "@/pages/feedback";
 import DeleteAccount from "@/pages/account-delete";
 import SettingsPrivacy from "@/pages/settings-privacy";
+import SettingsNotifications from "@/pages/settings-notifications";
 import SettingsSecurity from "@/pages/settings-security";
 import SettingsStorage from "@/pages/settings-storage";
 import SettingsAbout from "@/pages/settings-about";
@@ -125,6 +126,7 @@ function AnimatedRoutes() {
             {/* Settings */}
             <Route path="/settings" component={Settings} />
             <Route path="/settings/privacy" component={SettingsPrivacy} />
+            <Route path="/settings/notifications" component={SettingsNotifications} />
             <Route path="/settings/security" component={SettingsSecurity} />
             <Route path="/settings/storage" component={SettingsStorage} />
             <Route path="/settings/about" component={SettingsAbout} />
