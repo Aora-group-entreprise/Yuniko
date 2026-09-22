@@ -174,6 +174,18 @@ export function supabaseError(res: { status: (code: number) => { json: (body: un
   });
 }
 
+export async function deleteAuthUser(authUserId: string) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Supabase server credentials are not configured");
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(authUserId)}`, {
+    method: "DELETE",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+  });
+  if (!response.ok && response.status !== 404) {
+    const body = await response.text();
+    throw new Error(`Supabase Auth ${response.status}: ${body || response.statusText}`);
+  }
+}
+
 export function filterRows<T extends Row>(rows: T[], ...filters: Filter[]) {
   return rows.filter((row) =>
     filters.every((filter) => {
