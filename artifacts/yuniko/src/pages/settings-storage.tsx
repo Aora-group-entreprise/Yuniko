@@ -80,16 +80,7 @@ export default function StorageSettings() {
     setExporting(true);
 
     try {
-      const [profile, userSettings] = await Promise.all([
-        apiJson<unknown>("/auth/me"),
-        apiJson<unknown>("/settings"),
-      ]);
-
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        profile,
-        settings: userSettings,
-      };
+      const payload = await apiJson<unknown>("/settings/export");
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: "application/json",
@@ -206,7 +197,7 @@ export default function StorageSettings() {
             <div className="flex-1">
               <p className="text-white/85 text-sm font-medium">{t("downloadData")}</p>
               <p className="text-white/40 text-xs mt-0.5">
-                Download the account data currently available through Yuniko
+                Download a complete JSON export of your Yuniko account data
               </p>
             </div>
             <button
