@@ -1,10 +1,12 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
-
 type Row = Record<string, unknown>;
 type Filter = { column: string; operator: "eq" | "gt" | "ilike"; value: string | number | boolean | Date };
 
-const connector = new ReplitConnectors();
-const supabaseFetch = connector.createProxyFetch("supabase");
+const SUPABASE_URL = (process.env["SUPABASE_URL"] ?? "").replace(/\/+$/, "");
+const SUPABASE_KEY =
+  process.env["SUPABASE_SERVICE_ROLE_KEY"] ??
+  process.env["SUPABASE_ANON_KEY"] ??
+  process.env["SUPABASE_KEY"] ??
+  "";
 
 function toSnakeCase(value: string) {
   return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
@@ -36,11 +38,20 @@ function toSupabaseRow(row: Row): Row {
   );
 }
 
+function getRestUrl(path: string) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured");
+  }
+  return `${SUPABASE_URL}/rest/v1${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await supabaseFetch(path, {
+  const response = await fetch(getRestUrl(path), {
     ...init,
     headers: {
       Accept: "application/json",
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
       ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(init.headers ?? {}),
     },
@@ -67,14 +78,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return payload as T;
-}
-
-function queryString(params: Record<string, string | number | boolean | undefined>) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) query.set(key, String(value));
-  }
-  return query.toString();
 }
 
 export async function selectRows<T extends Row = Row>(
