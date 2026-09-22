@@ -27,7 +27,9 @@ app.use(
 );
 app.use(
   cors({
-    origin: process.env["FRONTEND_ORIGIN"] ?? true,
+    // The web client is deployed separately from the API Workers origin.
+    // Reflect the requesting origin so signin/signup work from the browser.
+    origin: true,
     credentials: false,
   }),
 );
