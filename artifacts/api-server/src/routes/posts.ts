@@ -1,25 +1,79 @@
-import { Router, Request } from "express";
-import { db } from "@workspace/db";
-import { postLikesTable, postSavesTable, postsTable } from "@workspace/db/schema";
-import { usersTable } from "@workspace/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { Router, type Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
+import {
+  eq,
+  gt,
+  insertRow,
+  selectRows,
+  supabaseError,
+  updateRows,
+} from "../lib/supabase";
 
 const postsRouter = Router();
+const FEED_LIMIT = 50;
+const FEED_CANDIDATE_LIMIT = 250;
+const FEED_MINIMUM_RESULTS = 15;
+const FEED_STAGES = [3, 5, 7] as const;
 
-function dbError(res: any, err: unknown) {
-  if (!process.env["DATABASE_URL"]) {
-    return res.status(503).json({
-      error: "Database not configured. Please provision a database and set DATABASE_URL.",
-    });
-  }
-  console.error(err);
-  return res.status(500).json({ error: "Server error" });
+type FeedPostRow = Record<string, any> & {
+  id: number;
+  userId: number;
+  authorCountry: string | null;
+};
+
+function normalizeCountry(value: string | null | undefined) {
+  return value?.trim().toLowerCase() || null;
 }
 
-// POST /api/posts — create a post
+function feedQuality(rows: FeedPostRow[]) {
+  return rows.length >= FEED_MINIMUM_RESULTS && new Set(rows.map((row) => row.userId)).size >= 3;
+}
+
+async function feedRows() {
+  const [posts, users] = await Promise.all([
+    selectRows("posts", {
+      filters: [eq("isWorldFeed", true)],
+      order: { column: "createdAt", ascending: false },
+      limit: FEED_CANDIDATE_LIMIT,
+    }),
+    selectRows("users", { limit: 1000 }),
+  ]);
+  const byId = new Map(users.map((user) => [Number(user.id), user]));
+  return posts.map((post) => {
+    const author = byId.get(Number(post.userId));
+    return {
+      ...post,
+      authorDisplayName: author?.displayName ?? null,
+      authorUsername: author?.username ?? null,
+      authorAvatarUrl: author?.avatarUrl ?? null,
+      authorCountry: (author?.country as string | null) ?? null,
+    } as unknown as FeedPostRow;
+  });
+}
+
+function serializeFeedPost(row: FeedPostRow, likedIds: Set<number>, savedIds: Set<number>) {
+  return {
+    id: row.id,
+    userId: row.userId,
+    caption: row.caption,
+    mediaUrl: row.mediaUrl,
+    location: row.location,
+    hashtags: row.hashtags,
+    isWorldFeed: row.isWorldFeed,
+    likes: row.likes,
+    comments: row.comments,
+    shares: row.shares,
+    saves: row.saves,
+    createdAt: row.createdAt,
+    authorDisplayName: row.authorDisplayName,
+    authorUsername: row.authorUsername,
+    authorAvatarUrl: row.authorAvatarUrl,
+    liked: likedIds.has(row.id),
+    saved: savedIds.has(row.id),
+  };
+}
+
 postsRouter.post("/posts", authMiddleware, async (req: Request & { userId?: number }, res) => {
-  const userId = req.userId!;
   const { caption, mediaUrl, location, hashtags, isWorldFeed } = req.body as {
     caption?: string;
     mediaUrl?: string | null;
@@ -27,75 +81,96 @@ postsRouter.post("/posts", authMiddleware, async (req: Request & { userId?: numb
     hashtags?: string;
     isWorldFeed?: boolean;
   };
-
-  if (!caption?.trim() && !mediaUrl) {
-    return res.status(400).json({ error: "Caption or photo required" });
-  }
+  if (!caption?.trim() && !mediaUrl) return res.status(400).json({ error: "Caption or photo required" });
 
   try {
-    const [post] = await db
-      .insert(postsTable)
-      .values({
-        userId,
-        caption: caption?.trim() ?? "",
-        mediaUrl: mediaUrl ?? null,
-        location: location?.trim() || null,
-        hashtags: hashtags?.trim() || null,
-        isWorldFeed: isWorldFeed ?? true,
-      })
-      .returning();
+    const post = await insertRow("posts", {
+      userId: req.userId!,
+      caption: caption?.trim() ?? "",
+      mediaUrl: mediaUrl ?? null,
+      location: location?.trim() || null,
+      hashtags: hashtags?.trim() || null,
+      isWorldFeed: isWorldFeed ?? true,
+    });
     return res.status(201).json({ post });
   } catch (err) {
-    return dbError(res, err);
+    return supabaseError(res, err);
   }
 });
 
-// GET /api/posts/feed — get feed with author info
 postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: number }, res) => {
   try {
-    const rows = await db
-      .select({
-        id: postsTable.id,
-        userId: postsTable.userId,
-        caption: postsTable.caption,
-        mediaUrl: postsTable.mediaUrl,
-        location: postsTable.location,
-        hashtags: postsTable.hashtags,
-        isWorldFeed: postsTable.isWorldFeed,
-        likes: postsTable.likes,
-        comments: postsTable.comments,
-        shares: postsTable.shares,
-        saves: postsTable.saves,
-        createdAt: postsTable.createdAt,
-        authorDisplayName: usersTable.displayName,
-        authorUsername: usersTable.username,
-        authorAvatarUrl: usersTable.avatarUrl,
-      })
-      .from(postsTable)
-      .innerJoin(usersTable, eq(postsTable.userId, usersTable.id))
-      .orderBy(desc(postsTable.createdAt))
-      .limit(50);
+    const [[viewer], candidates] = await Promise.all([
+      selectRows("users", { select: "country", filters: [eq("id", req.userId!)], limit: 1 }),
+      feedRows(),
+    ]);
+    const availableCountries = Array.from(
+      candidates.reduce((counts, row) => {
+        const country = normalizeCountry(row.authorCountry);
+        if (country) counts.set(country, (counts.get(country) ?? 0) + 1);
+        return counts;
+      }, new Map<string, number>()),
+    ).sort(([, a], [, b]) => b - a).map(([country]) => country);
+    const viewerCountry = normalizeCountry(viewer?.country as string | null | undefined);
+    const rankedCountries = [...(viewerCountry ? [viewerCountry] : []), ...availableCountries.filter((country) => country !== viewerCountry)];
 
-    const postIds = rows.map((row) => row.id);
-    const [likes, saves] = postIds.length > 0
-      ? await Promise.all([
-          db.select({ postId: postLikesTable.postId }).from(postLikesTable)
-            .where(eq(postLikesTable.userId, req.userId!)),
-          db.select({ postId: postSavesTable.postId }).from(postSavesTable)
-            .where(eq(postSavesTable.userId, req.userId!)),
-        ])
-      : [[], []];
-    const likedIds = new Set(likes.map((row) => row.postId));
-    const savedIds = new Set(saves.map((row) => row.postId));
+    let selectedRows = candidates.slice(0, FEED_LIMIT);
+    let selectedCountries: string[] = [];
+    let feedMode: "countries" | "world" = "world";
+    for (const stageSize of FEED_STAGES) {
+      const countries = rankedCountries.slice(0, stageSize);
+      if (countries.length === 0) break;
+      const countrySet = new Set(countries);
+      const stageRows = candidates.filter((row) => countrySet.has(normalizeCountry(row.authorCountry) ?? "")).slice(0, FEED_LIMIT);
+      selectedRows = stageRows;
+      selectedCountries = countries;
+      if (feedQuality(stageRows)) {
+        feedMode = "countries";
+        break;
+      }
+    }
+    if (feedMode === "world" && !feedQuality(selectedRows)) {
+      selectedRows = candidates.slice(0, FEED_LIMIT);
+      selectedCountries = [];
+    }
+
+    const [likes, saves] = await Promise.all([
+      selectRows("post_likes", { select: "post_id", filters: [eq("userId", req.userId!)] }),
+      selectRows("post_saves", { select: "post_id", filters: [eq("userId", req.userId!)] }),
+    ]);
+    const likedIds = new Set(likes.map((row) => Number(row.postId)));
+    const savedIds = new Set(saves.map((row) => Number(row.postId)));
+    const sinceValue = typeof req.query["since"] === "string" ? req.query["since"] : null;
+    const sinceDate = sinceValue ? new Date(sinceValue) : null;
+    const newPostsCount = sinceDate && !Number.isNaN(sinceDate.getTime())
+      ? (await selectRows("posts", { filters: [eq("isWorldFeed", true), gt("createdAt", sinceDate)] })).length
+      : 0;
+
     return res.json({
-      posts: rows.map((row) => ({
-        ...row,
-        liked: likedIds.has(row.id),
-        saved: savedIds.has(row.id),
-      })),
+      posts: selectedRows.map((row) => serializeFeedPost(row, likedIds, savedIds)),
+      newPostsCount,
+      latestCreatedAt: candidates[0]?.createdAt ?? null,
+      scope: {
+        mode: feedMode,
+        countries: selectedCountries,
+        countryCount: selectedCountries.length,
+        label: feedMode === "world" ? "world" : `${selectedCountries.length} countries`,
+      },
     });
   } catch (err) {
-    return dbError(res, err);
+    return supabaseError(res, err);
+  }
+});
+
+postsRouter.get("/posts/feed/updates", authMiddleware, async (req, res) => {
+  const sinceValue = typeof req.query["since"] === "string" ? req.query["since"] : null;
+  const sinceDate = sinceValue ? new Date(sinceValue) : null;
+  if (!sinceDate || Number.isNaN(sinceDate.getTime())) return res.json({ newPostsCount: 0 });
+  try {
+    const rows = await selectRows("posts", { filters: [eq("isWorldFeed", true), gt("createdAt", sinceDate)] });
+    return res.json({ newPostsCount: rows.length });
+  } catch (err) {
+    return supabaseError(res, err);
   }
 });
 
