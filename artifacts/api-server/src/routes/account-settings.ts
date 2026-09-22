@@ -6,13 +6,13 @@ router.get("/blocked-users", authMiddleware, async (req,res)=>{
  const userId=(req as any).userId as number;
  try { const rows=await selectRows("blocked_users",{filters:[eq("blockerId",userId)]});
   const users=await selectRows("users",{limit:1000}); const map=new Map(users.map(u=>[Number(u.id),u]));
-  return res.json({users:rows.map(r=>map.get(Number(r.blockedUserId))).filter(Boolean).map((u:any)=>({id:u.id,username:u.username,displayName:u.displayName,avatarUrl:u.avatarUrl,countryFlag:u.countryFlag}))});
+  return res.json({users:rows.map(r=>map.get(Number(r.blockedId))).filter(Boolean).map((u:any)=>({id:u.id,username:u.username,displayName:u.displayName,avatarUrl:u.avatarUrl,countryFlag:u.countryFlag}))});
  } catch(err){return supabaseError(res,err)}
 });
 router.delete("/blocked-users/:id",authMiddleware,async(req,res)=>{
  const userId=(req as any).userId as number; const blockedUserId=Number(req.params["id"]);
  if(!Number.isInteger(blockedUserId)) return res.status(400).json({error:"Invalid user id"});
- try{await deleteRows("blocked_users",[eq("userId",userId),eq("blockedId",blockedUserId)]);return res.json({success:true})}catch(err){return supabaseError(res,err)}
+ try{await deleteRows("blocked_users",[eq("blockerId",userId),eq("blockedId",blockedUserId)]);return res.json({success:true})}catch(err){return supabaseError(res,err)}
 });
 router.post("/blocked-users/:id",authMiddleware,async(req,res)=>{
  const userId=(req as any).userId as number; const blockedUserId=Number(req.params["id"]);
