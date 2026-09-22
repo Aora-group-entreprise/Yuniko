@@ -193,6 +193,15 @@ function AnimatedRoutes() {
                       Verification helps your followers know your account is authentic.
                     </p>
                     <button
+                      onClick={async () => {
+                        const token = localStorage.getItem("yuniko_token");
+                        const res = await fetch((import.meta.env.VITE_YUNIKO_API_URL || "https://yuniko-api.lafatriniainaallane.workers.dev") + "/api/verification/request", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
+                        });
+                        if (res.ok) window.alert("Verification request submitted.");
+                        else window.alert("Could not submit the verification request.");
+                      }}
                       className="px-6 py-3 rounded-2xl text-sm font-bold text-white"
                       style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 4px 16px rgba(255,0,110,0.4)" }}
                     >
