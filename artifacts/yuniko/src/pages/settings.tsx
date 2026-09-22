@@ -52,8 +52,8 @@ export default function Settings() {
       icon: Bell,
       color: "#FF9A3C",
       items: [
-        { label: "Push Notifications", href: "/settings/privacy", icon: Bell },
-        { label: "Email Notifications", href: "/settings/privacy", icon: Bell },
+        { label: "Push Notifications", href: "/settings/notifications", icon: Bell },
+        { label: "Email Notifications", href: "/settings/notifications", icon: Bell },
       ],
     },
     {
