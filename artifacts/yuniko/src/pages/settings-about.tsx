@@ -38,13 +38,14 @@ export default function About() {
 
       <div className="px-4 flex flex-col gap-3">
         {[
-          { icon: FileText, label: t("termsOfService"), href: "#" },
-          { icon: Shield, label: t("privacyPolicy"), href: "#" },
-          { icon: Info, label: "Open Source Licenses", href: "#" },
-          { icon: ExternalLink, label: "yuniko.app", href: "#" },
+          { icon: FileText, label: t("termsOfService"), href: "/legal/terms" },
+          { icon: Shield, label: t("privacyPolicy"), href: "/legal/privacy" },
+          { icon: Info, label: "Open Source Licenses", href: "/legal/licenses" },
+          { icon: ExternalLink, label: "Yuniko", href: "/settings/about" },
         ].map((item) => (
           <button
             key={item.label}
+            onClick={() => item.href.startsWith("/") && setLocation(item.href)}
             className="flex items-center gap-3 px-4 py-4 rounded-2xl text-left"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
           >
