@@ -1,4 +1,5 @@
 - [Yuniko branding & gradient](yuniko-branding.md) — All purple replaced with pink-purple gradient; User type needs website field.
 - [Auth system](auth-system.md) — Full JWT auth implemented; DB schema pushed; lib/db uses lazy Proxy init to avoid crash without DATABASE_URL.
+- [Yuniko auth proxy](yuniko-auth-proxy.md) — Vite must forward /api to the API server on port 8080.
 - [Supabase backend](supabase-backend.md) — Use Replit's Supabase connector table paths; keep Yuniko JWT auth independent from Supabase Auth.
 - [Yuniko workflow transition](yuniko-workflow-transition.md) — Stop legacy same-port workflows before using artifact-owned Yuniko services.
