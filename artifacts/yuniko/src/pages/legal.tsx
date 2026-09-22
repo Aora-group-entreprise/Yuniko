@@ -1,0 +1,7 @@
+import { useLocation } from "wouter";
+import { ArrowLeft } from "lucide-react";
+import BottomNav from "@/components/BottomNav";
+export default function Legal({type}:{type?:string}){
+ const [,setLocation]=useLocation(); const privacy=type==="privacy";
+ return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20"><header className="sticky top-0 z-40 px-4 py-4 flex items-center gap-3" style={{background:"rgba(13,11,20,.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,.06)"}}><button onClick={()=>setLocation("/settings/about")}><ArrowLeft size={22} className="text-white/80"/></button><h1 className="text-base font-semibold text-white">{privacy?"Privacy Policy":"Terms of Service"}</h1></header><article className="px-5 py-6 text-white/70 text-sm leading-6"><p className="text-white font-semibold text-lg mb-4">{privacy?"Yuniko Privacy Policy":"Yuniko Terms of Service"}</p><p className="mb-4">This page describes the rules and privacy principles for using Yuniko. Your account information is used to provide the social features you request.</p><p className="mb-4">Yuniko stores account data such as your username, profile information, posts and settings to operate the service. You can change supported settings from the application.</p><p className="mb-4">Do not use the service to abuse, impersonate, harass or unlawfully target other people. Content and accounts may be moderated according to the service rules.</p><p className="text-white/40 text-xs">Last updated: September 2026</p></article><BottomNav/></div>;
+}
