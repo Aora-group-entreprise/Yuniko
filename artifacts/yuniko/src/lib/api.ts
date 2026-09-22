@@ -1,9 +1,10 @@
 /**
  * Authenticated API fetch helper.
- * Always uses relative /api paths so Replit's path-based routing
- * forwards requests to the API server regardless of environment.
+ * The API can live on a separate Workers origin in production; use the
+ * environment override when provided and keep the Yuniko API as the default.
  */
 const TOKEN_KEY = "yuniko_token";
+const API_BASE_URL = (import.meta.env.VITE_YUNIKO_API_URL || "https://yuniko-api.lafatriniainaallane.workers.dev").replace(/\/+$/, "");
 
 export async function apiFetch(
   path: string,
@@ -12,10 +13,11 @@ export async function apiFetch(
   const token = localStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(token ? { Authorization: "Bearer " + token } : {}),
     ...((options.headers ?? {}) as Record<string, string>),
   };
-  return fetch(`/api${path}`, { ...options, headers });
+  const normalizedPath = path.startsWith("/") ? path : "/" + path;
+  return fetch(API_BASE_URL + "/api" + normalizedPath, { ...options, headers });
 }
 
 export async function apiJson<T>(
@@ -25,7 +27,7 @@ export async function apiJson<T>(
   const res = await apiFetch(path, options);
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data?.error ?? `Request failed (${res.status})`);
+    throw new Error(data?.error ?? "Request failed (" + res.status + ")");
   }
   return data as T;
 }
