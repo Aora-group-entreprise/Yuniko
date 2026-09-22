@@ -40,7 +40,7 @@ usersRouter.get("/users/:id", authMiddleware, async (req: AuthenticatedRequest, 
   try {
     const [user] = await selectRows("users", { filters: [eq("id", id)], limit: 1 });
     if (!user) return res.status(404).json({ error: "User not found" });
-    const [posts, followsToUser, followsFromUser, currentFollow] = await Promise.all([
+    const [posts, followsToUser, followsFromUser, currentFollow, settings] = await Promise.all([
       selectRows("posts", { filters: [eq("userId", id)], order: { column: "createdAt", ascending: false }, limit: 100 }),
       selectRows("follows", { filters: [eq("followingId", id)] }),
       selectRows("follows", { filters: [eq("followerId", id)] }),
@@ -48,12 +48,20 @@ usersRouter.get("/users/:id", authMiddleware, async (req: AuthenticatedRequest, 
         filters: [eq("followerId", req.userId!), eq("followingId", id)],
         limit: 1,
       }),
+      selectRows("user_settings", { filters: [eq("userId", id)], limit: 1 }),
     ]);
+    const privateAccount = Boolean(settings[0]?.privateAccount);
+    const viewerIsOwner = req.userId === id;
+    const viewerFollows = currentFollow.length > 0;
+    if (privateAccount && !viewerIsOwner && !viewerFollows) {
+      return res.json({ user: publicUser(user), posts: [], stats: { posts: 0, followers: followsToUser.length, following: followsFromUser.length }, following: false, privateAccount: true });
+    }
     return res.json({
       user: publicUser(user),
       posts,
       stats: { posts: posts.length, followers: followsToUser.length, following: followsFromUser.length },
-      following: currentFollow.length > 0,
+      following: viewerFollows,
+      privateAccount,
     });
   } catch (err) {
     return supabaseError(res, err);
