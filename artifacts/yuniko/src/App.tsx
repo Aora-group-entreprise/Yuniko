@@ -133,6 +133,7 @@ function AnimatedRoutes() {
             <Route path="/settings/about" component={SettingsAbout} />
             <Route path="/legal/terms">{() => <Legal type="terms" />}</Route>
             <Route path="/legal/privacy">{() => <Legal type="privacy" />}</Route>
+            <Route path="/legal/licenses">{() => <Legal type="licenses" />}</Route>
             <Route path="/settings/account">
               {() => <EditProfile />}
             </Route>
