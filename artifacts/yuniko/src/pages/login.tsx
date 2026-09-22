@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
+import { apiFetch } from "@/lib/api";
 import { COUNTRIES } from "@/data/countries";
 import logoSrc from "@assets/file_000000003524724399ff06d3685a22e6_1780640550687.png";
 
@@ -152,7 +153,7 @@ export default function LoginPage() {
     if (!siUsername.trim() || !siPassword) { setError("Please fill in all fields"); return; }
     setLoading(true); clearError();
     try {
-      const r = await fetch("/api/auth/login", {
+      const r = await apiFetch("/auth/login", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: siUsername.trim(), password: siPassword }),
       });
@@ -189,7 +190,7 @@ export default function LoginPage() {
   const handleRegister = async () => {
     setLoading(true); clearError();
     try {
-      const r = await fetch("/api/auth/register", {
+      const r = await apiFetch("/auth/register", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: signup.username.trim().toLowerCase(),
@@ -223,7 +224,7 @@ export default function LoginPage() {
     if (forgotNewPw !== forgotConfirm) { setError("Passwords don't match"); return; }
     setLoading(true); clearError();
     try {
-      const r = await fetch("/api/auth/reset-password", {
+      const r = await apiFetch("/auth/reset-password", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: forgotUsername.trim(), newPassword: forgotNewPw }),
       });
