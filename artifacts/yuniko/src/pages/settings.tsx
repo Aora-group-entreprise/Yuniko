@@ -1,10 +1,9 @@
 import { useLocation } from "wouter";
 import {
   ArrowLeft, ChevronRight, User, Lock, Bell, Eye, Shield,
-  HardDrive, Info, LogOut, Trash2, Moon, Sun, Globe, BadgeCheck,
+  HardDrive, Info, LogOut, Trash2, Globe, BadgeCheck,
 } from "lucide-react";
 import { t, availableLanguages, getLang, setLang, Lang } from "@/lib/i18n";
-import { useTheme } from "@/lib/theme";
 import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth-context";
@@ -13,7 +12,6 @@ const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
 export default function Settings() {
   const [, setLocation] = useLocation();
-  const { theme, setTheme } = useTheme();
   const { user: authUser, logout } = useAuth();
   const [showLogout, setShowLogout] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
@@ -142,41 +140,6 @@ export default function Settings() {
         </div>
         <ChevronRight size={18} className="text-white/30" />
       </button>
-
-      {/* Appearance section */}
-      <div className="px-4 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <p className="text-white/50 text-xs font-semibold uppercase tracking-wider mb-3">{t("appearance")}</p>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setTheme("dark")}
-            className="flex-1 flex items-center gap-2 px-3 py-3 rounded-xl"
-            style={{
-              background: theme === "dark" ? "rgba(255,0,110,0.12)" : "rgba(255,255,255,0.05)",
-              border: theme === "dark" ? "1px solid rgba(255,0,110,0.4)" : "1px solid rgba(255,255,255,0.08)",
-            }}
-            data-testid="btn-dark-mode"
-          >
-            <Moon size={16} style={{ color: theme === "dark" ? "#FF3D9A" : "rgba(255,255,255,0.5)" }} />
-            <span className="text-sm font-medium" style={{ color: theme === "dark" ? "#FF3D9A" : "rgba(255,255,255,0.5)" }}>
-              {t("darkMode")}
-            </span>
-          </button>
-          <button
-            onClick={() => setTheme("light")}
-            className="flex-1 flex items-center gap-2 px-3 py-3 rounded-xl"
-            style={{
-              background: theme === "light" ? "rgba(255,0,110,0.12)" : "rgba(255,255,255,0.05)",
-              border: theme === "light" ? "1px solid rgba(255,0,110,0.4)" : "1px solid rgba(255,255,255,0.08)",
-            }}
-            data-testid="btn-light-mode"
-          >
-            <Sun size={16} style={{ color: theme === "light" ? "#FF3D9A" : "rgba(255,255,255,0.5)" }} />
-            <span className="text-sm font-medium" style={{ color: theme === "light" ? "#FF3D9A" : "rgba(255,255,255,0.5)" }}>
-              {t("lightMode")}
-            </span>
-          </button>
-        </div>
-      </div>
 
       {/* Language section */}
       <div className="px-4 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
