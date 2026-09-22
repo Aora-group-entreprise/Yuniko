@@ -42,9 +42,7 @@ export default function Settings() {
       icon: Shield,
       color: "#FF6EB4",
       items: [
-        { label: t("twoFactor"), href: "/settings/security", icon: Shield },
-        { label: t("activeSessions"), href: "/settings/security", icon: Shield },
-        { label: t("loginHistory"), href: "/settings/security", icon: Shield },
+        { label: t("security"), href: "/settings/security", icon: Shield },
       ],
     },
     {
