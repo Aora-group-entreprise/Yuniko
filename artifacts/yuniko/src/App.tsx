@@ -35,6 +35,7 @@ import SettingsNotifications from "@/pages/settings-notifications";
 import SettingsSecurity from "@/pages/settings-security";
 import SettingsStorage from "@/pages/settings-storage";
 import SettingsAbout from "@/pages/settings-about";
+import Legal from "@/pages/legal";
 import Settings from "@/pages/settings";
 import Login from "@/pages/login";
 import Live from "@/pages/live";
@@ -130,6 +131,8 @@ function AnimatedRoutes() {
             <Route path="/settings/security" component={SettingsSecurity} />
             <Route path="/settings/storage" component={SettingsStorage} />
             <Route path="/settings/about" component={SettingsAbout} />
+            <Route path="/legal/terms">{() => <Legal type="terms" />}</Route>
+            <Route path="/legal/privacy">{() => <Legal type="privacy" />}</Route>
             <Route path="/settings/account">
               {() => <EditProfile />}
             </Route>
