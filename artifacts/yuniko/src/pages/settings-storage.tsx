@@ -2,11 +2,12 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, HardDrive, Download, Trash2, Check } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { apiJson } from "@/lib/api";
 import BottomNav from "@/components/BottomNav";
 
 export default function StorageSettings() {
   const [, setLocation] = useLocation();
-  const [cleared, setCleared] = useState(false);
+  const [cleared, setCleared] = useState(false);\n  const [exporting, setExporting] = useState(false);
 
   const handleClearCache = () => {
     setCleared(true);
