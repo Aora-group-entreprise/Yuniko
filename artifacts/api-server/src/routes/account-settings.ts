@@ -72,7 +72,7 @@ router.get("/settings/export",authMiddleware,async(req,res)=>{
   for(const [table,column] of direct){
    try{data[table]=await selectRows(table,{filters:[eq(column,userId)],limit:5000});}catch{data[table]=[]}
   }
-  const posts=Array.isArray(data.posts)?data.posts as Record<string,unknown>():[];
+  const posts=Array.isArray(data.posts)?data.posts as Record<string,unknown>[]:[];
   const postIds=posts.map(p=>Number(p.id)).filter(Number.isInteger);
   const postRelated=["post_engagements","post_likes","post_saves","post_edits","post_media","post_stats","post_distribution","post_hashtags","post_mentions","post_processing_jobs"];
   data.postRelated={postIds, tables:Object.fromEntries(postRelated.map(name=>[name,[]]))};
