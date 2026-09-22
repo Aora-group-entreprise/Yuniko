@@ -29,17 +29,24 @@ function feedQuality(rows: FeedPostRow[]) {
   return rows.length >= FEED_MINIMUM_RESULTS && new Set(rows.map((row) => row.userId)).size >= 3;
 }
 
-async function feedRows() {
-  const [posts, users] = await Promise.all([
+async function feedRows(viewerId: number) {
+  const [posts, users, settings, following] = await Promise.all([
     selectRows("posts", {
       filters: [eq("isWorldFeed", true)],
       order: { column: "createdAt", ascending: false },
       limit: FEED_CANDIDATE_LIMIT,
     }),
     selectRows("users", { limit: 1000 }),
+    selectRows("user_settings", { limit: 1000 }),
+    selectRows("follows", { filters: [eq("followerId", viewerId)], limit: 5000 }),
   ]);
   const byId = new Map(users.map((user) => [Number(user.id), user]));
-  return posts.map((post) => {
+  const privateById = new Map(settings.map((row) => [Number(row.userId), Boolean(row.privateAccount)]));
+  const followingIds = new Set(following.map((row) => Number(row.followingId)));
+  return posts.filter((post) => {
+    const authorId = Number(post.userId);
+    return !privateById.get(authorId) || authorId === viewerId || followingIds.has(authorId);
+  }).map((post) => {
     const author = byId.get(Number(post.userId));
     return {
       ...post,
@@ -47,6 +54,7 @@ async function feedRows() {
       authorUsername: author?.username ?? null,
       authorAvatarUrl: author?.avatarUrl ?? null,
       authorCountry: (author?.country as string | null) ?? null,
+      authorPrivate: privateById.get(Number(post.userId)) ?? false,
     } as unknown as FeedPostRow;
   });
 }
@@ -102,7 +110,7 @@ postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: 
   try {
     const [[viewer], candidates] = await Promise.all([
       selectRows("users", { select: "country", filters: [eq("id", req.userId!)], limit: 1 }),
-      feedRows(),
+      feedRows(req.userId!),
     ]);
     const availableCountries = Array.from(
       candidates.reduce((counts, row) => {
