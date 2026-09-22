@@ -9,6 +9,7 @@ import {
   supabaseError,
   updateRows,
 } from "../lib/supabase";
+import { canInteract } from "../lib/privacy";
 
 const interactionsRouter = Router();
 type AuthenticatedRequest = Request & { userId?: number };
@@ -186,6 +187,11 @@ interactionsRouter.post("/posts/:id/comments", authMiddleware, async (req: Authe
   if (!postId) return res.status(400).json({ error: "Invalid post id" });
   if (!text || text.length > 1000) return res.status(400).json({ error: "Comment must be between 1 and 1000 characters" });
   try {
+    const [post] = await selectRows("posts", { select: "user_id", filters: [eq("id", postId)], limit: 1 });
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    const [settings] = await selectRows("user_settings", { filters: [eq("userId", Number(post.userId))], limit: 1 });
+    const permission = String(settings?.commentPermissions ?? settings?.commentPermission ?? "everyone") as any;
+    if (!(await canInteract(permission, req.userId!, Number(post.userId)))) return res.status(403).json({ error: "Comments are restricted for this account" });
     const comment = await insertRow("comments", { postId, userId: req.userId!, text });
     const commentCount = (await selectRows("comments", { select: "id", filters: [eq("postId", postId)] })).length;
     await updateRows("posts", { comments: commentCount }, [eq("id", postId)]);
