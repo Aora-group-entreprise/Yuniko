@@ -185,10 +185,14 @@ authRouter.post("/auth/delete-account", authMiddleware, async (req, res) => {
     const memberships = await selectRows("conversation_members", { select: "conversationId", filters: [eq("userId", userId)] });
     for (const member of memberships) {
       const conversationId = Number(member.conversationId);
-      try { await deleteRows("messages", [eq("conversationId", conversationId)]); } catch {}
-      try { await deleteRows("archived_conversations", [eq("conversationId", conversationId)]); } catch {}
-      try { await deleteRows("conversation_members", [eq("conversationId", conversationId)]); } catch {}
-      try { await deleteRows("conversations", [eq("id", conversationId)]); } catch {}
+      try { await deleteRows("messages", [eq("conversationId", conversationId), eq("senderId", userId)]); } catch {}
+      try { await deleteRows("archived_conversations", [eq("conversationId", conversationId), eq("userId", userId)]); } catch {}
+      try { await deleteRows("conversation_members", [eq("conversationId", conversationId), eq("userId", userId)]); } catch {}
+      const remaining = await selectRows("conversation_members", { select: "id", filters: [eq("conversationId", conversationId)], limit: 1 });
+      if (!remaining.length) {
+        try { await deleteRows("messages", [eq("conversationId", conversationId)]); } catch {}
+        try { await deleteRows("conversations", [eq("id", conversationId)]); } catch {}
+      }
     }
 
     const calls = await selectRows("calls", { select: "id", filters: [eq("callerId", userId)] });
