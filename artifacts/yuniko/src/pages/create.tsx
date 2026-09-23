@@ -347,6 +347,7 @@ export default function Create() {
       {/* Video not available modal */}
       <AnimatePresence>
         {showVideoModal && (
+          <ScreenPortal>
           <>
             <motion.div
               key="video-backdrop"
@@ -381,6 +382,7 @@ export default function Create() {
               </motion.button>
             </motion.div>
           </>
+          </ScreenPortal>
         )}
       </AnimatePresence>
     </div>
