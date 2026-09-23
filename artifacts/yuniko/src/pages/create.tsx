@@ -118,7 +118,7 @@ export default function Create() {
       } else {
         const r = await apiFetch("/posts", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             caption: caption.trim(),
             mediaUrl: selectedMedia,
