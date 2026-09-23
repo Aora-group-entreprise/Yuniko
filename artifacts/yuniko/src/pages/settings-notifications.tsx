@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
 import BottomNav from "@/components/BottomNav";
 type S={pushNotifications:boolean;emailNotifications:boolean};
-function Toggle({value,onChange}:{value:boolean;onChange:(v:boolean)=>void}){return <button onClick={()=>onChange(!value)} className="relative w-10 h-6 rounded-full" style={{background:value?"linear-gradient(135deg,#FF006E,#8B00FF)":"rgba(255,255,255,.15)"}}><span className="absolute top-0.5 w-5 h-5 rounded-full bg-white" style={{left:value?"calc(100% - 22px)":"2px"}}/></button>}
+function Toggle({value,onChange}:{value:boolean;onChange:(v:boolean)=>void}){return <button type="button" aria-pressed={value} onClick={()=>onChange(!value)} className="relative w-10 h-6 rounded-full" style={{background:value?"linear-gradient(135deg,#FF006E,#8B00FF)":"rgba(255,255,255,.15)"}}><span className="absolute top-0.5 w-5 h-5 rounded-full bg-white" style={{left:value?"calc(100% - 22px)":"2px"}}/></button>}
 export default function NotificationSettings(){
  const [,setLocation]=useLocation(); const [s,setS]=useState<S|null>(null);
  useEffect(()=>{apiJson<S>("/settings").then(setS)},[]);
