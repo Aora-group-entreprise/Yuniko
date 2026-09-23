@@ -6,7 +6,7 @@ const router = Router();
 const allowed = new Set(["everyone", "friendsOnly", "onlyMe"]);
 
 function defaults(userId: number) {
-  return { userId, privateAccount: false, readReceipts: true, messagePermissions: "everyone", commentPermissions: "everyone", storyPermissions: "friendsOnly", pushNotifications: true, emailNotifications: true, twoFactor: false, clearCacheOnExit: false, deleteWatchedStories: false };
+  return { userId, privateAccount: false, readReceipts: true, messagePermissions: "everyone", commentPermissions: "everyone", storyPermissions: "friendsOnly", pushNotifications: true, emailNotifications: true, clearCacheOnExit: false, deleteWatchedStories: false };
 }
 
 router.get("/settings", authMiddleware, async (req, res) => {
@@ -22,7 +22,7 @@ router.patch("/settings", authMiddleware, async (req, res) => {
   const userId = (req as any).userId as number;
   const body = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  const booleans = ["privateAccount","readReceipts","pushNotifications","emailNotifications","twoFactor","clearCacheOnExit","deleteWatchedStories"];
+  const booleans = ["privateAccount","readReceipts","pushNotifications","emailNotifications","clearCacheOnExit","deleteWatchedStories"];
   for (const key of booleans) {
     if (body[key] !== undefined) {
       if (typeof body[key] !== "boolean") return res.status(400).json({ error: key + " must be boolean" });
