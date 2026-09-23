@@ -4,6 +4,7 @@ import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, Send, BadgeCheck, Mo
 import { posts, getUserById, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
+import ScreenPortal from "@/components/ScreenPortal";
 import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -406,6 +407,7 @@ export default function PostDetail() {
 
       {/* Post options */}
       {showOptions && (
+        <ScreenPortal>
         <>
           <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowOptions(false)} />
           <div
@@ -436,6 +438,7 @@ export default function PostDetail() {
             </button>
           </div>
         </>
+        </ScreenPortal>
       )}
     </div>
   );
