@@ -25,9 +25,10 @@ async function countFor(table: string, postId: number) {
 }
 
 async function notify(recipientId: number, actorId: number, type: string, text: string, postId?: number) {
-  if (recipientId !== actorId) {
-    await insertRow("notifications", { recipientId, actorId, type, text, postId: postId ?? null, read: false });
-  }
+  if (recipientId === actorId) return;
+  const [settings] = await selectRows("user_settings", { filters: [eq("userId", recipientId)], limit: 1 });
+  if (settings?.pushNotifications === false && settings?.emailNotifications === false) return;
+  await insertRow("notifications", { recipientId, actorId, type, text, postId: postId ?? null, read: false });
 }
 
 async function usersById() {
