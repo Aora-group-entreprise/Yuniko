@@ -12,7 +12,7 @@ function isEnabled(req: { headers: Record<string, string | string[] | undefined>
   return supplied === secret;
 }
 
-router.post("/debug/self-test", async (req, res) => {
+const runSelfTest = async (req: any, res: any) => {
   if (!isEnabled(req)) return res.status(404).json({ error: "Not found" });
 
   const suffix = randomUUID().replace(/-/g, "").slice(0, 16);
