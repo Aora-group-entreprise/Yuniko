@@ -3,7 +3,12 @@
  * Authentication is handled by a browser-managed HttpOnly session cookie.
  * Pages never read, store, or send authentication tokens.
  */
-const API_BASE_URL = (import.meta.env.VITE_YUNIKO_API_URL || "https://yuniko-api.lafatriniainaallane.workers.dev").replace(/\/+$/, "");
+const API_BASE_URL = (() => {
+  const configured = String(import.meta.env.VITE_YUNIKO_API_URL || "").trim();
+  if (configured) return configured.replace(/\\/+$/, "");
+  if (typeof window !== "undefined" && window.location.origin) return window.location.origin;
+  return "https://yuniko-api.lafatriniainaallane.workers.dev";
+})();
 
 export async function apiFetch(
   path: string,
