@@ -1,6 +1,6 @@
 import { Router, type Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
-import { eq, gt, selectRows, sortRows, supabaseError, insertRow } from "../lib/supabase";
+import { deleteRows, eq, gt, selectRows, sortRows, supabaseError, insertRow } from "../lib/supabase";
 import { canInteract } from "../lib/privacy";
 
 const storiesRouter = Router();
@@ -55,6 +55,41 @@ storiesRouter.get("/stories", authMiddleware, async (req: Request & { userId?: n
       return accountVisible && (owner === req.userId || permission === "everyone" || (permission === "friendsOnly" && followingIds.has(owner)));
     });
     return res.json({ stories: await withAuthors(visible) });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
+storiesRouter.post("/stories/:id/view", authMiddleware, async (req: Request & { userId?: number }, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid story id" });
+
+  try {
+    const [story] = await selectRows("stories", { filters: [eq("id", id)], limit: 1 });
+    if (!story) return res.status(404).json({ error: "Story not found" });
+
+    const viewerId = req.userId!;
+    if (Number(story.userId) !== viewerId) {
+      const [settings] = await selectRows("user_settings", {
+        filters: [eq("userId", viewerId)],
+        limit: 1,
+      });
+      await insertRow("story_views", {
+        storyId: id,
+        userId: viewerId,
+        viewedAt: new Date(),
+      });
+
+      if (settings?.deleteWatchedStories === true) {
+        try { await deleteRows("story_views", [eq("storyId", id)]); } catch {}
+        try { await deleteRows("story_reactions", [eq("storyId", id)]); } catch {}
+        try { await deleteRows("story_replies", [eq("storyId", id)]); } catch {}
+        await deleteRows("stories", [eq("id", id)]);
+        return res.json({ viewed: true, deleted: true });
+      }
+    }
+
+    return res.json({ viewed: true, deleted: false });
   } catch (err) {
     return supabaseError(res, err);
   }
