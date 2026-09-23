@@ -80,10 +80,7 @@ export default function Profile({ userId }: ProfilePageProps) {
 
     const controller = new AbortController();
     setProfileLoading(true);
-    fetch(`/api/users/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    })
+    apiFetch(`/users/${id}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Profile unavailable");
         setRemoteProfile((await response.json()) as RemoteProfile);
