@@ -7,7 +7,8 @@ import StoryAvatar from "@/components/StoryAvatar";
 import PostCard, { type LiveAuthor } from "@/components/PostCard";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
-import { useAuth } from "@/lib/auth-context";\nimport { apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { apiFetch } from "@/lib/api";
 
 const HEADER_H = 56;
 const STORIES_H = 78;
