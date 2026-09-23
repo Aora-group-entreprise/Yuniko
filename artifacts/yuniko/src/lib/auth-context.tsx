@@ -33,8 +33,13 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const USER_KEY = "yuniko_user";
+const LEGACY_TOKEN_KEY = "yuniko_token";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    // Remove the old client-readable token from previous Yuniko versions.
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+  }, []);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
