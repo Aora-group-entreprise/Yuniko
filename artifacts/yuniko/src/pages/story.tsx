@@ -53,9 +53,9 @@ export default function StoryViewer() {
         const data = (await response.json()) as { story?: LiveStory };
         setLiveStory(data.story ?? null);
         if (data.story) {
-          fetch(`/api/stories/${storyId}/view`, {
+          apiFetch(`/stories/${storyId}/view`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { "Content-Type": "application/json" },
           }).catch(() => {});
         }
       })
