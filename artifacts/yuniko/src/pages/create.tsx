@@ -4,7 +4,7 @@ import { X, Image as ImageIcon, Video, MapPin, Hash, Globe, Layers, AlertCircle,
 import { motion, AnimatePresence } from "framer-motion";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import BottomNav from "@/components/BottomNav";
+import BottomNav from "@/components/BottomNav";\nimport { apiFetch } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -49,7 +49,7 @@ type TabMode = "post" | "story";
 
 export default function Create() {
   const [, setLocation] = useLocation();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
 
   // Detect ?mode=story from URL
   const [activeTab, setActiveTab] = useState<TabMode>(() => {
@@ -102,21 +102,21 @@ export default function Create() {
       if (!caption.trim() && !selectedMedia) { setError("Add a caption or photo"); return; }
     }
 
-    if (!token) { setError("Please log in first"); return; }
+    if (!user) { setError("Please log in first"); return; }
 
     setLoading(true);
     setError("");
     try {
       if (activeTab === "story") {
-        const r = await fetch("/api/stories", {
+        const r = await apiFetch("/stories", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ mediaUrl: selectedMedia, caption: caption.trim() }),
         });
         const d = await r.json() as { story?: any; error?: string };
         if (!r.ok) { setError(d.error ?? "Failed to post story"); return; }
       } else {
-        const r = await fetch("/api/posts", {
+        const r = await apiFetch("/posts", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
