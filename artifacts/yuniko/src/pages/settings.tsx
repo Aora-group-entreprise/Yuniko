@@ -7,6 +7,7 @@ import { t, availableLanguages, getLang, setLang, Lang } from "@/lib/i18n";
 import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth-context";
+import ScreenPortal from "@/components/ScreenPortal";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -210,6 +211,7 @@ export default function Settings() {
 
       {/* Language picker */}
       {showLangPicker && (
+        <ScreenPortal>
         <>
           <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowLangPicker(false)} />
           <div
@@ -236,10 +238,12 @@ export default function Settings() {
             <div className="h-6" />
           </div>
         </>
+        </ScreenPortal>
       )}
 
       {/* Logout confirmation */}
       {showLogout && (
+        <ScreenPortal>
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-6">
           <div
             className="w-full max-w-sm rounded-2xl overflow-hidden"
@@ -269,6 +273,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
+        </ScreenPortal>
       )}
     </div>
   );
