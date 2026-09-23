@@ -25,14 +25,13 @@ function readCookie(req: Request, name: string): string | null {
 }
 
 export function setSessionCookie(res: Response, token: string): void {
-  const production = process.env["NODE_ENV"] === "production";
   const parts = [
     `yuniko_session=${encodeURIComponent(token)}`,
     "Path=/",
     "HttpOnly",
     "Max-Age=2592000",
-    production ? "Secure" : "",
-    production ? "SameSite=None" : "SameSite=Lax",
+    "Secure",
+    "SameSite=None",
   ].filter(Boolean);
   res.setHeader("Set-Cookie", parts.join("; "));
 }
