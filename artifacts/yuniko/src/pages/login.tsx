@@ -159,7 +159,7 @@ export default function LoginPage() {
       });
       const d = await r.json() as { token?: string; user?: any; error?: string };
       if (!r.ok) { setError(d.error ?? "Login failed"); return; }
-      login(d.token!, d.user);
+      login(d.user!);
       setLocation("/");
     } catch { setError("Network error. Please try again."); }
     finally { setLoading(false); }
@@ -204,7 +204,7 @@ export default function LoginPage() {
       });
       const d = await r.json() as { token?: string; user?: any; error?: string };
       if (!r.ok) { setError(d.error ?? "Registration failed"); return; }
-      login(d.token!, d.user);
+      login(d.user!);
       setSignupStep(4);
     } catch { setError("Network error. Please try again."); }
     finally { setLoading(false); }
