@@ -9,6 +9,7 @@ import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
+import ScreenPortal from "@/components/ScreenPortal";
 
 const HEADER_H = 56;
 const STORIES_H = 78;
@@ -191,6 +192,7 @@ export default function Home() {
               ))}
             </motion.div>
           </>
+          </ScreenPortal>
         )}
       </AnimatePresence>
 
@@ -304,6 +306,7 @@ export default function Home() {
       {/* ── POST OPTIONS SHEET ── */}
       <AnimatePresence>
         {optionsPostId && (
+          <ScreenPortal>
           <>
             <motion.div key="options-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/65" onClick={() => setOptionsPostId(null)} />
             <motion.div
