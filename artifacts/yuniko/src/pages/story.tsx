@@ -31,14 +31,14 @@ export default function StoryViewer() {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
   const userId = params?.userId ?? "u1";
-  const { token } = useAuth();
+  const { user } = useAuth();
   const isLiveStory = userId.startsWith("live_");
   const mockUser = getUserById(userId);
   const [liveStory, setLiveStory] = useState<LiveStory | null>(null);
   const [liveStoryLoading, setLiveStoryLoading] = useState(isLiveStory);
 
   useEffect(() => {
-    if (!isLiveStory || !token) return;
+    if (!isLiveStory || !user) return;
     const storyId = Number(userId.slice("live_".length));
     if (!Number.isInteger(storyId) || storyId <= 0) {
       setLiveStoryLoading(false);
@@ -61,7 +61,7 @@ export default function StoryViewer() {
       })
       .catch(() => setLiveStory(null))
       .finally(() => setLiveStoryLoading(false));
-  }, [isLiveStory, token, userId]);
+  }, [isLiveStory, user, userId]);
 
   const user = isLiveStory && liveStory
     ? {
