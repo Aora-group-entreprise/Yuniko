@@ -182,7 +182,7 @@ function AnimatedRoutes() {
             <Route path="/account/delete" component={DeleteAccount} />
             <Route path="/account/verify">
               {() => <VerificationPage />}
-
+            </Route>
 
             {/* Support */}
             <Route path="/help" component={Help} />
