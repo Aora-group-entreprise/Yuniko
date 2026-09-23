@@ -4,7 +4,8 @@ import { Search, TrendingUp, Users, X, Hash, Sparkles } from "lucide-react";
 import { users, posts, formatCount, type User } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
-import { useAuth } from "@/lib/auth-context";\nimport { apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { apiFetch } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
