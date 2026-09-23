@@ -56,7 +56,8 @@ authRouter.post("/auth/register", async (req, res) => {
     });
 
     const token = signToken(Number(user.id));
-    setSessionCookie(res, token);\n    return res.status(201).json({ user: publicUser(user) });
+    setSessionCookie(res, token);
+    return res.status(201).json({ user: publicUser(user) });
   } catch (err) {
     return supabaseError(res, err);
   }
@@ -76,13 +77,20 @@ authRouter.post("/auth/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
-    const token = signToken(Number(user.id));\n    setSessionCookie(res, token);\n    return res.json({ user: publicUser(user) });
+    const token = signToken(Number(user.id));
+    setSessionCookie(res, token);
+    return res.json({ user: publicUser(user) });
   } catch (err) {
     return supabaseError(res, err);
   }
 });
 
-authRouter.post("/auth/logout", (req, res) => {\n  clearSessionCookie(res);\n  return res.json({ success: true });\n});\n\nauthRouter.get("/auth/me", authMiddleware, async (req, res) => {
+authRouter.post("/auth/logout", (req, res) => {
+  clearSessionCookie(res);
+  return res.json({ success: true });
+});
+
+authRouter.get("/auth/me", authMiddleware, async (req, res) => {
   try {
     const [user] = await selectRows("users", { filters: [eq("id", (req as any).userId)], limit: 1 });
     if (!user) return res.status(404).json({ error: "User not found" });
