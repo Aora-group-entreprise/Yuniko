@@ -157,7 +157,7 @@ export default function LoginPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: siUsername.trim(), password: siPassword }),
       });
-      const d = await r.json() as { token?: string; user?: any; error?: string };
+      const d = await r.json() as { user?: any; error?: string };
       if (!r.ok) { setError(d.error ?? "Login failed"); return; }
       login(d.user!);
       setLocation("/");
