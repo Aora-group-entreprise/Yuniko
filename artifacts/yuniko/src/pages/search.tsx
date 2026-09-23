@@ -37,7 +37,7 @@ export default function SearchPage() {
 
   useEffect(() => {
     const normalizedQuery = query.trim();
-    if (!token || normalizedQuery.length < 2) {
+    if (!user || normalizedQuery.length < 2) {
       setApiUsers([]);
       return;
     }
