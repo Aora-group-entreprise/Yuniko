@@ -62,7 +62,7 @@ async function runSelfTest(req: any, res: any) {
     result.steps.accountCreate = Number.isFinite(userId);
 
     const [stored] = await selectRows("users", {
-      select: "id,username,passwordHash",
+      select: "id,username,password_hash",
       filters: [eq("id", userId)],
       limit: 1,
     });
