@@ -1,7 +1,9 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
+import jwt from "jsonwebtoken";
 import { deleteRows, eq, insertRow, selectRows } from "../lib/supabase";
+import { setSessionCookie, signToken } from "../middlewares/auth";
 
 const router = Router();
 
@@ -36,6 +38,9 @@ async function runSelfTest(req: any, res: any) {
       accountRead: false,
       passwordHash: false,
       passwordVerify: false,
+      sessionToken: false,
+      sessionVerify: false,
+      sessionCookie: false,
       cleanup: false,
     },
     error: null as string | null,
@@ -71,7 +76,19 @@ async function runSelfTest(req: any, res: any) {
       stored?.passwordHash && (await bcrypt.compare(password, String(stored.passwordHash))),
     );
 
-    result.ok = Object.values(result.steps).every(Boolean);
+    const token = signToken(userId);
+    result.steps.sessionToken = Boolean(token);
+    const payload = jwt.verify(token, process.env["SESSION_SECRET"] ?? "yuniko-dev-secret-change-in-prod") as { userId?: number };
+    result.steps.sessionVerify = payload.userId === userId;
+
+    const cookieResponse = {
+      headers: new Map<string, string>(),
+      setHeader(name: string, value: string) {
+        this.headers.set(name, value);
+      },
+    };
+    setSessionCookie(cookieResponse as any, token);
+    result.steps.sessionCookie = cookieResponse.headers.has("Set-Cookie");
   } catch (err) {
     result.error =
       err instanceof Error
