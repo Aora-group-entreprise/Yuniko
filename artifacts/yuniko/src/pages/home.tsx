@@ -67,11 +67,9 @@ export default function Home() {
 
   // Load real posts + stories from API
   useEffect(() => {
-    if (!token) return;
+    if (!user) return;
 
-    const headers = { Authorization: `Bearer ${token}` };
-
-    fetch("/api/posts/feed", { headers })
+    apiFetch("/posts/feed")
       .then((r) => r.json())
       .then((d: { posts?: any[] }) => {
         if (!d.posts) return;
