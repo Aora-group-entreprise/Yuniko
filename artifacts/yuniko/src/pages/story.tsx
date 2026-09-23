@@ -32,14 +32,14 @@ export default function StoryViewer() {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
   const userId = params?.userId ?? "u1";
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
   const isLiveStory = userId.startsWith("live_");
   const mockUser = getUserById(userId);
   const [liveStory, setLiveStory] = useState<LiveStory | null>(null);
   const [liveStoryLoading, setLiveStoryLoading] = useState(isLiveStory);
 
   useEffect(() => {
-    if (!isLiveStory || !user) return;
+    if (!isLiveStory || !authUser) return;
     const storyId = Number(userId.slice("live_".length));
     if (!Number.isInteger(storyId) || storyId <= 0) {
       setLiveStoryLoading(false);
@@ -62,9 +62,9 @@ export default function StoryViewer() {
       })
       .catch(() => setLiveStory(null))
       .finally(() => setLiveStoryLoading(false));
-  }, [isLiveStory, user, userId]);
+  }, [isLiveStory, authUser, userId]);
 
-  const user = isLiveStory && liveStory
+  const storyUser = isLiveStory && liveStory
     ? {
         id: String(liveStory.userId),
         displayName: liveStory.authorDisplayName,
@@ -142,7 +142,7 @@ export default function StoryViewer() {
     );
   }
 
-  if (!user || userStories.length === 0) {
+  if (!storyUser || userStories.length === 0) {
     return (
       <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -200,20 +200,20 @@ export default function StoryViewer() {
       {/* Header */}
       <div className="absolute top-10 left-3 right-3 flex items-center justify-between">
         <button
-          onClick={() => setLocation(`/user/${user.id}`)}
+          onClick={() => setLocation(`/user/${storyUser.id}`)}
           className="flex items-center gap-2"
           data-testid="btn-story-user"
         >
           <img
-            src={user.avatar}
-            alt={user.displayName}
+            src={storyUser.avatar}
+            alt={storyUser.displayName}
             className="w-9 h-9 rounded-full object-cover"
             style={{ border: "2px solid rgba(255,0,110,0.8)" }}
           />
           <div>
             <div className="flex items-center gap-1">
-              <span className="text-white font-semibold text-sm">{user.displayName}</span>
-              {user.verified && <BadgeCheck size={13} className="text-blue-300 fill-blue-300" />}
+              <span className="text-white font-semibold text-sm">{storyUser.displayName}</span>
+              {storyUser.verified && <BadgeCheck size={13} className="text-blue-300 fill-blue-300" />}
             </div>
             <span className="text-white/60 text-xs">{currentStory.timestamp} {t("ago")}</span>
           </div>
@@ -279,7 +279,7 @@ export default function StoryViewer() {
           <input
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
-            placeholder={`Reply to ${user.displayName}...`}
+            placeholder={`Reply to ${storyUser.displayName}...`}
             className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/50"
             onClick={(e) => e.stopPropagation()}
             data-testid="input-story-reply"
