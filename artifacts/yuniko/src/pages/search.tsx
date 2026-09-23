@@ -4,7 +4,7 @@ import { Search, TrendingUp, Users, X, Hash, Sparkles } from "lucide-react";
 import { users, posts, formatCount, type User } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";\nimport { apiFetch } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -23,7 +23,7 @@ type Tab = "forYou" | "people" | "hashtags";
 
 export default function SearchPage() {
   const [, setLocation] = useLocation();
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("forYou");
   const [followStates, setFollowStates] = useState<Record<string, boolean>>({});
@@ -85,7 +85,7 @@ export default function SearchPage() {
       .finally(() => setIsSearching(false));
 
     return () => controller.abort();
-  }, [query, token]);
+  }, [query, user]);
 
   const filteredUsers = query ? apiUsers : [];
 
