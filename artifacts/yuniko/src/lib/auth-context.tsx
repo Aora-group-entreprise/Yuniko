@@ -23,8 +23,8 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
-  token: string | null;
-  login: (token: string, user: AuthUser) => void;
+  token: null;
+  login: (user: AuthUser) => void;
   logout: () => void;
   updateUser: (user: AuthUser) => void;
   refreshUser: () => Promise<void>;
@@ -32,57 +32,22 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const TOKEN_KEY = "yuniko_token";
 const USER_KEY = "yuniko_user";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    const storedUser = localStorage.getItem(USER_KEY);
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser) as AuthUser);
-      } catch {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-      }
-    }
-    setIsLoading(false);
+  const logout = useCallback(() => {
+    void apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
+    setUser(null);
+    localStorage.removeItem(USER_KEY);
   }, []);
 
-  const login = (t: string, u: AuthUser) => {
-    setToken(t);
-    setUser(u);
-    localStorage.setItem(TOKEN_KEY, t);
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-  };
-
-  const updateUser = (u: AuthUser) => {
-    setUser(u);
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
-  };
-
-  /** Re-fetch the latest user data from the server and update local state. */
   const refreshUser = useCallback(async () => {
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    if (!storedToken) return;
     try {
       const res = await apiFetch("/auth/me");
       if (res.status === 401) {
-        // Token expired or invalid — log out
         logout();
         return;
       }
@@ -92,13 +57,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
       }
     } catch {
-      // Network error — keep current cached user
+      // Keep the cached user during temporary network failures.
     }
+  }, [logout]);
+
+  useEffect(() => {
+    let active = true;
+    const restoreSession = async () => {
+      try {
+        const res = await apiFetch("/auth/me");
+        if (res.ok) {
+          const freshUser = (await res.json()) as AuthUser;
+          if (active) {
+            setUser(freshUser);
+            localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+          }
+        } else if (res.status === 401) {
+          localStorage.removeItem(USER_KEY);
+        } else {
+          const cached = localStorage.getItem(USER_KEY);
+          if (cached && active) {
+            try { setUser(JSON.parse(cached) as AuthUser); } catch { localStorage.removeItem(USER_KEY); }
+          }
+        }
+      } catch {
+        const cached = localStorage.getItem(USER_KEY);
+        if (cached && active) {
+          try { setUser(JSON.parse(cached) as AuthUser); } catch { localStorage.removeItem(USER_KEY); }
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+    void restoreSession();
+    return () => { active = false; };
   }, []);
+
+  const login = (u: AuthUser) => {
+    setUser(u);
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
+  };
+
+  const updateUser = (u: AuthUser) => {
+    setUser(u);
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
+  };
 
   return (
     <AuthContext.Provider
-      value={{ user, token, login, logout, updateUser, refreshUser, isLoading }}
+      value={{ user, token: null, login, logout, updateUser, refreshUser, isLoading }}
     >
       {children}
     </AuthContext.Provider>
