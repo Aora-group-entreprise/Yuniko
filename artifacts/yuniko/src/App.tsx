@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiFetch } from "@/lib/api";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 
 import SplashScreen from "@/components/SplashScreen";
@@ -230,7 +231,7 @@ function AppContent() {
 
     const clearOnExit = () => {
       if (!enabled) return;
-      const keep = new Set(["yuniko_token", "yuniko_user", "yuniko_lang"]);
+      const keep = new Set(["yuniko_user", "yuniko_lang"]);
       for (const key of Object.keys(localStorage)) {
         if (!keep.has(key)) localStorage.removeItem(key);
       }
