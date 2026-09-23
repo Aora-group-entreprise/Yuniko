@@ -1,12 +1,18 @@
+import { env as cloudflareEnv } from "cloudflare:workers";
+
 type Row = Record<string, unknown>;
+const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+
+function getSupabaseUrl() {
+  return String(runtimeEnv["SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "").replace(/\/+$/, "");
+}
+
+function getSupabaseKey() {
+  return runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? runtimeEnv["SUPABASE_ANON_KEY"] ?? runtimeEnv["SUPABASE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_KEY"] ?? "";
+}
 type Filter = { column: string; operator: "eq" | "gt" | "ilike"; value: string | number | boolean | Date };
 
-const SUPABASE_URL = (process.env["SUPABASE_URL"] ?? "").replace(/\/+$/, "");
-const SUPABASE_KEY =
-  process.env["SUPABASE_SERVICE_ROLE_KEY"] ??
-  process.env["SUPABASE_ANON_KEY"] ??
-  process.env["SUPABASE_KEY"] ??
-  "";
+
 
 function toSnakeCase(value: string) {
   return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
@@ -39,19 +45,24 @@ function toSupabaseRow(row: Row): Row {
 }
 
 function getRestUrl(path: string) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
+  const supabaseUrl = getSupabaseUrl();
+  const supabaseKey = getSupabaseKey();
+  if (!supabaseUrl || !supabaseKey) {
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured");
   }
-  return `${SUPABASE_URL}/rest/v1${path.startsWith("/") ? path : `/${path}`}`;
+  return `${supabaseUrl}/rest/v1${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const supabaseKey = getSupabaseKey();
+  if (!supabaseKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY must be configured");
+
   const response = await fetch(getRestUrl(path), {
     ...init,
     headers: {
       Accept: "application/json",
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
       ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(init.headers ?? {}),
     },
@@ -171,8 +182,8 @@ export function supabaseError(res: { status: (code: number) => { json: (body: un
   console.error("Supabase request failed:", err);
   const message = err instanceof Error ? err.message : String(err);
   const config = {
-    supabaseUrlConfigured: Boolean(SUPABASE_URL),
-    serviceRoleKeyConfigured: Boolean(process.env["SUPABASE_SERVICE_ROLE_KEY"]),
+    supabaseUrlConfigured: Boolean(getSupabaseUrl()),
+    serviceRoleKeyConfigured: Boolean(runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"]),
   };
   return res.status(503).json({
     error: "Supabase backend is unavailable. Check the Supabase connection for this environment.",
@@ -183,10 +194,12 @@ export function supabaseError(res: { status: (code: number) => { json: (body: un
 }
 
 export async function deleteAuthUser(authUserId: string) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Supabase server credentials are not configured");
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(authUserId)}`, {
+  const supabaseUrl = getSupabaseUrl();
+  const supabaseKey = getSupabaseKey();
+  if (!supabaseUrl || !supabaseKey) throw new Error("Supabase server credentials are not configured");
+  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(authUserId)}`, {
     method: "DELETE",
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
   });
   if (!response.ok && response.status !== 404) {
     const body = await response.text();
