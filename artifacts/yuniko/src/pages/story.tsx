@@ -52,6 +52,12 @@ export default function StoryViewer() {
         if (!response.ok) throw new Error("Story unavailable");
         const data = (await response.json()) as { story?: LiveStory };
         setLiveStory(data.story ?? null);
+        if (data.story) {
+          fetch(`/api/stories/${storyId}/view`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => {});
+        }
       })
       .catch(() => setLiveStory(null))
       .finally(() => setLiveStoryLoading(false));
