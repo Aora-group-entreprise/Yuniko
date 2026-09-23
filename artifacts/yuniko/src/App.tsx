@@ -220,9 +220,7 @@ function AppContent() {
     let enabled = false;
     let cancelled = false;
 
-    fetch("/api/settings", {
-      headers: { Authorization: "Bearer " + localStorage.getItem("yuniko_token") },
-    })
+    apiFetch("/settings")
       .then((r) => (r.ok ? r.json() : null))
       .then((settings) => {
         if (!cancelled) enabled = settings?.clearCacheOnExit === true;
