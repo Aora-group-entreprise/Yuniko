@@ -3,6 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { X, Send, MoreHorizontal, BadgeCheck } from "lucide-react";
 import { stories, getUserById } from "@/data/mockData";
 import { t } from "@/lib/i18n";
+import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🔥", "👏"];
