@@ -9,6 +9,7 @@ import { useAuth, AuthUser } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import { apiFetch, apiJson } from "@/lib/api";
+import ScreenPortal from "@/components/ScreenPortal";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -443,6 +444,7 @@ export default function Profile({ userId }: ProfilePageProps) {
 
       {/* Photo viewer */}
       {showPhotoViewer && (
+        <ScreenPortal>
         <div
           className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center"
           onClick={() => setShowPhotoViewer(false)}
@@ -470,6 +472,7 @@ export default function Profile({ userId }: ProfilePageProps) {
 
       {/* Options bottom sheet (other users) */}
       {showOptions && (
+        <ScreenPortal>
         <>
           <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowOptions(false)} />
           <div
@@ -494,6 +497,7 @@ export default function Profile({ userId }: ProfilePageProps) {
             <button onClick={() => setShowOptions(false)} className="w-full py-4 text-white/50 text-sm">{t("cancel")}</button>
           </div>
         </>
+        </ScreenPortal>
       )}
     </div>
   );
