@@ -40,6 +40,7 @@ import Settings from "@/pages/settings";
 import Login from "@/pages/login";
 import Live from "@/pages/live";
 import NotFound from "@/pages/not-found";
+import Verification from "@/pages/verification";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 1000 * 60 * 5, retry: false } },
@@ -180,9 +181,7 @@ function AnimatedRoutes() {
             {/* Account */}
             <Route path="/blocked-users" component={BlockedUsers} />
             <Route path="/account/delete" component={DeleteAccount} />
-            <Route path="/account/verify">
-              {() => <VerificationPage />}
-            </Route>
+            <Route path="/account/verify" component={Verification} />
 
             {/* Support */}
             <Route path="/help" component={Help} />
