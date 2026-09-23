@@ -1,14 +1,10 @@
-import { env as cloudflareEnv } from "cloudflare:workers";
-
 type Row = Record<string, unknown>;
-const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
-
 function getSupabaseUrl() {
-  return String(runtimeEnv["SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "").replace(/\/+$/, "");
+  return String(process.env["SUPABASE_URL"] ?? "").replace(/\/+$/, "");
 }
 
 function getSupabaseKey() {
-  return runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? runtimeEnv["SUPABASE_ANON_KEY"] ?? runtimeEnv["SUPABASE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_KEY"] ?? "";
+  return process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_KEY"] ?? "";
 }
 type Filter = { column: string; operator: "eq" | "gt" | "ilike"; value: string | number | boolean | Date };
 
@@ -183,7 +179,7 @@ export function supabaseError(res: { status: (code: number) => { json: (body: un
   const message = err instanceof Error ? err.message : String(err);
   const config = {
     supabaseUrlConfigured: Boolean(getSupabaseUrl()),
-    serviceRoleKeyConfigured: Boolean(runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"]),
+    serviceRoleKeyConfigured: Boolean(process.env["SUPABASE_SERVICE_ROLE_KEY"]),
   };
   return res.status(503).json({
     error: "Supabase backend is unavailable. Check the Supabase connection for this environment.",
