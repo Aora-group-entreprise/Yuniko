@@ -4,7 +4,8 @@ import { X, Image as ImageIcon, Video, MapPin, Hash, Globe, Layers, AlertCircle,
 import { motion, AnimatePresence } from "framer-motion";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import BottomNav from "@/components/BottomNav";\nimport { apiFetch } from "@/lib/api";
+import BottomNav from "@/components/BottomNav";
+import { apiFetch } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
