@@ -5,14 +5,21 @@ import { deleteRows, eq, insertRow, selectRows } from "../lib/supabase";
 
 const router = Router();
 
-function isEnabled(req: { headers: Record<string, string | string[] | undefined> }) {
+function getSecretFromQuery(req: any): string {
+  return typeof req.query?.secret === "string" ? req.query.secret : "";
+}
+
+function isEnabled(req: any): boolean {
   const secret = process.env["SELF_TEST_SECRET"];
   if (!secret) return false;
-  const supplied = req.headers["x-yuniko-self-test-secret"];
+  const supplied =
+    typeof req.headers["x-yuniko-self-test-secret"] === "string"
+      ? req.headers["x-yuniko-self-test-secret"]
+      : getSecretFromQuery(req);
   return supplied === secret;
 }
 
-const runSelfTest = async (req: any, res: any) => {
+async function runSelfTest(req: any, res: any) {
   if (!isEnabled(req)) return res.status(404).json({ error: "Not found" });
 
   const suffix = randomUUID().replace(/-/g, "").slice(0, 16);
@@ -64,11 +71,12 @@ const runSelfTest = async (req: any, res: any) => {
       stored?.passwordHash && (await bcrypt.compare(password, String(stored.passwordHash))),
     );
 
-    result.ok = Object.values(result.steps)
-      .filter((value) => typeof value === "boolean")
-      .every(Boolean);
+    result.ok = Object.values(result.steps).every(Boolean);
   } catch (err) {
-    result.error = err instanceof Error ? err.message.replace(/Bearer\s+\S+/gi, "Bearer [redacted]") : String(err);
+    result.error =
+      err instanceof Error
+        ? err.message.replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+        : String(err);
   } finally {
     if (userId !== null) {
       try {
@@ -81,6 +89,10 @@ const runSelfTest = async (req: any, res: any) => {
   }
 
   return res.status(result.ok && result.steps.cleanup ? 200 : 503).json(result);
-});
+}
+
+router.post("/debug/self-test", runSelfTest);
+
+router.get("/debug/self-test", runSelfTest);
 
 export default router;
