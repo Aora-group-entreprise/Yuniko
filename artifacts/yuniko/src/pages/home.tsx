@@ -7,7 +7,7 @@ import StoryAvatar from "@/components/StoryAvatar";
 import PostCard, { type LiveAuthor } from "@/components/PostCard";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";\nimport { apiFetch } from "@/lib/api";
 
 const HEADER_H = 56;
 const STORIES_H = 78;
@@ -56,7 +56,7 @@ function relativeTime(iso: string): string {
 
 export default function Home() {
   const [, setLocation] = useLocation();
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [optionsPostId, setOptionsPostId] = useState<string | null>(null);
   const [worldFeedOpen, setWorldFeedOpen] = useState(false);
   const isOnline = useOnlineStatus();
@@ -101,13 +101,13 @@ export default function Home() {
       })
       .catch(() => setLivePosts([]));
 
-    fetch("/api/stories", { headers })
+    apiFetch("/stories")
       .then((r) => r.json())
       .then((d: { stories?: any[] }) => {
         if (d.stories) setLiveStories(d.stories);
       })
       .catch(() => {});
-  }, [token]);
+  }, [user]);
 
   // Only render persisted posts. Mock data made a fresh installation look
   // populated while hiding API/database failures from the user.
