@@ -213,6 +213,38 @@ function AppContent() {
     }
   }, [splashDone, isLoading, user, location]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    let enabled = false;
+    let cancelled = false;
+
+    fetch("/api/settings", {
+      headers: { Authorization: "Bearer " + localStorage.getItem("yuniko_token") },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((settings) => {
+        if (!cancelled) enabled = settings?.clearCacheOnExit === true;
+      })
+      .catch(() => {});
+
+    const clearOnExit = () => {
+      if (!enabled) return;
+      const keep = new Set(["yuniko_token", "yuniko_user", "yuniko_lang"]);
+      for (const key of Object.keys(localStorage)) {
+        if (!keep.has(key)) localStorage.removeItem(key);
+      }
+    };
+
+    window.addEventListener("pagehide", clearOnExit);
+    window.addEventListener("beforeunload", clearOnExit);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pagehide", clearOnExit);
+      window.removeEventListener("beforeunload", clearOnExit);
+    };
+  }, [user]);
+
   return (
     <>
       {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
