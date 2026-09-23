@@ -468,6 +468,7 @@ export default function Profile({ userId }: ProfilePageProps) {
             <ArrowLeft size={18} className="text-white" />
           </button>
         </div>
+        </ScreenPortal>
       )}
 
       {/* Options bottom sheet (other users) */}
