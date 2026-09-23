@@ -4,6 +4,7 @@ import { Search, Edit, UserPlus, Archive, Phone, MessageSquarePlus } from "lucid
 import { conversations, getUserById } from "@/data/mockData";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
+import ScreenPortal from "@/components/ScreenPortal";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -156,6 +157,7 @@ export default function Messages() {
 
       {/* New message modal */}
       {showNewMsg && (
+        <ScreenPortal>
         <>
           <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowNewMsg(false)} />
           <div
@@ -185,6 +187,7 @@ export default function Messages() {
             <div className="h-6" />
           </div>
         </>
+        </ScreenPortal>
       )}
     </div>
   );
