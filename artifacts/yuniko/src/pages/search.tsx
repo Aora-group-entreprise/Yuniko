@@ -44,10 +44,7 @@ export default function SearchPage() {
 
     const controller = new AbortController();
     setIsSearching(true);
-    fetch(`/api/users/search?q=${encodeURIComponent(normalizedQuery)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    })
+    apiFetch(`/users/search?q=${encodeURIComponent(normalizedQuery)}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Search failed");
         const data = (await response.json()) as {
