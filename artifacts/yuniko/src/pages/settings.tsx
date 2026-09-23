@@ -213,7 +213,7 @@ export default function Settings() {
         <>
           <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowLangPicker(false)} />
           <div
-            className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-[430px] max-h-[80vh] z-50 rounded-2xl overflow-y-auto"
             style={{ background: "rgba(18,15,30,0.98)", border: "1px solid rgba(255,0,110,0.15)" }}
           >
             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2" />
