@@ -37,14 +37,13 @@ export function setSessionCookie(res: Response, token: string): void {
 }
 
 export function clearSessionCookie(res: Response): void {
-  const production = process.env["NODE_ENV"] === "production";
   const parts = [
     "yuniko_session=",
     "Path=/",
     "HttpOnly",
     "Max-Age=0",
-    production ? "Secure" : "",
-    production ? "SameSite=None" : "SameSite=Lax",
+    "Secure",
+    "SameSite=None",
   ].filter(Boolean);
   res.setHeader("Set-Cookie", parts.join("; "));
 }
