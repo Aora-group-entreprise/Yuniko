@@ -196,7 +196,6 @@ interactionsRouter.post("/posts/:id/comments", authMiddleware, async (req: Authe
     const comment = await insertRow("comments", { postId, userId: req.userId!, text });
     const commentCount = (await selectRows("comments", { select: "id", filters: [eq("postId", postId)] })).length;
     await updateRows("posts", { comments: commentCount }, [eq("id", postId)]);
-    const [post] = await selectRows("posts", { select: "user_id", filters: [eq("id", postId)], limit: 1 });
     if (post) await notify(Number(post.userId), req.userId!, "comment", "commented on your post", postId);
     return res.status(201).json({ comment });
   } catch (err) {
