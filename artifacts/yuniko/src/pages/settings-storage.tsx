@@ -42,7 +42,7 @@ export default function StorageSettings() {
   }, []);
 
   const handleClearCache = () => {
-    const keepKeys = new Set(["yuniko_token", "yuniko_user", "yuniko_lang"]);
+    const keepKeys = new Set(["yuniko_user", "yuniko_lang"]);
 
     Object.keys(localStorage).forEach((key) => {
       if (!keepKeys.has(key)) {
