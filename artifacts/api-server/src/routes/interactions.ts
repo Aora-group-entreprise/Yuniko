@@ -26,8 +26,8 @@ async function countFor(table: string, postId: number) {
 
 async function notify(recipientId: number, actorId: number, type: string, text: string, postId?: number) {
   if (recipientId === actorId) return;
-  const [settings] = await selectRows("user_settings", { filters: [eq("userId", recipientId)], limit: 1 });
-  if (settings?.pushNotifications === false && settings?.emailNotifications === false) return;
+  // In-app notifications are independent from optional push/email delivery.
+  // The notification center must still receive the event when external channels are disabled.
   await insertRow("notifications", { recipientId, actorId, type, text, postId: postId ?? null, read: false });
 }
 
