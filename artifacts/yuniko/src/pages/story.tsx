@@ -46,7 +46,7 @@ export default function StoryViewer() {
     }
 
     fetch(`/api/stories/${storyId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("Story unavailable");
