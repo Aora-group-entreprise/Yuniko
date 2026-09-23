@@ -294,3 +294,38 @@
     inset: -1px;
   }
 }
+
+  /* Global overlay host: always lives directly under <body>, outside the
+   * 430px Yuniko shell and outside animated/transformed route containers. */
+  #yuniko-overlay-root {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    overflow: visible !important;
+    z-index: 10000 !important;
+    pointer-events: none !important;
+  }
+
+  #yuniko-overlay-root .yuniko-overlay-layer {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    overflow: visible !important;
+    pointer-events: none;
+  }
+
+  #yuniko-overlay-root .yuniko-overlay-layer > * {
+    pointer-events: auto;
+  }
