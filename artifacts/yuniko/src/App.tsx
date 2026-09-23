@@ -181,40 +181,8 @@ function AnimatedRoutes() {
             <Route path="/blocked-users" component={BlockedUsers} />
             <Route path="/account/delete" component={DeleteAccount} />
             <Route path="/account/verify">
-              {() => (
-                <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center px-6">
-                  <div className="text-center">
-                    <div
-                      className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
-                      style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 40px rgba(255,0,110,0.4)" }}
-                    >
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                    <h2 className="text-white font-bold text-xl mb-2">Verify Account</h2>
-                    <p className="text-white/50 text-sm mb-6 leading-relaxed">
-                      Verification helps your followers know your account is authentic.
-                    </p>
-                    <button
-                      onClick={async () => {
-                        const token = localStorage.getItem("yuniko_token");
-                        const res = await fetch((import.meta.env.VITE_YUNIKO_API_URL || "https://yuniko-api.lafatriniainaallane.workers.dev") + "/api/verification/request", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
-                        });
-                        if (res.ok) window.alert("Verification request submitted.");
-                        else window.alert("Could not submit the verification request.");
-                      }}
-                      className="px-6 py-3 rounded-2xl text-sm font-bold text-white"
-                      style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 4px 16px rgba(255,0,110,0.4)" }}
-                    >
-                      Request Verification
-                    </button>
-                  </div>
-                </div>
-              )}
-            </Route>
+              {() => <VerificationPage />}
+
 
             {/* Support */}
             <Route path="/help" component={Help} />
