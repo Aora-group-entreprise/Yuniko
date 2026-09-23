@@ -173,6 +173,7 @@ export default function Home() {
       {/* World Feed dropdown */}
       <AnimatePresence>
         {worldFeedOpen && (
+          <ScreenPortal>
           <>
             <motion.div key="wf-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40" onClick={() => setWorldFeedOpen(false)} />
             <motion.div
@@ -330,6 +331,7 @@ export default function Home() {
               <button onClick={() => setOptionsPostId(null)} className="w-full py-4 text-white/45 text-sm font-medium">{t("cancel")}</button>
             </motion.div>
           </>
+          </ScreenPortal>
         )}
       </AnimatePresence>
     </div>
