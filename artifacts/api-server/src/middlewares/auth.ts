@@ -29,9 +29,9 @@ export function setSessionCookie(res: Response, token: string): void {
     `yuniko_session=${encodeURIComponent(token)}`,
     "Path=/",
     "HttpOnly",
-    "Max-Age=2592000",
+    "Max-Age=31536000",
     "Secure",
-    "SameSite=None",
+    "SameSite=Lax",
   ].filter(Boolean);
   res.setHeader("Set-Cookie", parts.join("; "));
 }
