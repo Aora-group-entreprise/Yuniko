@@ -8,7 +8,7 @@ import { getUserById, getPostsByUser, formatCount } from "@/data/mockData";
 import { useAuth, AuthUser } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
-import { apiJson } from "@/lib/api";
+import { apiFetch, apiJson } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -62,16 +62,16 @@ interface RemoteProfile {
 export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
-  const { user: authUser, token } = useAuth();
+  const { user: authUser } = useAuth();
 
   const targetId = userId || params?.userId || "me";
   const isOwn = targetId === "me" || (authUser && targetId === String(authUser.id));
   const isDatabaseProfile = isOwn || /^\d+$/.test(targetId);
   const [remoteProfile, setRemoteProfile] = useState<RemoteProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(isDatabaseProfile && !!token);
+  const [profileLoading, setProfileLoading] = useState(isDatabaseProfile && !!authUser);
 
   useEffect(() => {
-    if (!isDatabaseProfile || !token || !authUser) return;
+    if (!isDatabaseProfile || !authUser) return;
     const id = isOwn ? authUser.id : Number(targetId);
     if (!Number.isInteger(id) || id <= 0) {
       setProfileLoading(false);
@@ -94,7 +94,7 @@ export default function Profile({ userId }: ProfilePageProps) {
       .finally(() => setProfileLoading(false));
 
     return () => controller.abort();
-  }, [authUser, isDatabaseProfile, isOwn, targetId, token]);
+  }, [authUser, isDatabaseProfile, isOwn, targetId]);
 
   // Database-backed profiles are used whenever the route contains a real
   // user id. Legacy mock profiles remain available for old design-only routes.
