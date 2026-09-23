@@ -7,14 +7,11 @@ const app: Express = express();
 app.use(
   cors({
     // The web client is deployed separately from the API Workers origin.
-    // Reflect the requesting origin so signin/signup work from the browser.
+    // Cookies are the browser-managed authentication session.
     origin: true,
-    credentials: false,
+    credentials: true,
   }),
 );
-// Posts and stories are currently sent as compressed data URLs by the
-// frontend. Express' 100kb default rejects almost every real phone photo.
-// Keep the limit bounded while allowing the documented client-side resize.
 app.use(express.json({ limit: "12mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
