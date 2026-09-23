@@ -168,9 +168,17 @@ export function publicUser<T extends Row>(user: T) {
 }
 
 export function supabaseError(res: { status: (code: number) => { json: (body: unknown) => unknown } }, err: unknown) {
-  console.error(err);
+  console.error("Supabase request failed:", err);
+  const message = err instanceof Error ? err.message : String(err);
+  const config = {
+    supabaseUrlConfigured: Boolean(SUPABASE_URL),
+    serviceRoleKeyConfigured: Boolean(process.env["SUPABASE_SERVICE_ROLE_KEY"]),
+  };
   return res.status(503).json({
     error: "Supabase backend is unavailable. Check the Supabase connection for this environment.",
+    diagnostics: process.env["NODE_ENV"] === "production"
+      ? { ...config, reason: message.replace(/Bearer\s+\S+/gi, "Bearer [redacted]") }
+      : { ...config, reason: message },
   });
 }
 
