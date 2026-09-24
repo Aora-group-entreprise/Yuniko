@@ -236,28 +236,18 @@ postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { use
     });
     if (!post) return res.status(404).json({ error: "Post not found" });
     if (Number(post.userId) !== Number(req.userId)) return res.status(403).json({ error: "You can only delete your own posts" });
-    // Remove every server-side trace before deleting the post row.
-    await Promise.all([
-      deleteRows("likes", [eq("postId", postId)]),
-      deleteRows("saves", [eq("postId", postId)]),
-      deleteRows("shares", [eq("postId", postId)]),
-      deleteRows("post_engagements", [eq("postId", postId)]),
-      deleteRows("comments", [eq("postId", postId)]),
-      deleteRows("notifications", [eq("postId", postId)]),
-      deleteRows("post_edits", [eq("postId", postId)]),
-      deleteRows("post_media", [eq("postId", postId)]),
-      deleteRows("events", [eq("postId", postId)]),
-      deleteRows("post_stats", [eq("postId", postId)]),
-      deleteRows("post_distribution", [eq("postId", postId)]),
-      deleteRows("seen_posts", [eq("postId", postId)]),
-    ]);
+    // The database already defines CASCADE from posts to likes, saves, shares,
+    // comments, notifications, media, stats and distribution tables. Delete the
+    // event rows explicitly because their FK uses SET NULL instead of CASCADE.
+    await deleteRows("events", [eq("postId", postId)]);
     await deleteRows("posts", [eq("id", postId), eq("userId", req.userId!)]);
-    const traceTables = ["likes", "saves", "shares", "post_engagements", "comments", "notifications", "post_edits", "post_media", "events", "post_stats", "post_distribution", "seen_posts"];
-    const [remainingPost, remainingTraces] = await Promise.all([
+
+    // Verify the authoritative post row and the non-cascading event rows are gone.
+    const [remainingPost, remainingEvents] = await Promise.all([
       selectRows("posts", { select: "id", filters: [eq("id", postId)], limit: 1 }),
-      Promise.all(traceTables.map((table) => selectRows(table, { select: "post_id", filters: [eq("postId", postId)], limit: 1 }))),
+      selectRows("events", { select: "id", filters: [eq("postId", postId)], limit: 1 }),
     ]);
-    if (remainingPost.length || remainingTraces.some((rows) => rows.length > 0)) {
+    if (remainingPost.length || remainingEvents.length) {
       return res.status(500).json({ error: "Post deletion could not be verified" });
     }
     return res.json({ deleted: true, id: postId });
