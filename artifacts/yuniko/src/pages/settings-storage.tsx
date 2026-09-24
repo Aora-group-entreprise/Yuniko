@@ -23,6 +23,18 @@ export default function StorageSettings() {
   useEffect(() => {
     let cancelled = false;
 
+    // Best-effort browser exit cleanup. Browsers do not expose a reliable
+    // "application closed" event, so pagehide is the closest lifecycle hook.
+    const clearOnExit = () => {
+      if (!settings.clearCacheOnExit) return;
+      const keepKeys = new Set(["yuniko_user", "yuniko_lang"]);
+      Object.keys(localStorage).forEach((key) => {
+        if (!keepKeys.has(key)) localStorage.removeItem(key);
+      });
+    };
+    window.addEventListener("pagehide", clearOnExit);
+
+
     apiJson<StorageSettingsData>("/settings")
       .then((data) => {
         if (!cancelled) {
@@ -38,8 +50,9 @@ export default function StorageSettings() {
 
     return () => {
       cancelled = true;
+      window.removeEventListener("pagehide", clearOnExit);
     };
-  }, []);
+  }, [settings.clearCacheOnExit]);
 
   const handleClearCache = () => {
     const keepKeys = new Set(["yuniko_user", "yuniko_lang"]);
