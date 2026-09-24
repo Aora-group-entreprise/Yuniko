@@ -1,9 +1,33 @@
 import { Router } from "express";
+import { env as cloudflareEnv } from "cloudflare:workers";
 import bcrypt from "bcryptjs";
 import { authMiddleware, clearSessionCookie, setSessionCookie, signToken } from "../middlewares/auth";
 import { deleteAuthUser, deleteRows, eq, insertRow, publicUser, selectRows, supabaseError, updateRows } from "../lib/supabase";
 
 const authRouter = Router();
+const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+
+async function persistAvatar(userId: number, avatarUrl: string | null): Promise<string | null> {
+  if (!avatarUrl || !avatarUrl.startsWith("data:image/")) return avatarUrl;
+  const match = avatarUrl.match(/^data:(image\\/(?:jpeg|jpg|png|webp));base64,(.+)$/);
+  if (!match) throw new Error("Unsupported avatar format");
+  const binary = atob(match[2]);
+  if (binary.length > 200_000) throw new Error("Avatar is too large");
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const supabaseUrl = String(runtimeEnv["SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "").replace(/\\/+$/, "");
+  const serviceKey = runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
+  if (!supabaseUrl || !serviceKey) throw new Error("Supabase storage is not configured");
+  const objectPath = `users/${userId}/avatar.jpg`;
+  const upload = await fetch(`${supabaseUrl}/storage/v1/object/yuniko-avatars/${objectPath}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "Content-Type": "image/jpeg", "x-upsert": "true", "Cache-Control": "3600" },
+    body: bytes,
+  });
+  if (!upload.ok) throw new Error(`Avatar upload failed: ${upload.status}`);
+  return `${supabaseUrl}/storage/v1/object/public/yuniko-avatars/${objectPath}`;
+}
+
 
 // Yuniko owns authentication. Supabase is used only as the persistent data backend.
 authRouter.get("/auth/check-username/:username", async (req, res) => {
@@ -119,7 +143,7 @@ authRouter.patch("/auth/me", authMiddleware, async (req, res) => {
   if (website !== undefined) updates.website = website || null;
   if (country !== undefined) updates.country = country || null;
   if (countryFlag !== undefined) updates.countryFlag = countryFlag || null;
-  if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl || null;
+  if (avatarUrl !== undefined) updates.avatarUrl = await persistAvatar(Number((req as any).userId), avatarUrl || null);
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: "No fields to update" });
 
   try {
