@@ -115,7 +115,7 @@ export default function Home() {
   return (
     <div
       className="home-screen relative grid w-full min-w-0"
-      style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
+      style={{ height: `calc(100dvh - ${NAV_H})`, gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
     >
       {/* ── HEADER ── */}
       <header
@@ -246,10 +246,11 @@ export default function Home() {
         style={{
           height: "100%",
           minHeight: 0,
-          paddingBottom: NAV_H,
           boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
+          display: "grid",
+          gridAutoRows: "100%",
+          gridAutoFlow: "row",
+          alignContent: "start",
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
@@ -277,7 +278,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              flex: "0 0 100%",
+              height: "100%",
               minHeight: 0,
               boxSizing: "border-box",
               scrollSnapAlign: "start",
