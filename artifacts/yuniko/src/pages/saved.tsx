@@ -15,11 +15,16 @@ export default function Saved() {
   const [, setLocation] = useLocation();
   const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setError(null);
     apiJson<{ posts: SavedPost[] }>("/posts/saved")
-      .then((result) => setSavedPosts(result.posts))
-      .catch(() => setSavedPosts([]))
+      .then((result) => setSavedPosts(result.posts ?? []))
+      .catch((requestError: unknown) => {
+        setSavedPosts([]);
+        setError(requestError instanceof Error ? requestError.message : "Unable to load saved posts");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -39,6 +44,12 @@ export default function Saved() {
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <BookmarkIcon size={48} className="text-white/20" />
+          <p className="text-white/60 text-sm">Unable to load saved posts</p>
+          <p className="text-white/30 text-xs">{error}</p>
         </div>
       ) : savedPosts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">

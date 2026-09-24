@@ -76,6 +76,7 @@ export default function Profile({ userId }: ProfilePageProps) {
   const [showOptions, setShowOptions] = useState(false);
   const [ownPosts, setOwnPosts] = useState<Array<{id:string; imageUrl:string; caption:string}>>([]);
   const [savedPosts, setSavedPosts] = useState<Array<{id:number; caption:string; mediaUrl:string|null}>>([]);
+  const [savedPostsError, setSavedPostsError] = useState<string | null>(null);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [deletingPost, setDeletingPost] = useState(false);
 
@@ -99,11 +100,13 @@ export default function Profile({ userId }: ProfilePageProps) {
       setSavedPosts([]);
       return;
     }
+    setSavedPostsError(null);
     try {
       const data = await apiJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/saved");
       setSavedPosts(data.posts ?? []);
-    } catch {
+    } catch (error) {
       setSavedPosts([]);
+      setSavedPostsError(error instanceof Error ? error.message : "Unable to load saved posts");
     }
   };
 
@@ -239,7 +242,12 @@ export default function Profile({ userId }: ProfilePageProps) {
       )}
       {tab==="saved"&&(
         <div className="grid grid-cols-3 gap-0.5 px-0.5">
-          {isOwn && savedPosts.length > 0 ? savedPosts.map((post) => (
+          {isOwn && savedPostsError ? (
+            <div className="col-span-3 py-16 px-4 text-center">
+              <p className="text-white/60 text-sm">Unable to load saved posts</p>
+              <p className="text-white/30 text-xs mt-1">{savedPostsError}</p>
+            </div>
+          ) : isOwn && savedPosts.length > 0 ? savedPosts.map((post) => (
             <button key={post.id} onClick={() => setLocation(`/post/live_${post.id}`)} className="aspect-square overflow-hidden" data-testid={`profile-saved-post-${post.id}`}>
               {post.mediaUrl ? (
                 <img src={post.mediaUrl} alt={post.caption} className="w-full h-full object-cover" />
