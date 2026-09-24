@@ -271,7 +271,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: `calc(100% - ${NAV_H})`,
+              height: "100%",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
               paddingBottom: 10,
