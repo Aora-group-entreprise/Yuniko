@@ -61,11 +61,9 @@ export default function Home() {
   const isOnline = useOnlineStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
   const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
 
-  // Load real posts + stories from API
   useEffect(() => {
     if (!user) return;
 
@@ -107,8 +105,6 @@ export default function Home() {
       .catch(() => {});
   }, [user]);
 
-  // Only render persisted posts. Mock data made a fresh installation look
-  // populated while hiding API/database failures from the user.
   const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> =
     livePosts.map(({ post, author }) => ({ post, author }));
 
@@ -117,7 +113,6 @@ export default function Home() {
       className="home-screen relative grid w-full min-w-0"
       style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
     >
-      {/* ── HEADER ── */}
       <header
         className="relative z-50 flex min-w-0 items-center justify-between px-4"
         style={{
@@ -167,7 +162,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* World Feed dropdown */}
       <AnimatePresence>
         {worldFeedOpen && (
           <ScreenPortal>
@@ -192,7 +186,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* ── STORIES ── */}
       <div
         className="relative z-40 min-w-0"
         style={{
@@ -204,10 +197,8 @@ export default function Home() {
         data-testid="stories-row"
       >
         <div className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
-          {/* Own story — navigates to create in story mode */}
           <StoryAvatar userId="me" isOwn />
 
-          {/* Go Live */}
           <button onClick={() => setLocation("/live")} className="flex-shrink-0 flex flex-col items-center gap-1.5" data-testid="btn-go-live-stories">
             <div className="w-14 h-14 rounded-full flex items-center justify-center relative" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 16px rgba(255,0,110,0.45)" }}>
               <Radio size={22} className="text-white" />
@@ -216,15 +207,12 @@ export default function Home() {
             <span className="text-white/60 text-[10px] font-medium">Go Live</span>
           </button>
 
-          {/* Live stories from API */}
           {liveStories.map((story) => (
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
-
         </div>
       </div>
 
-      {/* ── OFFLINE BANNER ── */}
       <AnimatePresence>
         {!isOnline && (
           <motion.div
@@ -239,7 +227,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* ── POSTS SNAP SCROLL ── */}
       <div
         ref={scrollRef}
         className="relative min-h-0 min-w-0 overflow-y-auto"
@@ -248,7 +235,6 @@ export default function Home() {
           minHeight: 0,
           paddingBottom: NAV_H,
           boxSizing: "border-box",
-
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
@@ -276,7 +262,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              minHeight: "240px",
+              height: "auto",
               boxSizing: "border-box",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
@@ -284,8 +270,11 @@ export default function Home() {
             }}
           >
             <div
-              className="relative w-full min-h-[240px] rounded-[20px] overflow-hidden"
-              style={{ boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)" }}
+              className="relative w-full rounded-[20px] overflow-hidden"
+              style={{
+                aspectRatio: "4 / 5",
+                boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)",
+              }}
             >
               <PostCard
                 post={post}
@@ -297,10 +286,8 @@ export default function Home() {
         ))}
       </div>
 
-      {/* ── BOTTOM NAV ── */}
       <BottomNav />
 
-      {/* ── POST OPTIONS SHEET ── */}
       <AnimatePresence>
         {optionsPostId && (
           <ScreenPortal>
@@ -332,7 +319,6 @@ export default function Home() {
   );
 }
 
-// Inline component for real API stories in the stories row
 function LiveStoryAvatar({ story }: { story: LiveStory }) {
   const [, setLocation] = useLocation();
   const avatarSrc =
