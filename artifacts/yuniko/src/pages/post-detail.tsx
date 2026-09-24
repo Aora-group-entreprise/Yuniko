@@ -30,17 +30,18 @@ export default function PostDetail() {
   const params = useParams<{ postId: string }>();
   const postId = params?.postId ?? "";
   const { user: authUser } = useAuth();
-  const fallbackPost = posts.find((p) => p.id === postId) ?? posts[0];
-  const fallbackUser = getUserById(fallbackPost.userId);
+  const fallbackPost = posts.find((p) => p.id === postId) ?? null;
+  const fallbackUser = fallbackPost ? getUserById(fallbackPost.userId) : null;
   const isLivePost = postId.startsWith("live_");
   const livePostId = isLivePost ? postId.slice("live_".length) : null;
 
   const [remotePost, setRemotePost] = useState<any>(null);
   const [remoteUser, setRemoteUser] = useState<any>(null);
   const [loadingRemotePost, setLoadingRemotePost] = useState(isLivePost);
-  const [liked, setLiked] = useState(fallbackPost.isLiked);
-  const [saved, setSaved] = useState(fallbackPost.isSaved);
-  const [likeCount, setLikeCount] = useState(fallbackPost.likes);
+  const [livePostError, setLivePostError] = useState(false);
+  const [liked, setLiked] = useState(fallbackPost?.isLiked ?? false);
+  const [saved, setSaved] = useState(fallbackPost?.isSaved ?? false);
+  const [likeCount, setLikeCount] = useState(fallbackPost?.likes ?? 0);
   const [commentText, setCommentText] = useState("");
   const [showOptions, setShowOptions] = useState(false);
   const [following, setFollowing] = useState(fallbackUser?.isFollowing ?? false);
@@ -61,10 +62,9 @@ export default function PostDetail() {
       .then(([postData, commentData]) => {
         const p = postData.post;
         setRemotePost({
-          ...fallbackPost,
           id: `live_${p.id}`,
           userId: `live_${p.userId}`,
-          imageUrl: p.mediaUrl ?? `https://picsum.photos/seed/live${p.id}/600/900`,
+          imageUrl: p.mediaUrl ?? "",
           caption: p.caption ?? "",
           hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
           likes: p.likes ?? 0,
@@ -101,7 +101,11 @@ export default function PostDetail() {
           },
         })));
       })
-      .catch(() => setRemotePost(null))
+      .catch(() => {
+        setRemotePost(null);
+        setRemoteUser(null);
+        setLivePostError(true);
+      })
       .finally(() => setLoadingRemotePost(false));
   }, [fallbackPost, livePostId]);
 
@@ -209,7 +213,18 @@ export default function PostDetail() {
     );
   }
 
-  if (!user) return null;
+  if (isLivePost && livePostError) {
+    return (
+      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-white/70">Post not found or already deleted.</p>
+        <button onClick={goBack} className="px-5 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: GRADIENT }}>
+          Back
+        </button>
+      </div>
+    );
+  }
+
+  if (!post || !user) return null;
 
   return (
     <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background" style={{ paddingBottom: 160 }}>
@@ -262,7 +277,13 @@ export default function PostDetail() {
 
       {/* Post image */}
       <div className="w-full">
-        <img src={post.imageUrl} alt={post.caption} className="w-full object-cover" style={{ maxHeight: 520 }} />
+        {post.imageUrl ? (
+          <img src={post.imageUrl} alt={post.caption} className="w-full object-cover" style={{ maxHeight: 520 }} />
+        ) : (
+          <div className="w-full min-h-[180px] flex items-center justify-center px-6 text-center text-white/40 text-sm">
+            No media attached to this post.
+          </div>
+        )}
       </div>
 
       {/* Actions */}
