@@ -55,7 +55,19 @@ export default function Saved() {
               className="aspect-square overflow-hidden"
               data-testid={`saved-post-${post.id}`}
             >
-              <img src={post.mediaUrl ?? `https://picsum.photos/seed/saved_${post.id}/600/600`} alt={post.caption} className="w-full h-full object-cover" />
+              {post.mediaUrl ? (
+                <img
+                  src={post.mediaUrl}
+                  alt={post.caption}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full p-3 flex items-center justify-center bg-black/20">
+                  <p className="text-white/80 text-xs leading-snug line-clamp-6 text-left">
+                    {post.caption || "Saved post"}
+                  </p>
+                </div>
+              )}
             </button>
           ))}
         </div>
