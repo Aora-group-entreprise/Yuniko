@@ -235,7 +235,6 @@ export default function Home() {
         style={{
           top: "134px",
           bottom: NAV_H,
-          height: `calc(100dvh - 134px - ${NAV_H})`,
           minHeight: 0,
           boxSizing: "border-box",
           scrollSnapType: "y mandatory",
@@ -266,7 +265,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: `calc(100dvh - 134px - ${NAV_H})`,
+              height: "100%",
               minHeight: 0,
               boxSizing: "border-box",
               scrollSnapAlign: "start",
