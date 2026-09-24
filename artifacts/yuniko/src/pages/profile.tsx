@@ -178,7 +178,7 @@ export default function Profile({ userId }: ProfilePageProps) {
         <div className="grid grid-cols-3 gap-0.5 px-0.5">
           {userPosts.length > 0 ? userPosts.map((post) => (
             <div key={post.id} className="relative aspect-square overflow-hidden group">
-              <button onClick={() => setLocation(`/post/${post.id}`)} className="absolute inset-0" data-testid={`grid-post-${post.id}`}>
+              <button onClick={() => setLocation(`/post/live_${post.id}`)} className="absolute inset-0" data-testid={`grid-post-${post.id}`}>
                 <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
               </button>
               {isOwn && (
