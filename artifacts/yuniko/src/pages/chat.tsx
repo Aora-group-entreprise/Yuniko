@@ -57,7 +57,6 @@ export default function Chat() {
         className="relative z-40 shrink-0 px-4 py-3 flex items-center gap-3"
         style={{
           background: "rgba(13,11,20,0.95)",
-          bottom: "var(--yuniko-keyboard-offset, 0px)",
           backdropFilter: "blur(20px)",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
@@ -85,7 +84,7 @@ export default function Chat() {
             <span className="text-white/50 text-xs">{user.isOnline ? t("online") : t("offline")}</span>
           </div>
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-[clamp(6px,2vw,8px)]">
           <button onClick={() => setLocation("/voice-call")} data-testid="btn-voice-call">
             <Phone size={20} className="text-white/70" strokeWidth={1.8} />
           </button>
@@ -183,19 +182,21 @@ export default function Chat() {
 
       {/* Input bar */}
       <div
-        className="fixed left-1/2 -translate-x-1/2 w-full px-3 py-3"
+        className="fixed left-1/2 -translate-x-1/2 w-full min-w-0 px-[clamp(8px,3vw,12px)] py-3"
         style={{
           background: "rgba(13,11,20,0.95)",
           backdropFilter: "blur(20px)",
           borderTop: "1px solid rgba(255,255,255,0.07)",
+          bottom: "var(--yuniko-keyboard-offset, 0px)",
+          paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
         }}
         data-testid="chat-input-bar"
       >
         <div className="flex items-center gap-2">
-          <button data-testid="btn-attach-media">
+          <button className="flex-shrink-0" data-testid="btn-attach-media">
             <Image size={22} style={{ color: "#FF3D9A" }} strokeWidth={1.8} />
           </button>
-          <button data-testid="btn-camera-msg">
+          <button className="flex-shrink-0" data-testid="btn-camera-msg">
             <Camera size={22} style={{ color: "#FF3D9A" }} strokeWidth={1.8} />
           </button>
           <div
@@ -210,7 +211,7 @@ export default function Chat() {
               className="flex-1 bg-transparent text-white/85 text-sm outline-none placeholder:text-white/30"
               data-testid="input-message"
             />
-            <button data-testid="btn-emoji">
+            <button className="flex-shrink-0" data-testid="btn-emoji">
               <Smile size={18} className="text-white/40" />
             </button>
           </div>
@@ -224,7 +225,7 @@ export default function Chat() {
               <Send size={16} className="text-white ml-0.5" />
             </button>
           ) : (
-            <button data-testid="btn-voice-msg">
+            <button className="flex-shrink-0" data-testid="btn-voice-msg">
               <Mic size={22} style={{ color: "#FF3D9A" }} strokeWidth={1.8} />
             </button>
           )}

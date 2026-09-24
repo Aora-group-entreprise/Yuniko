@@ -218,7 +218,7 @@ export default function PostDetail() {
 
   if (loadingRemotePost) {
     return (
-      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
+      <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background flex items-center justify-center">
         <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
       </div>
     );
@@ -226,7 +226,7 @@ export default function PostDetail() {
 
   if (isLivePost && livePostError) {
     return (
-      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background flex flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-white/70">Post not found or already deleted.</p>
         <button onClick={goBack} className="px-5 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: GRADIENT }}>
           Back
@@ -244,7 +244,6 @@ export default function PostDetail() {
         className="relative z-40 shrink-0 px-4 py-4 flex items-center gap-3"
         style={{
           background: "rgba(13,11,20,0.96)",
-          bottom: "calc(var(--yuniko-keyboard-offset, 0px) + 64px)",
           backdropFilter: "blur(20px)",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
@@ -401,15 +400,17 @@ export default function PostDetail() {
 
       {/* Comment input */}
       <div
-        className="fixed left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 py-3"
+        className="fixed left-1/2 -translate-x-1/2 w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,16px)] py-3"
         style={{
           background: "rgba(13,11,20,0.96)",
           backdropFilter: "blur(20px)",
           borderTop: "1px solid rgba(255,255,255,0.06)",
+          bottom: "calc(var(--yuniko-keyboard-offset, 0px) + var(--yuniko-nav-height, 64px))",
+          paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
         }}
         data-testid="comment-input-bar"
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-[clamp(6px,2vw,10px)]">
           <img src="https://picsum.photos/seed/me/200/200" alt="me" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
           <div
             className="flex-1 flex items-center gap-2 px-3 py-2 rounded-full"

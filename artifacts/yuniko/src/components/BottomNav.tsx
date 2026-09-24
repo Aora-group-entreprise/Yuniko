@@ -15,11 +15,11 @@ export default function BottomNav() {
       className="fixed inset-x-0 w-full z-50"
       style={{
         background: "rgba(10,8,18,0.95)",
-        bottom: "var(--yuniko-keyboard-offset, 0px)",
+        bottom: "calc(var(--yuniko-keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px))",
         backdropFilter: "blur(24px)",
         WebkitBackdropFilter: "blur(24px)",
         borderTop: "1px solid rgba(255,61,154,0.15)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        paddingBottom: "0px",
       }}
       data-testid="bottom-nav"
     >

@@ -102,7 +102,7 @@ function AnimatedRoutes() {
   const transitionDuration = direction === "instant" ? 0 : 0.22;
 
   return (
-    <div className="relative h-[100vh] min-h-0 overflow-hidden">
+    <div className="relative h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
       <AnimatePresence mode="popLayout" initial={false} custom={direction}>
         <motion.div
           key={location}
@@ -254,31 +254,48 @@ function AppContent() {
 
 function useKeyboardViewport() {
   useEffect(() => {
+    let frame = 0;
+    let settleTimer = 0;
+
     const updateViewport = () => {
       const viewport = window.visualViewport;
-      const keyboardOffset = viewport
-        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
-        : 0;
-      document.documentElement.style.setProperty("--yuniko-keyboard-offset", `${keyboardOffset}px`);
+      const layoutHeight = window.innerHeight;
+      const visualHeight = viewport?.height ?? layoutHeight;
+      const visualTop = viewport?.offsetTop ?? 0;
+      const keyboardOffset = Math.max(0, layoutHeight - visualHeight - visualTop);
+      const effectiveHeight = Math.max(1, Math.round(visualHeight + visualTop));
+
+      document.documentElement.style.setProperty("--yuniko-vh", `${effectiveHeight}px`);
+      document.documentElement.style.setProperty("--yuniko-keyboard-offset", `${Math.round(keyboardOffset)}px`);
     };
 
-    updateViewport();
-    window.addEventListener("resize", updateViewport);
-    window.addEventListener("orientationchange", updateViewport);
-    window.addEventListener("focusin", updateViewport);
-    window.addEventListener("focusout", updateViewport);
+    const scheduleUpdate = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(updateViewport);
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(updateViewport, 80);
+    };
+
+    scheduleUpdate();
+    window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("orientationchange", scheduleUpdate);
+    window.addEventListener("focusin", scheduleUpdate);
+    window.addEventListener("focusout", scheduleUpdate);
 
     const viewport = window.visualViewport;
-    viewport?.addEventListener("resize", updateViewport);
-    viewport?.addEventListener("scroll", updateViewport);
+    viewport?.addEventListener("resize", scheduleUpdate);
+    viewport?.addEventListener("scroll", scheduleUpdate);
 
     return () => {
-      window.removeEventListener("resize", updateViewport);
-      window.removeEventListener("orientationchange", updateViewport);
-      window.removeEventListener("focusin", updateViewport);
-      window.removeEventListener("focusout", updateViewport);
-      viewport?.removeEventListener("resize", updateViewport);
-      viewport?.removeEventListener("scroll", updateViewport);
+      cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("orientationchange", scheduleUpdate);
+      window.removeEventListener("focusin", scheduleUpdate);
+      window.removeEventListener("focusout", scheduleUpdate);
+      viewport?.removeEventListener("resize", scheduleUpdate);
+      viewport?.removeEventListener("scroll", scheduleUpdate);
+      document.documentElement.style.removeProperty("--yuniko-keyboard-offset");
     };
   }, []);
 }
