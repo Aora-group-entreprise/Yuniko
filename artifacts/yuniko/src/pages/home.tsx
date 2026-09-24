@@ -110,9 +110,10 @@ export default function Home() {
 
   return (
     <div
-      className="home-screen relative grid w-full min-w-0"
-      style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
+      className="home-screen relative flex w-full min-w-0 flex-col overflow-hidden"
+      style={{ height: "100dvh" }}
     >
+      <div className="relative z-50 shrink-0" style={{ height: "134px" }} data-testid="home-fixed-chrome">
       <header
         className="relative z-50 flex min-w-0 items-center justify-between px-4"
         style={{
@@ -212,6 +213,7 @@ export default function Home() {
           ))}
         </div>
       </div>
+      </div>
 
       <AnimatePresence>
         {!isOnline && (
@@ -229,9 +231,8 @@ export default function Home() {
 
       <div
         ref={scrollRef}
-        className="relative min-h-0 min-w-0 overflow-y-auto"
+        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
         style={{
-          height: "100%",
           minHeight: 0,
           paddingBottom: NAV_H,
           boxSizing: "border-box",
