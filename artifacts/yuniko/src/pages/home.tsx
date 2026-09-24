@@ -248,6 +248,8 @@ export default function Home() {
           minHeight: 0,
           paddingBottom: NAV_H,
           boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
@@ -275,11 +277,10 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: `calc(100dvh - 56px - 78px - ${NAV_H})`,
-              minHeight: `calc(100dvh - 56px - 78px - ${NAV_H})`,
+              flex: "0 0 100%",
+              minHeight: 0,
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
-              paddingBottom: 10,
             }}
           >
             <div
