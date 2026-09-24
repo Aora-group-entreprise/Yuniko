@@ -60,53 +60,7 @@ export default function Home() {
   const [worldFeedOpen, setWorldFeedOpen] = useState(false);
   const isOnline = useOnlineStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLElement>(null);
-  const storiesRef = useRef<HTMLDivElement>(null);
-  const [feedLayout, setFeedLayout] = useState({
-    headerHeight: 56,
-    storiesHeight: 78,
-    navHeight: 64,
-    feedHeight: 0,
-  });
 
-  useEffect(() => {
-    const header = headerRef.current;
-    const stories = storiesRef.current;
-    const feed = scrollRef.current;
-    if (!header || !stories || !feed) return;
-
-    const updateLayout = () => {
-      const headerHeight = Math.round(header.getBoundingClientRect().height);
-      const storiesHeight = Math.round(stories.getBoundingClientRect().height);
-      const nav = document.querySelector<HTMLElement>('[data-testid="bottom-nav"]');
-      const navHeight = nav ? Math.round(nav.getBoundingClientRect().height) : 64;
-      const feedHeight = Math.round(feed.getBoundingClientRect().height);
-      setFeedLayout((current) =>
-        current.headerHeight === headerHeight &&
-        current.storiesHeight === storiesHeight &&
-        current.navHeight === navHeight &&
-        current.feedHeight === feedHeight
-          ? current
-          : { headerHeight, storiesHeight, navHeight, feedHeight },
-      );
-    };
-
-    updateLayout();
-    const observer = new ResizeObserver(updateLayout);
-    observer.observe(header);
-    observer.observe(stories);
-    observer.observe(feed);
-    const nav = document.querySelector<HTMLElement>('[data-testid="bottom-nav"]');
-    if (nav) observer.observe(nav);
-    window.addEventListener("resize", updateLayout);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", updateLayout);
-    };
-  }, []);
-
-  const topOffset = feedLayout.headerHeight + feedLayout.storiesHeight;
-  const feedItemHeight = feedLayout.feedHeight > 0 ? `${feedLayout.feedHeight}px` : undefined;
 
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
   const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
@@ -160,15 +114,14 @@ export default function Home() {
 
   return (
     <div
-      className="relative w-full min-w-0"
-      style={{ height: "100dvh", overflow: "hidden" }}
+      className="relative grid w-full min-w-0"
+      style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
     >
       {/* ── HEADER ── */}
       <header
         ref={headerRef}
-        className="absolute inset-x-0 top-0 z-50 flex items-center justify-between px-4"
+        className="relative z-50 flex min-w-0 items-center justify-between px-4"
         style={{
-          height: feedLayout.headerHeight,
           background: "rgba(10,8,18,0.88)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
@@ -243,10 +196,8 @@ export default function Home() {
       {/* ── STORIES ── */}
       <div
         ref={storiesRef}
-        className="absolute inset-x-0 z-40"
+        className="relative z-40 min-w-0"
         style={{
-          top: feedLayout.headerHeight,
-          height: 78,
           background: "rgba(10,8,18,0.82)",
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
@@ -282,7 +233,7 @@ export default function Home() {
             key="offline-banner"
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="absolute inset-x-0 z-30 flex items-center justify-center gap-1.5 py-1.5"
-            style={{ top: topOffset, background: "rgba(239,68,68,0.88)", backdropFilter: "blur(8px)" }}
+            style={{ background: "rgba(239,68,68,0.88)", backdropFilter: "blur(8px)" }}
           >
             <WifiOff size={12} className="text-white" />
             <span className="text-white text-xs font-medium">Offline — showing cached posts</span>
@@ -293,10 +244,9 @@ export default function Home() {
       {/* ── POSTS SNAP SCROLL ── */}
       <div
         ref={scrollRef}
-        className="absolute inset-x-0 min-w-0 overflow-y-auto"
+        className="relative min-h-0 min-w-0 overflow-y-auto"
         style={{
-          top: topOffset,
-          bottom: `${feedLayout.navHeight}px`,
+          paddingBottom: NAV_H,
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
@@ -324,7 +274,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: feedItemHeight ?? "100%",
+              height: "100%",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
               paddingBottom: 10,
