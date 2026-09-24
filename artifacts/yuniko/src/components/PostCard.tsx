@@ -106,8 +106,8 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
         alt={post.caption}
         className="absolute inset-0 w-full h-full max-w-full max-h-full object-cover"
         onClick={handleDoubleTap}
-        loading="lazy"
-        decoding="async"
+        loading="eager"
+        decoding="auto"
       />
 
       {/* Gradient overlays */}
