@@ -157,8 +157,8 @@ postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: 
     }
 
     const [likes, saves] = await Promise.all([
-      selectRows("post_likes", { select: "post_id", filters: [eq("userId", req.userId!)] }),
-      selectRows("post_saves", { select: "post_id", filters: [eq("userId", req.userId!)] }),
+      selectRows("likes", { select: "post_id", filters: [eq("userId", req.userId!)] }),
+      selectRows("saves", { select: "post_id", filters: [eq("userId", req.userId!)] }),
     ]);
     const likedIds = new Set(likes.map((row) => Number(row.postId)));
     const savedIds = new Set(saves.map((row) => Number(row.postId)));
@@ -207,8 +207,8 @@ postsRouter.get("/posts/:postId", authMiddleware, async (req: Request & { userId
     if (!post) return res.status(404).json({ error: "Post not found" });
     const [author, like, save] = await Promise.all([
       selectRows("users", { filters: [eq("id", Number(post.userId))], limit: 1 }),
-      selectRows("post_likes", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
-      selectRows("post_saves", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
+      selectRows("likes", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
+      selectRows("saves", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
     ]);
     return res.json({
       post: {
@@ -237,14 +237,27 @@ postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { use
     if (!post) return res.status(404).json({ error: "Post not found" });
     if (Number(post.userId) !== Number(req.userId)) return res.status(403).json({ error: "You can only delete your own posts" });
     // Remove every server-side trace before deleting the post row.
-    await deleteRows("events", [eq("postId", postId)]);
-    await deleteRows("post_media", [eq("postId", postId)]);
-    await deleteRows("posts", [eq("id", postId), eq("userId", req.userId!)]);
-    const [remainingPost, remainingEvents] = await Promise.all([
-      selectRows("posts", { select: "id", filters: [eq("id", postId)], limit: 1 }),
-      selectRows("events", { select: "id", filters: [eq("postId", postId)], limit: 1 }),
+    await Promise.all([
+      deleteRows("likes", [eq("postId", postId)]),
+      deleteRows("saves", [eq("postId", postId)]),
+      deleteRows("shares", [eq("postId", postId)]),
+      deleteRows("post_engagements", [eq("postId", postId)]),
+      deleteRows("comments", [eq("postId", postId)]),
+      deleteRows("notifications", [eq("postId", postId)]),
+      deleteRows("post_edits", [eq("postId", postId)]),
+      deleteRows("post_media", [eq("postId", postId)]),
+      deleteRows("events", [eq("postId", postId)]),
+      deleteRows("post_stats", [eq("postId", postId)]),
+      deleteRows("post_distribution", [eq("postId", postId)]),
+      deleteRows("seen_posts", [eq("postId", postId)]),
     ]);
-    if (remainingPost.length || remainingEvents.length) {
+    await deleteRows("posts", [eq("id", postId), eq("userId", req.userId!)]);
+    const traceTables = ["likes", "saves", "shares", "post_engagements", "comments", "notifications", "post_edits", "post_media", "events", "post_stats", "post_distribution", "seen_posts"];
+    const [remainingPost, remainingTraces] = await Promise.all([
+      selectRows("posts", { select: "id", filters: [eq("id", postId)], limit: 1 }),
+      Promise.all(traceTables.map((table) => selectRows(table, { select: "post_id", filters: [eq("postId", postId)], limit: 1 }))),
+    ]);
+    if (remainingPost.length || remainingTraces.some((rows) => rows.length > 0)) {
       return res.status(500).json({ error: "Post deletion could not be verified" });
     }
     return res.json({ deleted: true, id: postId });

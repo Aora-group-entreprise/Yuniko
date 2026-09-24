@@ -48,18 +48,20 @@ export default function PostDetail() {
   const [localComments, setLocalComments] = useState<DetailComment[]>([]);
   useEffect(() => {
     if (!livePostId) return;
-    Promise.all([
-      apiJson<any>(`/posts/${livePostId}`),
-      apiJson<{ comments?: Array<any> }>(`/posts/${livePostId}/comments`),
-    ])
-      .then(([postData, commentData]) => {
+    let cancelled = false;
+
+    apiJson<any>(`/posts/${livePostId}`)
+      .then(async (postData) => {
+        if (cancelled) return;
         const p = postData.post;
+        if (!p) throw new Error("Post not found");
+
         setRemotePost({
           id: `live_${p.id}`,
           userId: `live_${p.userId}`,
           imageUrl: p.mediaUrl ?? "",
           caption: p.caption ?? "",
-          hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
+          hashtags: p.hashtags ? p.hashtags.split(/[\\s,]+/).filter(Boolean) : [],
           likes: p.likes ?? 0,
           comments: p.comments ?? 0,
           shares: p.shares ?? 0,
@@ -78,28 +80,44 @@ export default function PostDetail() {
         setLiked(Boolean(postData.liked));
         setSaved(Boolean(postData.saved));
         setLikeCount(p.likes ?? 0);
-        setLocalComments((commentData.comments ?? []).map((comment) => ({
-          id: String(comment.id),
-          userId: String(comment.userId),
-          text: comment.text,
-          timestamp: new Date(comment.createdAt).toLocaleDateString(),
-          likes: 0,
-          liked: false,
-          author: {
-            id: String(comment.userId),
-            displayName: comment.displayName,
-            avatar: comment.avatarUrl ??
-              `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(comment.displayName)}&backgroundColor=FF006E`,
-            verified: false,
-          },
-        })));
+
+        try {
+          const commentData = await apiJson<{ comments?: Array<any> }>(`/posts/${livePostId}/comments`);
+          if (!cancelled) {
+            setLocalComments((commentData.comments ?? []).map((comment) => ({
+              id: String(comment.id),
+              userId: String(comment.userId),
+              text: comment.text,
+              timestamp: new Date(comment.createdAt).toLocaleDateString(),
+              likes: 0,
+              liked: false,
+              author: {
+                id: String(comment.userId),
+                displayName: comment.displayName,
+                avatar: comment.avatarUrl ??
+                  `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(comment.displayName)}&backgroundColor=FF006E`,
+                verified: false,
+              },
+            })));
+          }
+        } catch {
+          if (!cancelled) setLocalComments([]);
+        }
       })
       .catch(() => {
-        setRemotePost(null);
-        setRemoteUser(null);
-        setLivePostError(true);
+        if (!cancelled) {
+          setRemotePost(null);
+          setRemoteUser(null);
+          setLivePostError(true);
+        }
       })
-      .finally(() => setLoadingRemotePost(false));
+      .finally(() => {
+        if (!cancelled) setLoadingRemotePost(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [fallbackPost, livePostId]);
 
   const post = remotePost ?? fallbackPost;

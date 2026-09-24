@@ -86,7 +86,7 @@ interactionsRouter.patch("/notifications/read-all", authMiddleware, async (req: 
 
 interactionsRouter.get("/posts/saved", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const saved = await selectRows("post_saves", {
+    const saved = await selectRows("saves", {
       filters: [eq("userId", req.userId!)],
       order: { column: "createdAt", ascending: false },
       limit: 100,
@@ -106,8 +106,8 @@ interactionsRouter.get("/posts/:id", authMiddleware, async (req: AuthenticatedRe
     const [post] = await postsWithAuthors(await selectRows("posts", { filters: [eq("id", postId)], limit: 1 }));
     if (!post) return res.status(404).json({ error: "Post not found" });
     const [like, save] = await Promise.all([
-      selectRows("post_likes", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
-      selectRows("post_saves", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
+      selectRows("likes", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
+      selectRows("saves", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
     ]);
     return res.json({ post, liked: like.length > 0, saved: save.length > 0 });
   } catch (err) {
@@ -120,10 +120,10 @@ interactionsRouter.post("/posts/:id/like", authMiddleware, async (req: Authentic
   if (!postId) return res.status(400).json({ error: "Invalid post id" });
   try {
     const filters = [eq("postId", postId), eq("userId", req.userId!)];
-    const existing = await selectRows("post_likes", { filters, limit: 1 });
-    if (existing.length) await deleteRows("post_likes", filters);
-    else await insertRow("post_likes", { postId, userId: req.userId! });
-    const likes = await countFor("post_likes", postId);
+    const existing = await selectRows("likes", { filters, limit: 1 });
+    if (existing.length) await deleteRows("likes", filters);
+    else await insertRow("likes", { postId, userId: req.userId! });
+    const likes = await countFor("likes", postId);
     await updateRows("posts", { likes }, [eq("id", postId)]);
     if (!existing.length) {
       const [post] = await selectRows("posts", { select: "user_id", filters: [eq("id", postId)], limit: 1 });
@@ -140,10 +140,10 @@ interactionsRouter.post("/posts/:id/save", authMiddleware, async (req: Authentic
   if (!postId) return res.status(400).json({ error: "Invalid post id" });
   try {
     const filters = [eq("postId", postId), eq("userId", req.userId!)];
-    const existing = await selectRows("post_saves", { filters, limit: 1 });
-    if (existing.length) await deleteRows("post_saves", filters);
-    else await insertRow("post_saves", { postId, userId: req.userId! });
-    const saves = await countFor("post_saves", postId);
+    const existing = await selectRows("saves", { filters, limit: 1 });
+    if (existing.length) await deleteRows("saves", filters);
+    else await insertRow("saves", { postId, userId: req.userId! });
+    const saves = await countFor("saves", postId);
     await updateRows("posts", { saves }, [eq("id", postId)]);
     return res.json({ saved: existing.length === 0, saves });
   } catch (err) {
