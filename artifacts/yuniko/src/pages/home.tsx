@@ -11,10 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
 
-const HEADER_H = 56;
-const STORIES_H = 78;
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
-const TOP_OFFSET = HEADER_H + STORIES_H;
 
 function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -63,6 +60,40 @@ export default function Home() {
   const [worldFeedOpen, setWorldFeedOpen] = useState(false);
   const isOnline = useOnlineStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const storiesRef = useRef<HTMLDivElement>(null);
+  const [feedLayout, setFeedLayout] = useState({
+    headerHeight: 56,
+    storiesHeight: 78,
+  });
+
+  useEffect(() => {
+    const header = headerRef.current;
+    const stories = storiesRef.current;
+    if (!header || !stories) return;
+
+    const updateLayout = () => {
+      const headerHeight = Math.round(header.getBoundingClientRect().height);
+      const storiesHeight = Math.round(stories.getBoundingClientRect().height);
+      setFeedLayout((current) =>
+        current.headerHeight === headerHeight && current.storiesHeight === storiesHeight
+          ? current
+          : { headerHeight, storiesHeight },
+      );
+    };
+
+    updateLayout();
+    const observer = new ResizeObserver(updateLayout);
+    observer.observe(header);
+    observer.observe(stories);
+    window.addEventListener("resize", updateLayout);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateLayout);
+    };
+  }, []);
+
+  const topOffset = feedLayout.headerHeight + feedLayout.storiesHeight;
 
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
   const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
@@ -121,6 +152,7 @@ export default function Home() {
     >
       {/* ── HEADER ── */}
       <header
+        ref={headerRef}
         className="absolute inset-x-0 top-0 z-50 flex items-center justify-between px-4"
         style={{
           height: HEADER_H,
@@ -197,9 +229,10 @@ export default function Home() {
 
       {/* ── STORIES ── */}
       <div
+        ref={storiesRef}
         className="absolute inset-x-0 z-40"
         style={{
-          top: HEADER_H,
+          top: feedLayout.headerHeight,
           height: STORIES_H,
           background: "rgba(10,8,18,0.82)",
           backdropFilter: "blur(12px)",
@@ -236,7 +269,7 @@ export default function Home() {
             key="offline-banner"
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="absolute inset-x-0 z-30 flex items-center justify-center gap-1.5 py-1.5"
-            style={{ top: TOP_OFFSET, background: "rgba(239,68,68,0.88)", backdropFilter: "blur(8px)" }}
+            style={{ top: topOffset, background: "rgba(239,68,68,0.88)", backdropFilter: "blur(8px)" }}
           >
             <WifiOff size={12} className="text-white" />
             <span className="text-white text-xs font-medium">Offline — showing cached posts</span>
@@ -247,9 +280,9 @@ export default function Home() {
       {/* ── POSTS SNAP SCROLL ── */}
       <div
         ref={scrollRef}
-        className="absolute inset-x-0 overflow-y-scroll"
+        className="absolute inset-x-0 min-w-0 overflow-y-auto"
         style={{
-          top: TOP_OFFSET,
+          top: topOffset,
           bottom: NAV_H,
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
@@ -278,7 +311,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: `calc(100dvh - ${TOP_OFFSET}px - ${NAV_H}px)`,
+              height: "100%",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
               paddingBottom: 10,
