@@ -110,10 +110,14 @@ export default function Home() {
 
   return (
     <div
-      className="home-screen relative flex w-full min-w-0 flex-col overflow-hidden"
+      className="home-screen relative w-full min-w-0 overflow-hidden"
       style={{ height: "100dvh" }}
     >
-      <div className="relative z-50 shrink-0" style={{ height: "134px" }} data-testid="home-fixed-chrome">
+      <div
+        className="fixed inset-x-0 top-0 z-50 w-full"
+        style={{ height: "134px" }}
+        data-testid="home-fixed-chrome"
+      >
       <header
         className="relative z-50 flex min-w-0 items-center justify-between px-4"
         style={{
@@ -231,10 +235,11 @@ export default function Home() {
 
       <div
         ref={scrollRef}
-        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
+        className="absolute inset-x-0 min-w-0 overflow-y-auto"
         style={{
+          top: "134px",
+          bottom: NAV_H,
           minHeight: 0,
-          paddingBottom: NAV_H,
           boxSizing: "border-box",
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
