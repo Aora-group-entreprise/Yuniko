@@ -244,7 +244,6 @@ export default function Home() {
         ref={scrollRef}
         className="relative min-h-0 min-w-0 overflow-y-auto"
         style={{
-          paddingBottom: NAV_H,
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
@@ -272,7 +271,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: "100%",
+              height: `calc(100% - ${NAV_H})`,
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
               paddingBottom: 10,
