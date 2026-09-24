@@ -75,6 +75,7 @@ export default function Profile({ userId }: ProfilePageProps) {
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [ownPosts, setOwnPosts] = useState<Array<{id:string; imageUrl:string; caption:string}>>([]);
+  const [savedPosts, setSavedPosts] = useState<Array<{id:number; caption:string; mediaUrl:string|null}>>([]);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [deletingPost, setDeletingPost] = useState(false);
 
@@ -91,6 +92,13 @@ export default function Profile({ userId }: ProfilePageProps) {
         })));
       })
       .catch(() => setOwnPosts([]));
+  }, [authUser, isOwn]);
+
+  useEffect(() => {
+    if (!isOwn || !authUser) return;
+    apiJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/saved")
+      .then((data) => setSavedPosts(data.posts ?? []))
+      .catch(() => setSavedPosts([]));
   }, [authUser, isOwn]);
 
   const deleteOwnPost = async () => {
@@ -211,7 +219,23 @@ export default function Profile({ userId }: ProfilePageProps) {
           )}
         </div>
       )}
-      {tab==="saved"&&<div className="grid grid-cols-3 gap-0.5 px-0.5">{[0,1,2,3,4,5,6,7,8].map(i=><button key={i} onClick={()=>setLocation("/saved")} className="aspect-square overflow-hidden"><img src={`https://picsum.photos/seed/saved_${user.id}_${i}/200/200`} alt="" className="w-full h-full object-cover"/></button>)}</div>}
+      {tab==="saved"&&(
+        <div className="grid grid-cols-3 gap-0.5 px-0.5">
+          {isOwn && savedPosts.length > 0 ? savedPosts.map((post) => (
+            <button key={post.id} onClick={() => setLocation(`/post/live_${post.id}`)} className="aspect-square overflow-hidden" data-testid={`profile-saved-post-${post.id}`}>
+              {post.mediaUrl ? (
+                <img src={post.mediaUrl} alt={post.caption} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full p-3 flex items-center justify-center bg-black/20">
+                  <p className="text-white/80 text-xs leading-snug line-clamp-6 text-left">{post.caption || "Saved post"}</p>
+                </div>
+              )}
+            </button>
+          )) : (
+            <div className="col-span-3 py-16 text-center text-white/35 text-sm">No saved posts yet</div>
+          )}
+        </div>
+      )}
       {tab==="analytics"&&<div className="px-4 py-4 flex flex-col gap-3">{[{label:"Profile Views",value:"—",change:"Coming soon"},{label:"Post Impressions",value:"—",change:"Coming soon"},{label:"Reach",value:"—",change:"Coming soon"}].map(stat=><div key={stat.label} className="p-4 rounded-2xl flex items-center justify-between" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)"}}><div><p className="text-white/55 text-xs mb-1">{stat.label}</p><p className="text-white font-bold text-xl">{stat.value}</p></div><span className="text-sm font-semibold px-2.5 py-1 rounded-full text-white/40 bg-white/5">{stat.change}</span></div>)}</div>}
 
       <BottomNav />
