@@ -115,7 +115,7 @@ export default function Home() {
   return (
     <div
       className="home-screen relative grid w-full min-w-0"
-      style={{ height: `calc(100dvh - ${NAV_H})`, gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
+      style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
     >
       {/* ── HEADER ── */}
       <header
@@ -244,6 +244,8 @@ export default function Home() {
         ref={scrollRef}
         className="relative min-h-0 min-w-0 overflow-y-auto"
         style={{
+          height: `calc(100dvh - 56px - 78px - ${NAV_H})`,
+          minHeight: `calc(100dvh - 56px - 78px - ${NAV_H})`,
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
@@ -271,8 +273,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: `calc(100dvh - 56px - 78px - ${NAV_H})`,
-              minHeight: `calc(100dvh - 56px - 78px - ${NAV_H})`,
+              height: "100%",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
               paddingBottom: 10,
