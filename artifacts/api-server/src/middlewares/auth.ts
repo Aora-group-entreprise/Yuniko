@@ -31,7 +31,7 @@ export function setSessionCookie(res: Response, token: string): void {
     "HttpOnly",
     "Max-Age=31536000",
     "Secure",
-    "SameSite=Lax",
+    "SameSite=None",
   ].filter(Boolean);
   res.setHeader("Set-Cookie", parts.join("; "));
 }
