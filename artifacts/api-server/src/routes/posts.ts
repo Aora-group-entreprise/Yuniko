@@ -231,7 +231,7 @@ postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { use
 
   try {
     const [post] = await selectRows("posts", {
-      select: "id,userId",
+      select: "id,user_id",
       filters: [eq("id", postId)],
       limit: 1,
     });
