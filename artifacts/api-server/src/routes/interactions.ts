@@ -99,7 +99,7 @@ interactionsRouter.get("/posts/saved", authMiddleware, async (req: Authenticated
   }
 });
 
-interactionsRouter.get("/posts/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
+interactionsRouter.get("/posts/:id(\\d+)", authMiddleware, async (req: AuthenticatedRequest, res) => {
   const postId = parseId(req.params["id"]);
   if (!postId) return res.status(400).json({ error: "Invalid post id" });
   try {
