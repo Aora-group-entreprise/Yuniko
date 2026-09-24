@@ -13,58 +13,28 @@ import ScreenPortal from "@/components/ScreenPortal";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
-/** Convert the real authenticated user into a shape usable by this page. */
 function authUserToDisplay(u: AuthUser) {
   return {
-    id: String(u.id),
-    username: u.username,
-    displayName: u.displayName,
-    // Use avatarUrl from DB; fall back to a deterministic placeholder
+    id: String(u.id), username: u.username, displayName: u.displayName,
     avatar: u.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(u.displayName)}&backgroundColor=FF006E`,
-    bio: u.bio ?? "",
-    location: [u.countryFlag, u.country].filter(Boolean).join(" ") || "",
-    flag: u.countryFlag ?? "",
-    verified: false,
-    followers: 0,
-    following: 0,
-    posts: 0,
-    isOnline: true,
-    coverPhoto: "",       // own profile always shows gradient fallback
-    isFollowing: false,
-    isFriend: false,
-    website: u.website ?? undefined,
+    bio: u.bio ?? "", location: [u.countryFlag, u.country].filter(Boolean).join(" ") || "",
+    flag: u.countryFlag ?? "", verified: false, followers: 0, following: 0, posts: 0,
+    isOnline: true, isFollowing: false, isFriend: false, website: u.website ?? undefined,
   };
 }
 
-interface ProfilePageProps {
-  userId?: string;
-}
-
+interface ProfilePageProps { userId?: string; }
 interface RemoteProfile {
-  user: {
-    id: number;
-    username: string;
-    displayName: string;
-    avatarUrl: string | null;
-    bio: string;
-    country: string | null;
-    countryFlag: string | null;
-    website: string | null;
-  };
-  posts: Array<{
-    id: number;
-    caption: string;
-    mediaUrl: string | null;
-  }>;
-  stats: { posts: number; followers: number; following: number };
-  following: boolean;
+  user: { id:number; username:string; displayName:string; avatarUrl:string|null; bio:string; country:string|null; countryFlag:string|null; website:string|null };
+  posts: Array<{ id:number; caption:string; mediaUrl:string|null }>;
+  stats: { posts:number; followers:number; following:number };
+  following:boolean;
 }
 
 export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
   const { user: authUser } = useAuth();
-
   const targetId = userId || params?.userId || "me";
   const isOwn = targetId === "me" || (authUser && targetId === String(authUser.id));
   const isDatabaseProfile = isOwn || /^\d+$/.test(targetId);
@@ -74,11 +44,7 @@ export default function Profile({ userId }: ProfilePageProps) {
   useEffect(() => {
     if (!isDatabaseProfile || !authUser) return;
     const id = isOwn ? authUser.id : Number(targetId);
-    if (!Number.isInteger(id) || id <= 0) {
-      setProfileLoading(false);
-      return;
-    }
-
+    if (!Number.isInteger(id) || id <= 0) { setProfileLoading(false); return; }
     const controller = new AbortController();
     setProfileLoading(true);
     apiFetch(`/users/${id}`, { signal: controller.signal })
@@ -90,416 +56,102 @@ export default function Profile({ userId }: ProfilePageProps) {
         if ((error as { name?: string }).name !== "AbortError") setRemoteProfile(null);
       })
       .finally(() => setProfileLoading(false));
-
     return () => controller.abort();
   }, [authUser, isDatabaseProfile, isOwn, targetId]);
 
-  // Database-backed profiles are used whenever the route contains a real
-  // user id. Legacy mock profiles remain available for old design-only routes.
-  const remoteUser = remoteProfile
-    ? {
-        id: String(remoteProfile.user.id),
-        username: remoteProfile.user.username,
-        displayName: remoteProfile.user.displayName,
-        avatar: remoteProfile.user.avatarUrl ??
-          `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(remoteProfile.user.displayName)}&backgroundColor=FF006E`,
-        bio: remoteProfile.user.bio,
-        location: [remoteProfile.user.countryFlag, remoteProfile.user.country].filter(Boolean).join(" "),
-        flag: remoteProfile.user.countryFlag ?? "",
-        verified: false,
-        followers: remoteProfile.stats.followers,
-        following: remoteProfile.stats.following,
-        posts: remoteProfile.stats.posts,
-        isOnline: true,
-        coverPhoto: "",
-        isFollowing: remoteProfile.following,
-        isFriend: false,
-        website: remoteProfile.user.website ?? undefined,
-      }
-    : null;
-  const user = isDatabaseProfile
-    ? (remoteUser ?? (isOwn && authUser ? authUserToDisplay(authUser) : null))
-    : getUserById(targetId);
-
+  const remoteUser = remoteProfile ? {
+    id: String(remoteProfile.user.id), username: remoteProfile.user.username,
+    displayName: remoteProfile.user.displayName,
+    avatar: remoteProfile.user.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(remoteProfile.user.displayName)}&backgroundColor=FF006E`,
+    bio: remoteProfile.user.bio,
+    location: [remoteProfile.user.countryFlag, remoteProfile.user.country].filter(Boolean).join(" "),
+    flag: remoteProfile.user.countryFlag ?? "", verified:false,
+    followers:remoteProfile.stats.followers, following:remoteProfile.stats.following, posts:remoteProfile.stats.posts,
+    isOnline:true, isFollowing:remoteProfile.following, isFriend:false, website:remoteProfile.user.website ?? undefined,
+  } : null;
+  const user = isDatabaseProfile ? (remoteUser ?? (isOwn && authUser ? authUserToDisplay(authUser) : null)) : getUserById(targetId);
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
-  const [tab, setTab] = useState<"grid" | "saved" | "analytics">("grid");
+  const [tab, setTab] = useState<"grid"|"saved"|"analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
 
-  if (profileLoading) {
-    return (
-      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
-        <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
-      </div>
-    );
-  }
+  if (profileLoading) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center"><div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" /></div>;
+  if (!user) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center"><p className="text-white/50">User not found</p></div>;
 
-  if (!user) {
-    return (
-      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
-        <p className="text-white/50">User not found</p>
-      </div>
-    );
-  }
-
-  const userPosts = remoteProfile
-    ? remoteProfile.posts.map((post) => ({
-        id: String(post.id),
-        imageUrl: post.mediaUrl ?? `https://picsum.photos/seed/post_${post.id}/600/600`,
-        caption: post.caption,
-      }))
-    : isOwn ? [] : getPostsByUser(user.id);
-  const samplePosts = Array.from({ length: 9 }).map((_, i) => ({
-    id: `sample-${i}`,
-    src: `https://picsum.photos/seed/profile_${user.id}_${i}/200/200`,
-  }));
-
+  const userPosts = remoteProfile ? remoteProfile.posts.map(post => ({
+    id:String(post.id), imageUrl:post.mediaUrl ?? `https://picsum.photos/seed/post_${post.id}/600/600`, caption:post.caption,
+  })) : isOwn ? [] : getPostsByUser(user.id);
+  const samplePosts = Array.from({length:9}).map((_,i)=>({id:`sample-${i}`,src:`https://picsum.photos/seed/profile_${user.id}_${i}/200/200`}));
   const statItems = [
-    { label: t("posts"), value: formatCount(user.posts), onClick: undefined },
-    { label: t("followers"), value: formatCount(user.followers), onClick: () => setLocation(`/followers/${user.id}`) },
-    { label: t("following"), value: formatCount(user.following), onClick: () => setLocation(`/following/${user.id}`) },
+    {label:t("posts"),value:formatCount(user.posts),onClick:undefined},
+    {label:t("followers"),value:formatCount(user.followers),onClick:()=>setLocation(`/followers/${user.id}`)},
+    {label:t("following"),value:formatCount(user.following),onClick:()=>setLocation(`/following/${user.id}`)},
   ];
-
-  const goBack = () => {
-    if (window.history.length > 1) window.history.back();
-    else setLocation("/");
-  };
-
-  const toggleFollowing = async () => {
-    const numericId = Number(user.id);
-    const nextFollowing = !following;
-    setFollowing(nextFollowing);
-    if (!Number.isInteger(numericId) || numericId <= 0) return;
-    try {
-      const result = await apiJson<{ following: boolean }>(
-        `/users/${numericId}/follow`,
-        { method: "POST" },
-      );
-      setFollowing(result.following);
-    } catch {
-      setFollowing(following);
-    }
-  };
+  const goBack=()=>{if(window.history.length>1)window.history.back();else setLocation("/")};
+  const toggleFollowing=async()=>{const numericId=Number(user.id),nextFollowing=!following;setFollowing(nextFollowing);if(!Number.isInteger(numericId)||numericId<=0)return;try{const result=await apiJson<{following:boolean}>(`/users/${numericId}/follow`,{method:"POST"});setFollowing(result.following)}catch{setFollowing(following)}};
 
   return (
     <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20">
-      {/* Header */}
-      <header
-        className="sticky top-0 z-40 px-4 py-4 flex items-center justify-between"
-        style={{
-          background: "rgba(13,11,20,0.96)",
-          backdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-        }}
-        data-testid="profile-header"
-      >
-        {!isOwn ? (
-          <button onClick={goBack} data-testid="btn-back-profile">
-            <ArrowLeft size={22} className="text-white/80" />
-          </button>
-        ) : (
-          <div className="w-6" />
-        )}
-        <span className="font-semibold text-white text-base flex items-center gap-1">
-          {user.username}
-          {user.verified && <BadgeCheck size={15} className="text-blue-400 fill-blue-400" />}
-        </span>
-        {isOwn ? (
-          <button onClick={() => setLocation("/settings")} data-testid="btn-settings">
-            <Settings size={22} className="text-white/80" strokeWidth={1.8} />
-          </button>
-        ) : (
-          <button onClick={() => setShowOptions(true)} data-testid="btn-more-profile">
-            <MoreHorizontal size={22} className="text-white/80" />
-          </button>
-        )}
+      <header className="sticky top-0 z-40 px-4 py-4 flex items-center justify-between" style={{background:"rgba(13,11,20,0.96)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,0.06)"}} data-testid="profile-header">
+        {!isOwn?<button onClick={goBack} data-testid="btn-back-profile"><ArrowLeft size={22} className="text-white/80"/></button>:<div className="w-6"/>}
+        <span className="font-semibold text-white text-base flex items-center gap-1">{user.username}{user.verified&&<BadgeCheck size={15} className="text-blue-400 fill-blue-400"/>}</span>
+        {isOwn?<button onClick={()=>setLocation("/settings")} data-testid="btn-settings"><Settings size={22} className="text-white/80" strokeWidth={1.8}/></button>:<button onClick={()=>setShowOptions(true)} data-testid="btn-more-profile"><MoreHorizontal size={22} className="text-white/80"/></button>}
       </header>
 
-      {/* Cover photo — own profile: gradient; others: their cover */}
-      <div className="relative h-32 overflow-hidden" style={{ background: GRADIENT }}>
-        {user.coverPhoto && (
-          <img src={user.coverPhoto} alt="Cover" className="w-full h-full object-cover opacity-60" />
-        )}
-        {isOwn && (
-          <button
-            onClick={() => setLocation("/profile/edit")}
-            className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg text-xs font-medium text-white/90"
-            style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)" }}
-            data-testid="btn-edit-cover"
-          >
-            {t("editCoverPhoto")}
-          </button>
-        )}
-      </div>
-
-      {/* Avatar + action buttons */}
-      <div className="px-4 relative">
-        <div className="flex items-end justify-between -mt-9 mb-3">
-          <button onClick={() => setShowPhotoViewer(true)} className="relative" data-testid="btn-profile-photo">
-            <div
-              className="w-[78px] h-[78px] rounded-full p-[2.5px]"
-              style={{ background: GRADIENT, boxShadow: "0 0 20px rgba(255,0,110,0.45)" }}
-            >
-              <img
-                src={user.avatar}
-                alt={user.displayName}
-                className="w-full h-full rounded-full object-cover"
-                style={{ border: "2.5px solid #0D0B14" }}
-              />
+      {/* TikTok-style profile header: no cover photo and no profile action buttons beside the avatar. */}
+      <div className="px-4 pt-5">
+        <div className="flex flex-col items-center text-center">
+          <button onClick={()=>setShowPhotoViewer(true)} className="relative" data-testid="btn-profile-photo">
+            <div className="w-[88px] h-[88px] rounded-full p-[2.5px]" style={{background:GRADIENT,boxShadow:"0 0 20px rgba(255,0,110,0.45)"}}>
+              <img src={user.avatar} alt={user.displayName} className="w-full h-full rounded-full object-cover" style={{border:"2.5px solid #0D0B14"}}/>
             </div>
-            {user.isOnline && (
-              <div className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-green-400" style={{ border: "2px solid #0D0B14" }} />
-            )}
+            {user.isOnline&&<div className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-green-400" style={{border:"2px solid #0D0B14"}}/>}
           </button>
 
-          {isOwn ? (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setLocation("/profile/edit")}
-                className="px-5 py-2 rounded-xl text-sm font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}
-                data-testid="btn-edit-profile"
-              >
-                {t("editProfile")}
-              </button>
-              <button
-                onClick={() => setLocation("/add-friends")}
-                className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-                style={{ background: GRADIENT, boxShadow: "0 2px 12px rgba(255,0,110,0.3)" }}
-                data-testid="btn-add-friends"
-              >
-                {t("addFriends")}
-              </button>
+          <div className="mt-3 mb-4">
+            <div className="flex items-center justify-center gap-1 mb-0.5"><h2 className="font-bold text-white text-base">{user.displayName}</h2>{user.verified&&<BadgeCheck size={15} className="text-blue-400 fill-blue-400"/>}</div>
+            <p className="text-white/50 text-sm mb-1">@{user.username}</p>
+            {user.bio&&<p className="text-white/80 text-sm leading-snug mb-2 max-w-[340px]">{user.bio}</p>}
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              {user.location&&<div className="flex items-center gap-1 text-white/45 text-xs"><MapPin size={12}/><span>{user.location}</span></div>}
+              {user.website&&<div className="flex items-center gap-1 text-xs" style={{color:"#FF3D9A"}}><Link2 size={12}/><span>{user.website}</span></div>}
             </div>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={toggleFollowing}
-                className="px-5 py-2 rounded-xl text-sm font-semibold text-white"
-                style={{
-                  background: following ? "rgba(255,255,255,0.1)" : GRADIENT,
-                  border: following ? "1px solid rgba(255,255,255,0.15)" : "none",
-                  boxShadow: following ? "none" : "0 2px 12px rgba(255,0,110,0.35)",
-                }}
-                data-testid="btn-follow-profile"
-              >
-                {following ? t("following") : t("follow")}
-              </button>
-              <button
-                onClick={() => setLocation(`/chat/${user.id}`)}
-                className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}
-                data-testid="btn-message-user"
-              >
-                <MessageCircle size={16} className="text-white/80" />
-              </button>
-              <button
-                onClick={() => setLocation(`/voice-call/${user.id}`)}
-                className="w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}
-                data-testid="btn-voice-call-user"
-              >
-                <Phone size={16} className="text-white/80" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Name & bio */}
-        <div className="mb-4">
-          <div className="flex items-center gap-1 mb-0.5">
-            <h2 className="font-bold text-white text-base">{user.displayName}</h2>
-            {user.verified && <BadgeCheck size={15} className="text-blue-400 fill-blue-400" />}
-          </div>
-          <p className="text-white/50 text-sm mb-1">@{user.username}</p>
-          {user.bio && <p className="text-white/80 text-sm leading-snug mb-2">{user.bio}</p>}
-          <div className="flex items-center gap-3 flex-wrap">
-            {user.location && (
-              <div className="flex items-center gap-1 text-white/45 text-xs">
-                <MapPin size={12} />
-                <span>{user.location}</span>
-              </div>
-            )}
-            {user.website && (
-              <div className="flex items-center gap-1 text-xs" style={{ color: "#FF3D9A" }}>
-                <Link2 size={12} />
-                <span>{user.website}</span>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Stats */}
-        <div
-          className="flex rounded-2xl mb-4 overflow-hidden"
-          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-        >
-          {statItems.map((stat, i) => (
-            <button
-              key={stat.label}
-              onClick={stat.onClick}
-              className="flex-1 py-3 flex flex-col items-center gap-0.5 active:bg-white/5"
-              style={{ borderRight: i < 2 ? "1px solid rgba(255,255,255,0.07)" : "none" }}
-              data-testid={`stat-${stat.label.toLowerCase()}`}
-            >
-              <span className="text-white font-bold text-lg leading-tight">{stat.value}</span>
-              <span className="text-white/45 text-xs">{stat.label}</span>
-            </button>
-          ))}
+        <div className="flex rounded-2xl mb-4 overflow-hidden" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)"}}>
+          {statItems.map((stat,i)=><button key={stat.label} onClick={stat.onClick} className="flex-1 py-3 flex flex-col items-center gap-0.5 active:bg-white/5" style={{borderRight:i<2?"1px solid rgba(255,255,255,0.07)":"none"}} data-testid={`stat-${stat.label.toLowerCase()}`}><span className="text-white font-bold text-lg leading-tight">{stat.value}</span><span className="text-white/45 text-xs">{stat.label}</span></button>)}
         </div>
+
+        {!isOwn && (
+          <div className="flex justify-center gap-2 mb-4">
+            <button onClick={toggleFollowing} className="px-6 py-2 rounded-xl text-sm font-semibold text-white" style={{background:following?"rgba(255,255,255,0.1)":GRADIENT,border:following?"1px solid rgba(255,255,255,0.15)":"none",boxShadow:following?"none":"0 2px 12px rgba(255,0,110,0.35)"}} data-testid="btn-follow-profile">{following?t("following"):t("follow")}</button>
+            <button onClick={()=>setLocation(`/chat/${user.id}`)} className="w-10 h-10 rounded-xl flex items-center justify-center" style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)"}} data-testid="btn-message-user"><MessageCircle size={16} className="text-white/80"/></button>
+            <button onClick={()=>setLocation(`/voice-call/${user.id}`)} className="w-10 h-10 rounded-xl flex items-center justify-center" style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)"}} data-testid="btn-voice-call-user"><Phone size={16} className="text-white/80"/></button>
+          </div>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex px-4 mb-1" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        {[
-          { id: "grid", icon: Grid3X3 },
-          { id: "saved", icon: BookmarkIcon },
-          ...(isOwn ? [{ id: "analytics", icon: BarChart2 }] : []),
-        ].map((tabItem) => (
-          <button
-            key={tabItem.id}
-            onClick={() => setTab(tabItem.id as typeof tab)}
-            className="flex-1 py-3 flex items-center justify-center"
-            style={{ borderBottom: tab === tabItem.id ? "2px solid #FF3D9A" : "2px solid transparent" }}
-            data-testid={`tab-${tabItem.id}`}
-          >
-            <tabItem.icon
-              size={20}
-              style={{ color: tab === tabItem.id ? "#FF3D9A" : "rgba(255,255,255,0.35)" }}
-              strokeWidth={1.8}
-            />
-          </button>
-        ))}
+      <div className="flex px-4 mb-1" style={{borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
+        {[{id:"grid",icon:Grid3X3},{id:"saved",icon:BookmarkIcon},...(isOwn?[{id:"analytics",icon:BarChart2}]:[])].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as typeof tab)} className="flex-1 py-3 flex items-center justify-center" style={{borderBottom:tab===tabItem.id?"2px solid #FF3D9A":"2px solid transparent"}} data-testid={`tab-${tabItem.id}`}><tabItem.icon size={20} style={{color:tab===tabItem.id?"#FF3D9A":"rgba(255,255,255,0.35)"}} strokeWidth={1.8}/></button>)}
       </div>
 
-      {/* Grid tab */}
-      {tab === "grid" && (
-        <div className="grid grid-cols-3 gap-0.5 px-0.5">
-          {userPosts.length > 0 ? (
-            userPosts.map((post) => (
-              <button
-                key={post.id}
-                onClick={() => setLocation(`/post/${post.id}`)}
-                className="aspect-square overflow-hidden"
-                data-testid={`grid-post-${post.id}`}
-              >
-                <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
-              </button>
-            ))
-          ) : (
-            (!isDatabaseProfile ? samplePosts : []).map((sp, i) => (
-              <button
-                key={sp.id}
-                onClick={() => setLocation(`/post/sample-${i}`)}
-                className="aspect-square overflow-hidden"
-              >
-                <img src={sp.src} alt="" className="w-full h-full object-cover" />
-              </button>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Saved tab */}
-      {tab === "saved" && (
-        <div className="grid grid-cols-3 gap-0.5 px-0.5">
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <button
-              key={i}
-              onClick={() => setLocation("/saved")}
-              className="aspect-square overflow-hidden"
-            >
-              <img src={`https://picsum.photos/seed/saved_${user.id}_${i}/200/200`} alt="" className="w-full h-full object-cover" />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Analytics tab */}
-      {tab === "analytics" && (
-        <div className="px-4 py-4 flex flex-col gap-3">
-          {[
-            { label: "Profile Views", value: "—", change: "Coming soon", up: true },
-            { label: "Post Impressions", value: "—", change: "Coming soon", up: true },
-            { label: "Reach", value: "—", change: "Coming soon", up: true },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="p-4 rounded-2xl flex items-center justify-between"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-            >
-              <div>
-                <p className="text-white/55 text-xs mb-1">{stat.label}</p>
-                <p className="text-white font-bold text-xl">{stat.value}</p>
-              </div>
-              <span className="text-sm font-semibold px-2.5 py-1 rounded-full text-white/40 bg-white/5">
-                {stat.change}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      {tab==="grid"&&<div className="grid grid-cols-3 gap-0.5 px-0.5">{userPosts.length>0?userPosts.map(post=><button key={post.id} onClick={()=>setLocation(`/post/${post.id}`)} className="aspect-square overflow-hidden" data-testid={`grid-post-${post.id}`}><img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover"/></button>):(!isDatabaseProfile?samplePosts:[]).map((sp,i)=><button key={sp.id} onClick={()=>setLocation(`/post/sample-${i}`)} className="aspect-square overflow-hidden"><img src={sp.src} alt="" className="w-full h-full object-cover"/></button>)}</div>}
+      {tab==="saved"&&<div className="grid grid-cols-3 gap-0.5 px-0.5">{[0,1,2,3,4,5,6,7,8].map(i=><button key={i} onClick={()=>setLocation("/saved")} className="aspect-square overflow-hidden"><img src={`https://picsum.photos/seed/saved_${user.id}_${i}/200/200`} alt="" className="w-full h-full object-cover"/></button>)}</div>}
+      {tab==="analytics"&&<div className="px-4 py-4 flex flex-col gap-3">{[{label:"Profile Views",value:"—",change:"Coming soon"},{label:"Post Impressions",value:"—",change:"Coming soon"},{label:"Reach",value:"—",change:"Coming soon"}].map(stat=><div key={stat.label} className="p-4 rounded-2xl flex items-center justify-between" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)"}}><div><p className="text-white/55 text-xs mb-1">{stat.label}</p><p className="text-white font-bold text-xl">{stat.value}</p></div><span className="text-sm font-semibold px-2.5 py-1 rounded-full text-white/40 bg-white/5">{stat.change}</span></div>)}</div>}
 
       <BottomNav />
 
-      {/* Photo viewer */}
-      {showPhotoViewer && (
-        <ScreenPortal>
-        <div
-          className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center"
-          onClick={() => setShowPhotoViewer(false)}
-        >
-          <div
-            className="w-72 h-72 rounded-full p-1"
-            style={{ background: GRADIENT, boxShadow: "0 0 80px rgba(255,0,110,0.5)" }}
-          >
-            <img
-              src={user.avatar}
-              alt={user.displayName}
-              className="w-full h-full rounded-full object-cover"
-              style={{ border: "3px solid #0D0B14" }}
-            />
-          </div>
-          <button
-            onClick={() => setShowPhotoViewer(false)}
-            className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"
-            data-testid="btn-close-photo-viewer"
-          >
-            <ArrowLeft size={18} className="text-white" />
-          </button>
-        </div>
-        </ScreenPortal>
-      )}
+      {showPhotoViewer&&<ScreenPortal><div className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center" onClick={()=>setShowPhotoViewer(false)}>
+        <div className="w-72 h-72 rounded-full p-1" style={{background:GRADIENT,boxShadow:"0 0 80px rgba(255,0,110,0.5)"}}><img src={user.avatar} alt={user.displayName} className="w-full h-full rounded-full object-cover" style={{border:"3px solid #0D0B14"}}/></div>
+        <button onClick={()=>setShowPhotoViewer(false)} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center" data-testid="btn-close-photo-viewer"><ArrowLeft size={18} className="text-white"/></button>
+      </div></ScreenPortal>}
 
-      {/* Options bottom sheet (other users) */}
-      {showOptions && (
-        <ScreenPortal>
-        <>
-          <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowOptions(false)} />
-          <div
-            className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden"
-            style={{ background: "rgba(18,15,30,0.98)", border: "1px solid rgba(255,0,110,0.15)" }}
-          >
-            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-1" />
-            {[
-              { icon: <Share2 size={18} />, label: t("shareProfile") },
-              { icon: <Link2 size={18} />, label: t("copyProfileLink") },
-              { icon: <span className="text-red-400"><MoreHorizontal size={18} /></span>, label: <span className="text-red-400">{t("report")}</span> },
-            ].map((item, i) => (
-              <button
-                key={i}
-                onClick={() => setShowOptions(false)}
-                className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium"
-                style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
-              >
-                {item.icon} {item.label}
-              </button>
-            ))}
-            <button onClick={() => setShowOptions(false)} className="w-full py-4 text-white/50 text-sm">{t("cancel")}</button>
-          </div>
-        </>
-        </ScreenPortal>
-      )}
+      {showOptions&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setShowOptions(false)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden" style={{background:"rgba(18,15,30,0.98)",border:"1px solid rgba(255,0,110,0.15)"}}>
+        <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-1"/>
+        {[{icon:<Share2 size={18}/>,label:t("shareProfile")},{icon:<Link2 size={18}/>,label:t("copyProfileLink")},{icon:<span className="text-red-400"><MoreHorizontal size={18}/></span>,label:<span className="text-red-400">{t("report")}</span>}].map((item,i)=><button key={i} onClick={()=>setShowOptions(false)} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{borderTop:"1px solid rgba(255,255,255,0.06)"}}>{item.icon}{item.label}</button>)}
+        <button onClick={()=>setShowOptions(false)} className="w-full py-4 text-white/50 text-sm">{t("cancel")}</button>
+      </div></></ScreenPortal>}
     </div>
   );
 }
