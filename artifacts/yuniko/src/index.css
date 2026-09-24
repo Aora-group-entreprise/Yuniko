@@ -284,12 +284,20 @@
     margin-right: 0;
   }
 
-  /* Existing page shells still contain the legacy 430px utility.
-     Override only non-fixed page content so dialogs can keep their readable width. */
-  .yuniko-root > * [class~="max-w-[430px]"]:not(.fixed) {
+  /* Legacy 430px shells must remain fluid at every viewport width. */
+  .yuniko-root > * [class~="max-w-[430px]"] {
     width: 100%;
     max-width: none !important;
     min-width: 0;
+  }
+
+  /* Fixed sheets/dialogs also use the full available viewport. */
+  .yuniko-root > * [class~="max-w-[430px]"].fixed {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: none !important;
+    transform: none;
   }
 
   .yuniko-root,

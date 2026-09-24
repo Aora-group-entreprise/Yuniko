@@ -84,7 +84,6 @@ export default function BottomNav() {
           />
         </NavItem>
       </div>
-      <div className="h-safe-area-inset-bottom" />
     </nav>
   );
 }
