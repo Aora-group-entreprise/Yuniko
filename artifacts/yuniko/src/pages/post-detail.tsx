@@ -400,11 +400,17 @@ export default function PostDetail() {
 
       {/* Comment input */}
       <div
-        className="fixed left-1/2 -translate-x-1/2 w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,16px)] py-3"
+        className="fixed inset-x-0 mx-auto w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,16px)] py-3"
         style={{
           background: "rgba(13,11,20,0.96)",
           backdropFilter: "blur(20px)",
           borderTop: "1px solid rgba(255,255,255,0.06)",
+          left: 0,
+          right: 0,
+          marginLeft: "auto",
+          marginRight: "auto",
+          transform: "none",
+          boxSizing: "border-box",
           bottom: "calc(var(--yuniko-keyboard-offset, 0px) + var(--yuniko-nav-height, 64px))",
           paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
         }}
