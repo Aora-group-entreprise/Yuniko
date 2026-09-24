@@ -9,13 +9,13 @@ const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined
 
 async function persistAvatar(userId: number, avatarUrl: string | null): Promise<string | null> {
   if (!avatarUrl || !avatarUrl.startsWith("data:image/")) return avatarUrl;
-  const match = avatarUrl.match(/^data:(image\\/(?:jpeg|jpg|png|webp));base64,(.+)$/);
+  const match = avatarUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/);
   if (!match) throw new Error("Unsupported avatar format");
   const binary = atob(match[2]);
   if (binary.length > 200_000) throw new Error("Avatar is too large");
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const supabaseUrl = String(runtimeEnv["SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "").replace(/\\/+$/, "");
+  const supabaseUrl = String(runtimeEnv["SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "").replace(/\/+$/, "");
   const serviceKey = runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
   if (!supabaseUrl || !serviceKey) throw new Error("Supabase storage is not configured");
   const objectPath = `users/${userId}/avatar.jpg`;
