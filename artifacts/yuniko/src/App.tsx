@@ -111,7 +111,7 @@ function AnimatedRoutes() {
           animate="center"
           exit={getExit()}
           transition={{ duration: transitionDuration, ease: [0.25, 0.1, 0.25, 1] }}
-          style={{ width: "100%", height: "var(--yuniko-vh)", minHeight: 0 }}
+          style={{ width: "100%", height: "var(--yuniko-vh)", minHeight: 0, overflowX: "hidden", overflowY: "auto", WebkitOverflowScrolling: "touch" }}
         >
           <Switch>
             {/* Auth */}

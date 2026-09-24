@@ -238,7 +238,7 @@ export default function PostDetail() {
   if (!post || !user) return null;
 
   return (
-    <div className="w-full max-w-[430px] mx-auto h-[100dvh] min-h-0 bg-background flex flex-col overflow-hidden">
+    <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header
         className="relative z-40 shrink-0 px-4 py-4 flex items-center gap-3"

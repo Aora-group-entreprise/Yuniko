@@ -163,11 +163,11 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
       </AnimatePresence>
 
       {/* Right action buttons */}
-      <div className="absolute right-3 bottom-24 flex flex-col items-center gap-4 z-10">
+      <div className="absolute right-2.5 bottom-[5.5rem] flex flex-col items-center gap-2.5 z-10">
         <ActionBtn
           icon={
             <Heart
-              size={25}
+              size={23}
               className={liked ? "fill-red-500 text-red-500" : "text-white"}
               strokeWidth={1.8}
             />
@@ -297,7 +297,7 @@ function ActionBtn({
       whileTap={{ scale: 0.85 }}
     >
       <motion.div
-        className="w-11 h-11 rounded-full flex items-center justify-center"
+        className="w-10 h-10 rounded-full flex items-center justify-center"
         style={{ background: "rgba(0,0,0,0.42)", backdropFilter: "blur(8px)" }}
         animate={active ? { boxShadow: "0 0 14px rgba(255,61,154,0.4)" } : { boxShadow: "none" }}
       >
