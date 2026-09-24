@@ -138,8 +138,17 @@
     @apply border-border;
   }
 
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 0;
+    min-height: 100%;
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    overflow-x: hidden;
   }
 }
 
@@ -265,15 +274,32 @@
     }
   }
 
-  @media (min-width: 640px) {
-    /* Center the phone shell on tablet+ */
-    .yuniko-root > * {
-      max-width: 430px;
-      margin-left: auto;
-      margin-right: auto;
-      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 32px 80px rgba(0, 0, 0, 0.7);
-      min-height: 100vh;
-    }
+  /* Fluid responsive shell: route content always uses the available viewport width. */
+  .yuniko-root > * {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    min-height: 100dvh;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  /* Existing page shells still contain the legacy 430px utility.
+     Override only non-fixed page content so dialogs can keep their readable width. */
+  .yuniko-root > * [class~="max-w-[430px]"]:not(.fixed) {
+    width: 100%;
+    max-width: none !important;
+    min-width: 0;
+  }
+
+  .yuniko-root,
+  .yuniko-root > *,
+  .yuniko-root > * > * {
+    min-width: 0;
+  }
+
+  .yuniko-root {
+    overflow-x: hidden;
   }
 
   /* Safe-area padding for notched phones */

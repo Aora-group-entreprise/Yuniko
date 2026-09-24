@@ -182,7 +182,7 @@ export default function Chat() {
 
       {/* Input bar */}
       <div
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-3 py-3"
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full px-3 py-3"
         style={{
           background: "rgba(13,11,20,0.95)",
           backdropFilter: "blur(20px)",
