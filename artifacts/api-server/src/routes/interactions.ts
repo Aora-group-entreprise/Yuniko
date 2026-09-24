@@ -99,23 +99,7 @@ interactionsRouter.get("/posts/saved", authMiddleware, async (req: Authenticated
   }
 });
 
-interactionsRouter.get("/posts/:id(\\d+)", authMiddleware, async (req: AuthenticatedRequest, res) => {
-  const postId = parseId(req.params["id"]);
-  if (!postId) return res.status(400).json({ error: "Invalid post id" });
-  try {
-    const [post] = await postsWithAuthors(await selectRows("posts", { filters: [eq("id", postId)], limit: 1 }));
-    if (!post) return res.status(404).json({ error: "Post not found" });
-    const [like, save] = await Promise.all([
-      selectRows("likes", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
-      selectRows("saves", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
-    ]);
-    return res.json({ post, liked: like.length > 0, saved: save.length > 0 });
-  } catch (err) {
-    return supabaseError(res, err);
-  }
-});
-
-interactionsRouter.post("/posts/:id/like", authMiddleware, async (req: AuthenticatedRequest, res) => {
+interactionsRouter.post("/posts/:id/like", authMiddleware, async (req: AuthenticatedRequest, res) => {, authMiddleware, async (req: AuthenticatedRequest, res) => {
   const postId = parseId(req.params["id"]);
   if (!postId) return res.status(400).json({ error: "Invalid post id" });
   try {
