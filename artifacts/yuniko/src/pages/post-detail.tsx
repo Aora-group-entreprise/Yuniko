@@ -244,6 +244,7 @@ export default function PostDetail() {
         className="relative z-40 shrink-0 px-4 py-4 flex items-center gap-3"
         style={{
           background: "rgba(13,11,20,0.96)",
+          bottom: "calc(var(--yuniko-keyboard-offset, 0px) + 64px)",
           backdropFilter: "blur(20px)",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
@@ -400,7 +401,7 @@ export default function PostDetail() {
 
       {/* Comment input */}
       <div
-        className="fixed bottom-16 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 py-3"
+        className="fixed left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 py-3"
         style={{
           background: "rgba(13,11,20,0.96)",
           backdropFilter: "blur(20px)",
