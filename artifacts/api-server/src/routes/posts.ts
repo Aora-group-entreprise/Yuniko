@@ -120,6 +120,35 @@ postsRouter.get("/posts/mine", authMiddleware, async (req: Request & { userId?: 
   }
 });
 
+postsRouter.get("/posts/:postId", authMiddleware, async (req: Request & { userId?: number }, res) => {
+  const postId = Number(req.params.postId);
+  if (!Number.isInteger(postId) || postId <= 0) return res.status(400).json({ error: "Invalid post id" });
+  try {
+    const [post] = await selectRows("posts", {
+      filters: [eq("id", postId)],
+      limit: 1,
+    });
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    const [author, like, save] = await Promise.all([
+      selectRows("users", { filters: [eq("id", Number(post.userId))], limit: 1 }),
+      selectRows("post_likes", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
+      selectRows("post_saves", { filters: [eq("postId", postId), eq("userId", req.userId!)], limit: 1 }),
+    ]);
+    return res.json({
+      post: {
+        ...post,
+        authorDisplayName: author[0]?.displayName ?? null,
+        authorUsername: author[0]?.username ?? null,
+        authorAvatarUrl: author[0]?.avatarUrl ?? null,
+      },
+      liked: like.length > 0,
+      saved: save.length > 0,
+    });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
 postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { userId?: number }, res) => {
   const postId = Number(req.params.postId);
   if (!Number.isInteger(postId) || postId <= 0) return res.status(400).json({ error: "Invalid post id" });
@@ -131,7 +160,16 @@ postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { use
     });
     if (!post) return res.status(404).json({ error: "Post not found" });
     if (Number(post.userId) !== Number(req.userId)) return res.status(403).json({ error: "You can only delete your own posts" });
+    // events use SET NULL on post deletion, so remove them explicitly to leave no post trace.
+    await deleteRows("events", [eq("postId", postId)]);
     await deleteRows("posts", [eq("id", postId), eq("userId", req.userId!)]);
+    const [remainingPost, remainingEvents] = await Promise.all([
+      selectRows("posts", { select: "id", filters: [eq("id", postId)], limit: 1 }),
+      selectRows("events", { select: "id", filters: [eq("postId", postId)], limit: 1 }),
+    ]);
+    if (remainingPost.length || remainingEvents.length) {
+      return res.status(500).json({ error: "Post deletion could not be verified" });
+    }
     return res.json({ deleted: true, id: postId });
   } catch (err) {
     return supabaseError(res, err);
