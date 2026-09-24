@@ -119,7 +119,6 @@ export default function Home() {
     >
       {/* ── HEADER ── */}
       <header
-        ref={headerRef}
         className="relative z-50 flex min-w-0 items-center justify-between px-4"
         style={{
           background: "rgba(10,8,18,0.88)",
@@ -195,7 +194,6 @@ export default function Home() {
 
       {/* ── STORIES ── */}
       <div
-        ref={storiesRef}
         className="relative z-40 min-w-0"
         style={{
           background: "rgba(10,8,18,0.82)",
