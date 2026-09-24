@@ -155,7 +155,7 @@ export default function Home() {
         ref={headerRef}
         className="absolute inset-x-0 top-0 z-50 flex items-center justify-between px-4"
         style={{
-          height: HEADER_H,
+          height: feedLayout.headerHeight,
           background: "rgba(10,8,18,0.88)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
