@@ -248,8 +248,7 @@ export default function Home() {
           minHeight: 0,
           paddingBottom: NAV_H,
           boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
+
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
