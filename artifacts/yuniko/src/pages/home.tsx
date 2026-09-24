@@ -113,8 +113,13 @@ export default function Home() {
       className="home-screen relative grid w-full min-w-0"
       style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
     >
+      <div
+        className="fixed inset-x-0 top-0 z-50 w-full"
+        style={{ height: "134px" }}
+        data-testid="home-fixed-chrome"
+      >
       <header
-        className="relative z-50 flex min-w-0 items-center justify-between px-4"
+        className="relative z-50 flex w-full min-w-0 items-center justify-between px-4"
         style={{
           background: "rgba(10,8,18,0.88)",
           backdropFilter: "blur(20px)",
@@ -187,8 +192,9 @@ export default function Home() {
       </AnimatePresence>
 
       <div
-        className="relative z-40 min-w-0"
+        className="relative z-40 min-w-0 w-full"
         style={{
+          height: "78px",
           background: "rgba(10,8,18,0.82)",
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
@@ -212,6 +218,7 @@ export default function Home() {
           ))}
         </div>
       </div>
+      </div>
 
       <AnimatePresence>
         {!isOnline && (
@@ -229,11 +236,11 @@ export default function Home() {
 
       <div
         ref={scrollRef}
-        className="relative min-h-0 min-w-0 overflow-y-auto"
+        className="absolute inset-x-0 min-h-0 min-w-0 overflow-y-auto"
         style={{
-          height: "100%",
+          top: "134px",
+          bottom: NAV_H,
           minHeight: 0,
-          paddingBottom: NAV_H,
           boxSizing: "border-box",
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
