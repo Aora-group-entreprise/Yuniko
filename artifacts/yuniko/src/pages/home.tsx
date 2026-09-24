@@ -113,14 +113,10 @@ export default function Home() {
       className="home-screen relative grid w-full min-w-0"
       style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
     >
-      <div
-        className="fixed inset-x-0 top-0 z-50 w-full"
-        style={{ height: "134px" }}
-        data-testid="home-fixed-chrome"
-      >
       <header
-        className="relative z-50 flex w-full min-w-0 items-center justify-between px-4"
+        className="fixed inset-x-0 top-0 z-50 flex w-full min-w-0 items-center justify-between px-4"
         style={{
+          height: "56px",
           background: "rgba(10,8,18,0.88)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
@@ -192,7 +188,7 @@ export default function Home() {
       </AnimatePresence>
 
       <div
-        className="relative z-40 min-w-0 w-full"
+        className="fixed inset-x-0 top-[56px] z-40 min-w-0 w-full"
         style={{
           height: "78px",
           background: "rgba(10,8,18,0.82)",
@@ -217,7 +213,6 @@ export default function Home() {
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
         </div>
-      </div>
       </div>
 
       <AnimatePresence>
