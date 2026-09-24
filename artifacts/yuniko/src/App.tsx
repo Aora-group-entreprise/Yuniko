@@ -252,7 +252,39 @@ function AppContent() {
   );
 }
 
+function useKeyboardViewport() {
+  useEffect(() => {
+    const updateViewport = () => {
+      const viewport = window.visualViewport;
+      const keyboardOffset = viewport
+        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        : 0;
+      document.documentElement.style.setProperty("--yuniko-keyboard-offset", `${keyboardOffset}px`);
+    };
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    window.addEventListener("orientationchange", updateViewport);
+    window.addEventListener("focusin", updateViewport);
+    window.addEventListener("focusout", updateViewport);
+
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", updateViewport);
+    viewport?.addEventListener("scroll", updateViewport);
+
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      window.removeEventListener("orientationchange", updateViewport);
+      window.removeEventListener("focusin", updateViewport);
+      window.removeEventListener("focusout", updateViewport);
+      viewport?.removeEventListener("resize", updateViewport);
+      viewport?.removeEventListener("scroll", updateViewport);
+    };
+  }, []);
+}
+
 export default function App() {
+  useKeyboardViewport();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

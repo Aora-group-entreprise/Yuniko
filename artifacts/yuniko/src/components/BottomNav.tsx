@@ -12,9 +12,10 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 w-full z-50"
+      className="fixed inset-x-0 w-full z-50"
       style={{
         background: "rgba(10,8,18,0.95)",
+        bottom: "var(--yuniko-keyboard-offset, 0px)",
         backdropFilter: "blur(24px)",
         WebkitBackdropFilter: "blur(24px)",
         borderTop: "1px solid rgba(255,61,154,0.15)",

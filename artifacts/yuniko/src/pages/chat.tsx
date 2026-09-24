@@ -57,6 +57,7 @@ export default function Chat() {
         className="relative z-40 shrink-0 px-4 py-3 flex items-center gap-3"
         style={{
           background: "rgba(13,11,20,0.95)",
+          bottom: "var(--yuniko-keyboard-offset, 0px)",
           backdropFilter: "blur(20px)",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
@@ -182,7 +183,7 @@ export default function Chat() {
 
       {/* Input bar */}
       <div
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full px-3 py-3"
+        className="fixed left-1/2 -translate-x-1/2 w-full px-3 py-3"
         style={{
           background: "rgba(13,11,20,0.95)",
           backdropFilter: "blur(20px)",
