@@ -111,7 +111,7 @@ export default function Home() {
   return (
     <div
       className="home-screen relative grid w-full min-w-0"
-      style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
+      style={{ height: "var(--yuniko-vh)", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
     >
       <header
         className="fixed inset-x-0 top-0 z-50 flex w-full min-w-0 items-center justify-between px-4"
@@ -235,7 +235,7 @@ export default function Home() {
         style={{
           top: "134px",
           bottom: NAV_H,
-          height: `calc(100dvh - 134px - ${NAV_H})`,
+          height: `calc(var(--yuniko-vh) - 134px - ${NAV_H})`,
           minHeight: 0,
           boxSizing: "border-box",
           scrollSnapType: "y mandatory",
