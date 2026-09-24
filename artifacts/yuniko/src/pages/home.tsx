@@ -110,14 +110,9 @@ export default function Home() {
 
   return (
     <div
-      className="home-screen relative w-full min-w-0 overflow-hidden"
-      style={{ height: "100dvh" }}
+      className="home-screen relative grid w-full min-w-0"
+      style={{ height: "100dvh", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
     >
-      <div
-        className="fixed inset-x-0 top-0 z-50 w-full"
-        style={{ height: "134px" }}
-        data-testid="home-fixed-chrome"
-      >
       <header
         className="relative z-50 flex min-w-0 items-center justify-between px-4"
         style={{
@@ -217,7 +212,6 @@ export default function Home() {
           ))}
         </div>
       </div>
-      </div>
 
       <AnimatePresence>
         {!isOnline && (
@@ -235,11 +229,11 @@ export default function Home() {
 
       <div
         ref={scrollRef}
-        className="absolute inset-x-0 min-w-0 overflow-y-auto"
+        className="relative min-h-0 min-w-0 overflow-y-auto"
         style={{
-          top: "134px",
-          bottom: NAV_H,
+          height: "100%",
           minHeight: 0,
+          paddingBottom: NAV_H,
           boxSizing: "border-box",
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
@@ -268,7 +262,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: "calc(100dvh - 134px - 64px - env(safe-area-inset-bottom, 0px))",
+              height: "auto",
               boxSizing: "border-box",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
@@ -278,7 +272,7 @@ export default function Home() {
             <div
               className="relative w-full rounded-[20px] overflow-hidden"
               style={{
-                height: "calc(100dvh - 134px - 64px - env(safe-area-inset-bottom, 0px))",
+                aspectRatio: "4 / 5",
                 boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)",
               }}
             >
