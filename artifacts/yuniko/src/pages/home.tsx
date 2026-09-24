@@ -65,20 +65,29 @@ export default function Home() {
   const [feedLayout, setFeedLayout] = useState({
     headerHeight: 56,
     storiesHeight: 78,
+    navHeight: 64,
+    feedHeight: 0,
   });
 
   useEffect(() => {
     const header = headerRef.current;
     const stories = storiesRef.current;
-    if (!header || !stories) return;
+    const feed = scrollRef.current;
+    if (!header || !stories || !feed) return;
 
     const updateLayout = () => {
       const headerHeight = Math.round(header.getBoundingClientRect().height);
       const storiesHeight = Math.round(stories.getBoundingClientRect().height);
+      const nav = document.querySelector<HTMLElement>('[data-testid="bottom-nav"]');
+      const navHeight = nav ? Math.round(nav.getBoundingClientRect().height) : 64;
+      const feedHeight = Math.round(feed.getBoundingClientRect().height);
       setFeedLayout((current) =>
-        current.headerHeight === headerHeight && current.storiesHeight === storiesHeight
+        current.headerHeight === headerHeight &&
+        current.storiesHeight === storiesHeight &&
+        current.navHeight === navHeight &&
+        current.feedHeight === feedHeight
           ? current
-          : { headerHeight, storiesHeight },
+          : { headerHeight, storiesHeight, navHeight, feedHeight },
       );
     };
 
@@ -86,6 +95,9 @@ export default function Home() {
     const observer = new ResizeObserver(updateLayout);
     observer.observe(header);
     observer.observe(stories);
+    observer.observe(feed);
+    const nav = document.querySelector<HTMLElement>('[data-testid="bottom-nav"]');
+    if (nav) observer.observe(nav);
     window.addEventListener("resize", updateLayout);
     return () => {
       observer.disconnect();
@@ -94,6 +106,7 @@ export default function Home() {
   }, []);
 
   const topOffset = feedLayout.headerHeight + feedLayout.storiesHeight;
+  const feedItemHeight = feedLayout.feedHeight > 0 ? `${feedLayout.feedHeight}px` : undefined;
 
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
   const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
@@ -283,7 +296,7 @@ export default function Home() {
         className="absolute inset-x-0 min-w-0 overflow-y-auto"
         style={{
           top: topOffset,
-          bottom: NAV_H,
+          bottom: `${feedLayout.navHeight}px`,
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
@@ -311,7 +324,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: "100%",
+              height: feedItemHeight ?? "100%",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
               paddingBottom: 10,
