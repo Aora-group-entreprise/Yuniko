@@ -181,6 +181,10 @@
 
   /* Every route shell is fluid. This also overrides legacy page classes
      because the direct child itself is the old 430px shell. */
+  .yuniko-root > .home-screen {
+    min-height: 0 !important;
+  }
+
   .yuniko-root > * {
     width: 100% !important;
     max-width: none !important;
