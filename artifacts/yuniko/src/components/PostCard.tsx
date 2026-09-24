@@ -80,6 +80,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
         { method: "POST" },
       );
       setSaved(result.saved);
+      window.dispatchEvent(new CustomEvent("yuniko:save-changed"));
     } catch {
       setSaved(saved);
     }
