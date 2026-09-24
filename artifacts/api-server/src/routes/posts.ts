@@ -156,9 +156,12 @@ postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: 
       selectedCountries = [];
     }
 
+    // Interaction tables must never prevent the feed itself from rendering.
+    // The post counters are already stored on the post row, so an interaction
+    // table/query failure can safely fall back to empty liked/saved state.
     const [likes, saves] = await Promise.all([
-      selectRows("likes", { select: "post_id", filters: [eq("userId", req.userId!)] }),
-      selectRows("saves", { select: "post_id", filters: [eq("userId", req.userId!)] }),
+      selectRows("likes", { select: "post_id", filters: [eq("userId", req.userId!)] }).catch(() => []),
+      selectRows("saves", { select: "post_id", filters: [eq("userId", req.userId!)] }).catch(() => []),
     ]);
     const likedIds = new Set(likes.map((row) => Number(row.postId)));
     const savedIds = new Set(saves.map((row) => Number(row.postId)));
