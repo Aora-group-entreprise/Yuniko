@@ -268,7 +268,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: "100%",
+              minHeight: "calc(100dvh - 134px - 64px - env(safe-area-inset-bottom, 0px))",
               boxSizing: "border-box",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
@@ -278,7 +278,7 @@ export default function Home() {
             <div
               className="relative w-full rounded-[20px] overflow-hidden"
               style={{
-                height: "100%",
+                minHeight: "calc(100dvh - 134px - 64px - env(safe-area-inset-bottom, 0px))",
                 boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)",
               }}
             >
