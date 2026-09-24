@@ -265,16 +265,16 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: "100%",
+              height: "calc(100% - 10px)",
               minHeight: 0,
               boxSizing: "border-box",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
-              paddingBottom: 10,
+              paddingBottom: 0,
             }}
           >
             <div
-              className="relative w-full h-full rounded-[20px] overflow-hidden"
+              className="yuniko-responsive-post relative w-full h-full min-h-0 rounded-[20px] overflow-hidden"
               style={{
                 boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)",
               }}
