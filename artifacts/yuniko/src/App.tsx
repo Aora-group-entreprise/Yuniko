@@ -54,12 +54,12 @@ function isTabRoot(path: string) {
 }
 
 const slideVariants = {
-  enterForward:  { x: "100%", opacity: 1 },
-  enterBack:     { x: "-100%", opacity: 1 },
-  center:        { x: 0, opacity: 1 },
-  exitForward:   { x: "-100%", opacity: 1 },
-  exitBack:      { x: "100%", opacity: 1 },
-  instant:       { x: 0, opacity: 1 },
+  enterForward:  { opacity: 0 },
+  enterBack:     { opacity: 0 },
+  center:        { opacity: 1 },
+  exitForward:   { opacity: 0 },
+  exitBack:      { opacity: 0 },
+  instant:       { opacity: 1 },
 };
 
 function AnimatedRoutes() {
