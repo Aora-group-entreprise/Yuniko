@@ -94,11 +94,29 @@ export default function Profile({ userId }: ProfilePageProps) {
       .catch(() => setOwnPosts([]));
   }, [authUser, isOwn]);
 
+  const loadSavedPosts = async () => {
+    if (!isOwn || !authUser) {
+      setSavedPosts([]);
+      return;
+    }
+    try {
+      const data = await apiJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/saved");
+      setSavedPosts(data.posts ?? []);
+    } catch {
+      setSavedPosts([]);
+    }
+  };
+
   useEffect(() => {
-    if (!isOwn || !authUser) return;
-    apiJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/saved")
-      .then((data) => setSavedPosts(data.posts ?? []))
-      .catch(() => setSavedPosts([]));
+    void loadSavedPosts();
+  }, [authUser, isOwn]);
+
+  useEffect(() => {
+    const handleSavedPostChanged = () => {
+      void loadSavedPosts();
+    };
+    window.addEventListener("yuniko:save-changed", handleSavedPostChanged);
+    return () => window.removeEventListener("yuniko:save-changed", handleSavedPostChanged);
   }, [authUser, isOwn]);
 
   const deleteOwnPost = async () => {
