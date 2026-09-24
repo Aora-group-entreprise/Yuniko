@@ -189,7 +189,7 @@
     width: 100% !important;
     max-width: none !important;
     min-width: 0 !important;
-    min-height: 100dvh;
+    min-height: var(--yuniko-vh);
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
@@ -235,7 +235,7 @@
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
-  height: 100dvh !important;
+  height: var(--yuniko-vh) !important;
   max-width: none !important;
   min-height: 0 !important;
   margin: 0 !important;
@@ -261,3 +261,4 @@
 }
 
 #yuniko-overlay-root .yuniko-overlay-layer > * { pointer-events: auto; }
+\n\n@supports (height: 100dvh) {\n  .yuniko-root {\n    --yuniko-vh: 100dvh;\n  }\n}\n
