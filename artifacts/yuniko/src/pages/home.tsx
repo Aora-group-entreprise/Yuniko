@@ -244,8 +244,10 @@ export default function Home() {
         ref={scrollRef}
         className="relative min-h-0 min-w-0 overflow-y-auto"
         style={{
-          height: `calc(100dvh - 56px - 78px - ${NAV_H})`,
-          minHeight: `calc(100dvh - 56px - 78px - ${NAV_H})`,
+          height: "100%",
+          minHeight: 0,
+          paddingBottom: NAV_H,
+          boxSizing: "border-box",
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
