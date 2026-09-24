@@ -104,7 +104,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
       <img
         src={post.imageUrl}
         alt={post.caption}
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full max-w-full max-h-full object-cover"
         onClick={handleDoubleTap}
         loading="lazy"
         decoding="async"
