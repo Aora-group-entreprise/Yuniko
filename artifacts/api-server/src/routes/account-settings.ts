@@ -39,6 +39,20 @@ router.post("/verification/request",authMiddleware,async(req,res)=>{
  }catch(err){return supabaseError(res,err)}
 });
 
+router.get("/verification/admin/pending",authMiddleware,async(req,res)=>{
+ const reviewerId=(req as any).userId as number;
+ const admins=new Set((process.env["VERIFICATION_ADMIN_USER_IDS"]??"").split(",").map(v=>Number(v.trim())).filter(Number.isInteger));
+ if(!admins.has(reviewerId)) return res.status(403).json({error:"Verification admin access required"});
+ try{
+  const requests=await selectRows("verification_requests",{filters:[eq("status","pending")],order:{column:"createdAt",ascending:true},limit:100});
+  const userIds=[...new Set(requests.map(r=>Number(r.userId)).filter(Number.isInteger))];
+  const users=[];
+  for(const userId of userIds){try{const [u]=await selectRows("users",{select:"id,username,displayName,avatarUrl,country,countryFlag,createdAt,verificationRequestedAt",filters:[eq("id",userId)],limit:1});if(u)users.push(u)}catch{}}
+  const byId=new Map(users.map(u=>[Number(u.id),u]));
+  return res.json({requests:requests.map(request=>({...request,user:byId.get(Number(request.userId))??null}))});
+ }catch(err){return supabaseError(res,err)}
+});
+
 router.post("/verification/admin/:id",authMiddleware,async(req,res)=>{
  const reviewerId=(req as any).userId as number;
  const admins=new Set((process.env["VERIFICATION_ADMIN_USER_IDS"]??"").split(",").map(v=>Number(v.trim())).filter(Number.isInteger));
