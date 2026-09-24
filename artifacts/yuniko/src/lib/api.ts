@@ -6,7 +6,9 @@
 const API_BASE_URL = (() => {
   const configured = String(import.meta.env.VITE_YUNIKO_API_URL || "").trim();
   if (configured) return configured.replace(/\/+$/, "");
-  if (typeof window !== "undefined" && window.location.origin) return window.location.origin;
+  // The frontend and API are deployed separately. Never silently fall back to
+  // the frontend origin, otherwise /api requests can hit the web app instead
+  // of the Cloudflare API when VITE_YUNIKO_API_URL is not configured.
   return "https://yuniko-api.lafatriniainaallane.workers.dev";
 })();
 
