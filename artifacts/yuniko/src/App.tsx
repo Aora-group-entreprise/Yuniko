@@ -102,7 +102,7 @@ function AnimatedRoutes() {
   const transitionDuration = direction === "instant" ? 0 : 0.22;
 
   return (
-    <div className="relative h-[100dvh] min-h-0 overflow-hidden">
+    <div className="relative h-[100vh] min-h-0 overflow-hidden">
       <AnimatePresence mode="popLayout" initial={false} custom={direction}>
         <motion.div
           key={location}
@@ -111,7 +111,7 @@ function AnimatedRoutes() {
           animate="center"
           exit={getExit()}
           transition={{ duration: transitionDuration, ease: [0.25, 0.1, 0.25, 1] }}
-          style={{ width: "100%", height: "100dvh", minHeight: 0 }}
+          style={{ width: "100%", height: "var(--yuniko-vh)", minHeight: 0 }}
         >
           <Switch>
             {/* Auth */}
