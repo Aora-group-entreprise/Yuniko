@@ -273,6 +273,7 @@ export default function Home() {
               className="relative w-full rounded-[20px] overflow-hidden"
               style={{
                 aspectRatio: "4 / 5",
+                minHeight: "clamp(520px, calc(100dvh - 144px), 900px)",
                 boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)",
               }}
             >
