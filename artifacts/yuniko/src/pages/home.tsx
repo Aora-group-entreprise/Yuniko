@@ -276,8 +276,7 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              flex: "0 0 100%",
-              minHeight: 0,
+              minHeight: "240px",
               boxSizing: "border-box",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
