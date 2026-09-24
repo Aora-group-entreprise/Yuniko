@@ -233,7 +233,7 @@ export default function Home() {
         className="absolute inset-x-0 z-40"
         style={{
           top: feedLayout.headerHeight,
-          height: STORIES_H,
+          height: 78,
           background: "rgba(10,8,18,0.82)",
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
