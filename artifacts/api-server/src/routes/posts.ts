@@ -38,8 +38,10 @@ async function feedRows(viewerId: number) {
       limit: FEED_CANDIDATE_LIMIT,
     }),
     selectRows("users", { limit: 1000 }),
-    selectRows("user_settings", { limit: 1000 }),
-    selectRows("follows", { filters: [eq("followerId", viewerId)], limit: 5000 }),
+    // Privacy/following data is optional for rendering the world feed. If either
+    // table is unavailable, keep the feed usable instead of returning zero posts.
+    selectRows("user_settings", { limit: 1000 }).catch(() => []),
+    selectRows("follows", { filters: [eq("followerId", viewerId)], limit: 5000 }).catch(() => []),
   ]);
   const byId = new Map(users.map((user) => [Number(user.id), user]));
   const privateById = new Map(settings.map((row) => [Number(row.userId), Boolean(row.privateAccount)]));
