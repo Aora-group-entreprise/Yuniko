@@ -25,7 +25,7 @@ export default function BottomNav() {
       }}
       data-testid="bottom-nav"
     >
-      <div className="flex items-center justify-around h-16 px-2">
+      <div\n        className="flex items-center justify-around min-h-16 px-2"\n        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}\n      >
         <NavItem href="/" label={t("home")} active={isActive("/")}>
           <Home
             size={23}

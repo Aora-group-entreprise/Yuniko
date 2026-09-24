@@ -13,7 +13,7 @@ import ScreenPortal from "@/components/ScreenPortal";
 
 const HEADER_H = 56;
 const STORIES_H = 78;
-const NAV_H = 64;
+const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
 const TOP_OFFSET = HEADER_H + STORIES_H;
 
 function useOnlineStatus() {
@@ -116,7 +116,7 @@ export default function Home() {
 
   return (
     <div
-      className="relative w-full max-w-[430px] mx-auto"
+      className="relative w-full min-w-0"
       style={{ height: "100dvh", overflow: "hidden" }}
     >
       {/* ── HEADER ── */}
