@@ -98,15 +98,23 @@ export default function Profile({ userId }: ProfilePageProps) {
     setDeletingPost(true);
     try {
       const response = await apiFetch(`/posts/${deletePostId}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Delete failed");
-      setOwnPosts((posts) => posts.filter((post) => post.id !== deletePostId));
+      if (!response.ok) {
+        let message = "La suppression du post a échoué.";
+        try {
+          const data = await response.json() as { error?: string };
+          if (data.error) message = data.error;
+        } catch {}
+        throw new Error(message);
+      }
+      setOwnPosts((current) => current.filter((post) => post.id !== deletePostId));
       setRemoteProfile((current) => current ? {
         ...current,
         stats: { ...current.stats, posts: Math.max(0, current.stats.posts - 1) },
       } : current);
       setDeletePostId(null);
-    } catch {
-      // Keep the post visible if the server rejected the deletion.
+    } catch (error) {
+      console.error("Post deletion failed:", error);
+      window.alert(error instanceof Error ? error.message : "La suppression du post a échoué.");
     } finally {
       setDeletingPost(false);
     }

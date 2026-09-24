@@ -147,9 +147,9 @@ export async function deleteRows(table: string, filters: Filter[]) {
   for (const filter of filters) {
     params.set(toSnakeCase(filter.column), `${filter.operator}.${serializeValue(filter.value)}`);
   }
-  await request(`/${table}?${params.toString()}`, {
+  return request<Row[]>(`/${table}?${params.toString()}`, {
     method: "DELETE",
-    headers: { Prefer: "return=minimal" },
+    headers: { Prefer: "return=representation" },
   });
 }
 

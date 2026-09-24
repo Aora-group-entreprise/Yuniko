@@ -228,6 +228,7 @@ postsRouter.get("/posts/:postId", authMiddleware, async (req: Request & { userId
 postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { userId?: number }, res) => {
   const postId = Number(req.params.postId);
   if (!Number.isInteger(postId) || postId <= 0) return res.status(400).json({ error: "Invalid post id" });
+
   try {
     const [post] = await selectRows("posts", {
       select: "id,userId",
@@ -235,22 +236,42 @@ postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { use
       limit: 1,
     });
     if (!post) return res.status(404).json({ error: "Post not found" });
-    if (Number(post.userId) !== Number(req.userId)) return res.status(403).json({ error: "You can only delete your own posts" });
-    // The database already defines CASCADE from posts to likes, saves, shares,
-    // comments, notifications, media, stats and distribution tables. Delete the
-    // event rows explicitly because their FK uses SET NULL instead of CASCADE.
-    await deleteRows("events", [eq("postId", postId)]);
-    await deleteRows("posts", [eq("id", postId), eq("userId", req.userId!)]);
-
-    // Verify the authoritative post row and the non-cascading event rows are gone.
-    const [remainingPost, remainingEvents] = await Promise.all([
-      selectRows("posts", { select: "id", filters: [eq("id", postId)], limit: 1 }),
-      selectRows("events", { select: "id", filters: [eq("postId", postId)], limit: 1 }),
-    ]);
-    if (remainingPost.length || remainingEvents.length) {
-      return res.status(500).json({ error: "Post deletion could not be verified" });
+    if (Number(post.userId) !== Number(req.userId)) {
+      return res.status(403).json({ error: "You can only delete your own posts" });
     }
-    return res.json({ deleted: true, id: postId });
+
+    const cleanupTables = [
+      "likes", "saves", "shares", "post_engagements", "comments",
+      "notifications", "post_edits", "post_media", "events",
+      "post_stats", "post_distribution", "seen_posts",
+    ];
+
+    const deletedDependencies: Record<string, number> = {};
+    for (const table of cleanupTables) {
+      const deleted = await deleteRows(table, [eq("postId", postId)]);
+      deletedDependencies[table] = deleted.length;
+    }
+
+    const deletedPosts = await deleteRows("posts", [
+      eq("id", postId),
+      eq("userId", req.userId!),
+    ]);
+
+    if (deletedPosts.length !== 1) {
+      return res.status(500).json({
+        error: "Post deletion did not affect the expected post",
+        deletedDependencies,
+      });
+    }
+
+    const [remaining] = await selectRows("posts", {
+      select: "id",
+      filters: [eq("id", postId)],
+      limit: 1,
+    });
+    if (remaining) return res.status(500).json({ error: "Post still exists after deletion" });
+
+    return res.json({ deleted: true, id: postId, deletedDependencies });
   } catch (err) {
     return supabaseError(res, err);
   }
