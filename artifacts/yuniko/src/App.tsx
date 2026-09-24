@@ -111,7 +111,7 @@ function AnimatedRoutes() {
           animate="center"
           exit={getExit()}
           transition={{ duration: transitionDuration, ease: [0.25, 0.1, 0.25, 1] }}
-          style={{ width: "100%", height: location === "/" ? "100dvh" : undefined, minHeight: location === "/" ? 0 : "100dvh", willChange: direction === "instant" ? "auto" : "transform" }}
+          style={{ width: "100%", height: "100dvh", minHeight: 0 }}
         >
           <Switch>
             {/* Auth */}

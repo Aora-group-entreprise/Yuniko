@@ -238,10 +238,10 @@ export default function PostDetail() {
   if (!post || !user) return null;
 
   return (
-    <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background" style={{ paddingBottom: 160 }}>
+    <div className="w-full max-w-[430px] mx-auto h-[100dvh] min-h-0 bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header
-        className="sticky top-0 z-40 px-4 py-4 flex items-center gap-3"
+        className="relative z-40 shrink-0 px-4 py-4 flex items-center gap-3"
         style={{
           background: "rgba(13,11,20,0.96)",
           backdropFilter: "blur(20px)",
@@ -258,6 +258,7 @@ export default function PostDetail() {
         </button>
       </header>
 
+      <div className="flex-1 min-h-0 overflow-y-auto pb-40">
       {/* User row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <button onClick={() => setLocation(`/user/${user.id}`)}>
@@ -394,6 +395,7 @@ export default function PostDetail() {
             </div>
           );
         })}
+      </div>
       </div>
 
       {/* Comment input */}

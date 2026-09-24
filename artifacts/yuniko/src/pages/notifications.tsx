@@ -68,9 +68,9 @@ export default function Notifications() {
   };
 
   return (
-    <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20">
+    <div className="w-full max-w-[430px] mx-auto h-[100dvh] min-h-0 bg-background flex flex-col overflow-hidden">
       <header
-        className="sticky top-0 z-40 px-4 pt-4 pb-0"
+        className="relative z-40 shrink-0 px-4 pt-4 pb-0"
         style={{
           background: "rgba(13,11,20,0.96)",
           backdropFilter: "blur(20px)",
@@ -116,7 +116,7 @@ export default function Notifications() {
         </div>
       </header>
 
-      <div className="px-4 py-2" data-testid="notifications-list">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 pb-24" data-testid="notifications-list">
         {displayed.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div

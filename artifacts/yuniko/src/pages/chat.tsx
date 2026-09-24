@@ -51,10 +51,10 @@ export default function Chat() {
   if (!user) return null;
 
   return (
-    <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex flex-col">
+    <div className="w-full max-w-[430px] mx-auto h-[100dvh] min-h-0 bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header
-        className="sticky top-0 z-40 px-4 py-3 flex items-center gap-3"
+        className="relative z-40 shrink-0 px-4 py-3 flex items-center gap-3"
         style={{
           background: "rgba(13,11,20,0.95)",
           backdropFilter: "blur(20px)",

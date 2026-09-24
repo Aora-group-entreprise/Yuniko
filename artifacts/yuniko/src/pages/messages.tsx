@@ -24,10 +24,10 @@ export default function Messages() {
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
 
   return (
-    <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20">
+    <div className="w-full max-w-[430px] mx-auto h-[100dvh] min-h-0 bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header
-        className="sticky top-0 z-40 px-4 py-4 flex items-center justify-between"
+        className="relative z-40 shrink-0 px-4 py-4 flex items-center justify-between"
         style={{
           background: "rgba(13,11,20,0.96)",
           backdropFilter: "blur(20px)",
@@ -67,6 +67,7 @@ export default function Messages() {
         </div>
       </header>
 
+      <div className="flex-1 min-h-0 overflow-y-auto pb-24">
       {/* Search */}
       <div className="px-4 py-3">
         <div
@@ -152,7 +153,7 @@ export default function Messages() {
           })
         )}
       </div>
-
+      </div>
       <BottomNav />
 
       {/* New message modal */}
