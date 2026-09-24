@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2,
-  BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2,
+  BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2, Trash2,
 } from "lucide-react";
 import { getUserById, getPostsByUser, formatCount } from "@/data/mockData";
 import { useAuth, AuthUser } from "@/lib/auth-context";
@@ -74,14 +74,52 @@ export default function Profile({ userId }: ProfilePageProps) {
   const [tab, setTab] = useState<"grid"|"saved"|"analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [ownPosts, setOwnPosts] = useState<Array<{id:string; imageUrl:string; caption:string}>>([]);
+  const [deletePostId, setDeletePostId] = useState<string | null>(null);
+  const [deletingPost, setDeletingPost] = useState(false);
+
+  useEffect(() => {
+    if (!isOwn || !authUser) return;
+    apiFetch("/posts/mine")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Posts unavailable");
+        const data = await response.json() as { posts?: Array<{id:number; caption:string; mediaUrl:string|null}> };
+        setOwnPosts((data.posts ?? []).map((post) => ({
+          id: String(post.id),
+          imageUrl: post.mediaUrl ?? `https://api.dicebear.com/8.x/shapes/svg?seed=post-${post.id}`,
+          caption: post.caption ?? "",
+        })));
+      })
+      .catch(() => setOwnPosts([]));
+  }, [authUser, isOwn]);
+
+  const deleteOwnPost = async () => {
+    if (!deletePostId) return;
+    setDeletingPost(true);
+    try {
+      const response = await apiFetch(`/posts/${deletePostId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Delete failed");
+      setOwnPosts((posts) => posts.filter((post) => post.id !== deletePostId));
+      setDeletePostId(null);
+    } catch {
+      // Keep the post visible if the server rejected the deletion.
+    } finally {
+      setDeletingPost(false);
+    }
+  };
 
   if (profileLoading) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center"><div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" /></div>;
   if (!user) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center"><p className="text-white/50">User not found</p></div>;
 
-  const userPosts = remoteProfile ? remoteProfile.posts.map(post => ({
-    id:String(post.id), imageUrl:post.mediaUrl ?? `https://picsum.photos/seed/post_${post.id}/600/600`, caption:post.caption,
-  })) : isOwn ? [] : getPostsByUser(user.id);
-  const samplePosts = Array.from({length:9}).map((_,i)=>({id:`sample-${i}`,src:`https://picsum.photos/seed/profile_${user.id}_${i}/200/200`}));
+  const userPosts = isOwn
+    ? ownPosts
+    : remoteProfile
+      ? remoteProfile.posts.map(post => ({
+          id:String(post.id),
+          imageUrl:post.mediaUrl ?? `https://api.dicebear.com/8.x/shapes/svg?seed=post-${post.id}`,
+          caption:post.caption,
+        }))
+      : getPostsByUser(user.id);
   const statItems = [
     {label:t("posts"),value:formatCount(user.posts),onClick:undefined},
     {label:t("followers"),value:formatCount(user.followers),onClick:()=>setLocation(`/followers/${user.id}`)},
@@ -136,7 +174,31 @@ export default function Profile({ userId }: ProfilePageProps) {
         {[{id:"grid",icon:Grid3X3},{id:"saved",icon:BookmarkIcon},...(isOwn?[{id:"analytics",icon:BarChart2}]:[])].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as typeof tab)} className="flex-1 py-3 flex items-center justify-center" style={{borderBottom:tab===tabItem.id?"2px solid #FF3D9A":"2px solid transparent"}} data-testid={`tab-${tabItem.id}`}><tabItem.icon size={20} style={{color:tab===tabItem.id?"#FF3D9A":"rgba(255,255,255,0.35)"}} strokeWidth={1.8}/></button>)}
       </div>
 
-      {tab==="grid"&&<div className="grid grid-cols-3 gap-0.5 px-0.5">{userPosts.length>0?userPosts.map(post=><button key={post.id} onClick={()=>setLocation(`/post/${post.id}`)} className="aspect-square overflow-hidden" data-testid={`grid-post-${post.id}`}><img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover"/></button>):(!isDatabaseProfile?samplePosts:[]).map((sp,i)=><button key={sp.id} onClick={()=>setLocation(`/post/sample-${i}`)} className="aspect-square overflow-hidden"><img src={sp.src} alt="" className="w-full h-full object-cover"/></button>)}</div>}
+      {tab==="grid"&&(
+        <div className="grid grid-cols-3 gap-0.5 px-0.5">
+          {userPosts.length > 0 ? userPosts.map((post) => (
+            <div key={post.id} className="relative aspect-square overflow-hidden group">
+              <button onClick={() => setLocation(`/post/${post.id}`)} className="absolute inset-0" data-testid={`grid-post-${post.id}`}>
+                <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
+              </button>
+              {isOwn && (
+                <button
+                  onClick={(event) => { event.stopPropagation(); setDeletePostId(post.id); }}
+                  className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/65 backdrop-blur-sm flex items-center justify-center"
+                  aria-label="Delete post"
+                  data-testid={`btn-delete-post-${post.id}`}
+                >
+                  <Trash2 size={15} className="text-white" />
+                </button>
+              )}
+            </div>
+          )) : (
+            <div className="col-span-3 py-16 text-center text-white/35 text-sm">
+              {isOwn ? "No posts yet" : "No posts"}
+            </div>
+          )}
+        </div>
+      )}
       {tab==="saved"&&<div className="grid grid-cols-3 gap-0.5 px-0.5">{[0,1,2,3,4,5,6,7,8].map(i=><button key={i} onClick={()=>setLocation("/saved")} className="aspect-square overflow-hidden"><img src={`https://picsum.photos/seed/saved_${user.id}_${i}/200/200`} alt="" className="w-full h-full object-cover"/></button>)}</div>}
       {tab==="analytics"&&<div className="px-4 py-4 flex flex-col gap-3">{[{label:"Profile Views",value:"—",change:"Coming soon"},{label:"Post Impressions",value:"—",change:"Coming soon"},{label:"Reach",value:"—",change:"Coming soon"}].map(stat=><div key={stat.label} className="p-4 rounded-2xl flex items-center justify-between" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)"}}><div><p className="text-white/55 text-xs mb-1">{stat.label}</p><p className="text-white font-bold text-xl">{stat.value}</p></div><span className="text-sm font-semibold px-2.5 py-1 rounded-full text-white/40 bg-white/5">{stat.change}</span></div>)}</div>}
 
@@ -147,6 +209,19 @@ export default function Profile({ userId }: ProfilePageProps) {
         <button onClick={()=>setShowPhotoViewer(false)} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center" data-testid="btn-close-photo-viewer"><ArrowLeft size={18} className="text-white"/></button>
       </div></ScreenPortal>}
 
+      {deletePostId && <ScreenPortal>
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-5" onClick={() => !deletingPost && setDeletePostId(null)}>
+          <div className="w-full max-w-sm rounded-2xl p-5" style={{background:"rgba(18,15,30,0.98)",border:"1px solid rgba(255,255,255,0.1)"}} onClick={(event) => event.stopPropagation()}>
+            <h3 className="text-white font-semibold text-base">Delete this post?</h3>
+            <p className="text-white/45 text-sm mt-1">This post will be permanently removed from your profile and feed.</p>
+            <div className="flex gap-2 mt-5">
+              <button disabled={deletingPost} onClick={() => setDeletePostId(null)} className="flex-1 py-2.5 rounded-xl bg-white/5 text-white/65 text-sm">Cancel</button>
+              <button disabled={deletingPost} onClick={() => void deleteOwnPost()} className="flex-1 py-2.5 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold">{deletingPost ? "Deleting..." : "Delete"}</button>
+            </div>
+          </div>
+        </div>
+      </ScreenPortal>}
+      
       {showOptions&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setShowOptions(false)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden" style={{background:"rgba(18,15,30,0.98)",border:"1px solid rgba(255,0,110,0.15)"}}>
         <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-1"/>
         {[{icon:<Share2 size={18}/>,label:t("shareProfile")},{icon:<Link2 size={18}/>,label:t("copyProfileLink")},{icon:<span className="text-red-400"><MoreHorizontal size={18}/></span>,label:<span className="text-red-400">{t("report")}</span>}].map((item,i)=><button key={i} onClick={()=>setShowOptions(false)} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{borderTop:"1px solid rgba(255,255,255,0.06)"}}>{item.icon}{item.label}</button>)}
