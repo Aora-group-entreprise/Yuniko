@@ -46,7 +46,8 @@ storiesRouter.get("/stories", authMiddleware, async (req: Request & { userId?: n
     const follows = await selectRows("follows", { filters: [eq("followerId", req.userId!)], limit: 5000 });
     const settingsById = new Map(settings.map(r => [Number(r.userId), r]));
     const followingIds = new Set(follows.map(r => Number(r.followingId)));
-    const visible = rows.filter(story => {
+    const viewerSettings = settingsById.get(Number(req.userId!));
+    let visible = rows.filter(story => {
       const owner = Number(story.userId);
       const setting = settingsById.get(owner);
       const privateAccount = Boolean(setting?.privateAccount);
@@ -54,6 +55,11 @@ storiesRouter.get("/stories", authMiddleware, async (req: Request & { userId?: n
       const accountVisible = !privateAccount || owner === req.userId || followingIds.has(owner);
       return accountVisible && (owner === req.userId || permission === "everyone" || (permission === "friendsOnly" && followingIds.has(owner)));
     });
+    if (viewerSettings?.deleteWatchedStories === true && visible.length) {
+      const views = await selectRows("story_views", { filters: [eq("userId", req.userId!)], limit: 5000 });
+      const viewedIds = new Set(views.map(view => Number(view.storyId)));
+      visible = visible.filter(story => Number(story.userId) === req.userId || !viewedIds.has(Number(story.id)));
+    }
     return res.json({ stories: await withAuthors(visible) });
   } catch (err) {
     return supabaseError(res, err);
@@ -81,11 +87,9 @@ storiesRouter.post("/stories/:id/view", authMiddleware, async (req: Request & { 
       });
 
       if (settings?.deleteWatchedStories === true) {
-        try { await deleteRows("story_views", [eq("storyId", id)]); } catch {}
-        try { await deleteRows("story_reactions", [eq("storyId", id)]); } catch {}
-        try { await deleteRows("story_replies", [eq("storyId", id)]); } catch {}
-        await deleteRows("stories", [eq("id", id)]);
-        return res.json({ viewed: true, deleted: true });
+        // Remove it only from this viewer's feed. Never delete the author's story
+        // globally just because one viewer enabled auto-delete.
+        return res.json({ viewed: true, deleted: false, hiddenForViewer: true });
       }
     }
 
