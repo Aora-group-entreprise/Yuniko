@@ -45,14 +45,7 @@ export default function PostDetail() {
   const [commentText, setCommentText] = useState("");
   const [showOptions, setShowOptions] = useState(false);
   const [following, setFollowing] = useState(fallbackUser?.isFollowing ?? false);
-  const [localComments, setLocalComments] = useState<DetailComment[]>([
-    { id: "c1", userId: "u1", text: "Absolutely stunning! 😍", timestamp: "2h", likes: 45, liked: false },
-    { id: "c2", userId: "u3", text: "Where is this place? I need to go!", timestamp: "3h", likes: 23, liked: false },
-    { id: "c3", userId: "u2", text: "The lighting in this shot is incredible 🎨", timestamp: "5h", likes: 12, liked: false },
-    { id: "c4", userId: "u5", text: "This made my day ❤️", timestamp: "6h", likes: 8, liked: false },
-    { id: "c5", userId: "u4", text: "Goals 🌊✨", timestamp: "8h", likes: 34, liked: false },
-  ]);
-
+  const [localComments, setLocalComments] = useState<DetailComment[]>([]);
   useEffect(() => {
     if (!livePostId) return;
     Promise.all([

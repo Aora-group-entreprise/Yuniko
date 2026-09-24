@@ -100,6 +100,10 @@ export default function Profile({ userId }: ProfilePageProps) {
       const response = await apiFetch(`/posts/${deletePostId}`, { method: "DELETE" });
       if (!response.ok) throw new Error("Delete failed");
       setOwnPosts((posts) => posts.filter((post) => post.id !== deletePostId));
+      setRemoteProfile((current) => current ? {
+        ...current,
+        stats: { ...current.stats, posts: Math.max(0, current.stats.posts - 1) },
+      } : current);
       setDeletePostId(null);
     } catch {
       // Keep the post visible if the server rejected the deletion.
