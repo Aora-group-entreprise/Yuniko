@@ -7,6 +7,7 @@ import {
   selectRows,
   supabaseError,
   updateRows,
+  deleteRows,
 } from "../lib/supabase";
 
 const postsRouter = Router();
@@ -101,6 +102,37 @@ postsRouter.post("/posts", authMiddleware, async (req: Request & { userId?: numb
       isWorldFeed: isWorldFeed ?? true,
     });
     return res.status(201).json({ post });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
+postsRouter.get("/posts/mine", authMiddleware, async (req: Request & { userId?: number }, res) => {
+  try {
+    const posts = await selectRows("posts", {
+      filters: [eq("userId", req.userId!)],
+      order: { column: "createdAt", ascending: false },
+      limit: 100,
+    });
+    return res.json({ posts });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
+postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { userId?: number }, res) => {
+  const postId = Number(req.params.postId);
+  if (!Number.isInteger(postId) || postId <= 0) return res.status(400).json({ error: "Invalid post id" });
+  try {
+    const [post] = await selectRows("posts", {
+      select: "id,userId",
+      filters: [eq("id", postId)],
+      limit: 1,
+    });
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    if (Number(post.userId) !== Number(req.userId)) return res.status(403).json({ error: "You can only delete your own posts" });
+    await deleteRows("posts", [eq("id", postId), eq("userId", req.userId!)]);
+    return res.json({ deleted: true, id: postId });
   } catch (err) {
     return supabaseError(res, err);
   }
