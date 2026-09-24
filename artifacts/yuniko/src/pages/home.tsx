@@ -275,11 +275,11 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: "100%",
+              height: `calc(100dvh - 56px - 78px - ${NAV_H})`,
+              minHeight: `calc(100dvh - 56px - 78px - ${NAV_H})`,
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
               paddingBottom: 10,
-              flexShrink: 0,
             }}
           >
             <div
