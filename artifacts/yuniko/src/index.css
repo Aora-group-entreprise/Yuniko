@@ -262,4 +262,10 @@
 }
 
 #yuniko-overlay-root .yuniko-overlay-layer > * { pointer-events: auto; }
-\n\n@supports (height: 100dvh) {\n  .yuniko-root {\n    --yuniko-vh: 100dvh;\n  }\n}\n
+
+
+@supports (height: 100dvh) {
+  .yuniko-root {
+    --yuniko-vh: 100dvh;
+  }
+}
