@@ -14,10 +14,10 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use(selfTestRouter);
 router.use(authRouter);
+router.use(interactionsRouter);
 router.use(postsRouter);
 router.use(storiesRouter);
 router.use(usersRouter);
-router.use(interactionsRouter);
 router.use(settingsRouter);
 router.use(accountSettingsRouter);
 
