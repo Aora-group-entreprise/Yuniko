@@ -279,8 +279,10 @@ export default function Home() {
             style={{
               flex: "0 0 100%",
               minHeight: 0,
+              boxSizing: "border-box",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
+              paddingBottom: 10,
             }}
           >
             <div
