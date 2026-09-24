@@ -231,16 +231,18 @@ export default function Home() {
 
       <div
         ref={scrollRef}
-        className="absolute inset-x-0 min-h-0 min-w-0 overflow-y-auto"
+        className="absolute inset-x-0 min-w-0 overflow-y-auto overflow-x-hidden"
         style={{
           top: "134px",
           bottom: NAV_H,
+          height: `calc(100dvh - 134px - ${NAV_H})`,
           minHeight: 0,
           boxSizing: "border-box",
           scrollSnapType: "y mandatory",
           scrollSnapStop: "always",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorY: "contain",
+          touchAction: "pan-y",
         }}
         data-testid="posts-feed"
       >
@@ -264,7 +266,8 @@ export default function Home() {
             key={post.id}
             className="relative px-2.5"
             style={{
-              height: "auto",
+              height: `calc(100dvh - 134px - ${NAV_H})`,
+              minHeight: 0,
               boxSizing: "border-box",
               scrollSnapAlign: "start",
               scrollSnapStop: "always",
@@ -272,10 +275,8 @@ export default function Home() {
             }}
           >
             <div
-              className="relative w-full rounded-[20px] overflow-hidden"
+              className="relative w-full h-full rounded-[20px] overflow-hidden"
               style={{
-                aspectRatio: "4 / 5",
-                minHeight: "clamp(520px, calc(100dvh - 144px), 900px)",
                 boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)",
               }}
             >
