@@ -290,7 +290,7 @@ export default function PostDetail() {
       {/* Post image */}
       <div className="w-full">
         {post.imageUrl ? (
-          <img src={post.imageUrl} alt={post.caption} className="w-full object-cover" style={{ maxHeight: 520 }} />
+          <img src={post.imageUrl} alt={post.caption} className="w-full object-contain bg-black" style={{ maxHeight: 520 }} />
         ) : (
           <div className="w-full min-h-[180px] flex items-center justify-center px-6 text-center text-white/40 text-sm">
             No media attached to this post.
