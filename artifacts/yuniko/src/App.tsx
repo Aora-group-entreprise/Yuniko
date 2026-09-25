@@ -202,17 +202,37 @@ function AppContent() {
   const [splashDone, setSplashDone] = useState(false);
   const { user, isLoading } = useAuth();
   const [location, navigate] = useLocation();
+  const initialRouteHandledRef = useRef(false);
 
-  // After splash + auth resolution: redirect if needed
+  // Browsers such as Firefox can restore the last URL/scroll position when a
+  // standalone/PWA window is reopened. Yuniko always starts a fresh app session
+  // on the Home feed, while normal in-app navigation remains untouched.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
+
+  // After splash + auth resolution: authenticate and normalize a cold launch.
   useEffect(() => {
     if (!splashDone || isLoading) return;
     const onAuthPage = location === "/login";
     if (!user && !onAuthPage) {
       navigate("/login");
-    } else if (user && onAuthPage) {
+      return;
+    }
+    if (user && !initialRouteHandledRef.current) {
+      initialRouteHandledRef.current = true;
+      if (location !== "/") navigate("/");
+      return;
+    }
+    if (user && onAuthPage) {
       navigate("/");
     }
-  }, [splashDone, isLoading, user, location]);
+  }, [splashDone, isLoading, user, location, navigate]);
 
   useEffect(() => {
     if (!user) return;
