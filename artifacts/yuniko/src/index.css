@@ -103,6 +103,12 @@
   --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
 }
 
+:root {
+  --yuniko-vh: 100vh;
+  --yuniko-keyboard-offset: 0px;
+  --yuniko-nav-height: 64px;
+}
+
 @layer base {
   * { @apply border-border; }
   html, body, #root {
@@ -284,12 +290,14 @@
 
 
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
+  :root,
   .yuniko-root {
     --yuniko-nav-height: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 }
 
 @supports (height: 100dvh) {
+  :root,
   .yuniko-root {
     --yuniko-vh: 100dvh;
   }
