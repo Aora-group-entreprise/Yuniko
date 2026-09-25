@@ -3,6 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Phone, Video, MoreHorizontal, Image, Smile, Mic, Send, Camera, BadgeCheck, Heart, ThumbsUp, Laugh, Angry } from "lucide-react";
 import { getUserById, getChatMessages } from "@/data/mockData";
 import { t } from "@/lib/i18n";
+import ScreenPortal from "@/components/ScreenPortal";
 
 const REACTIONS = ["❤️", "😂", "😮", "😢", "😡", "👍"];
 
@@ -181,8 +182,9 @@ export default function Chat() {
       </div>
 
       {/* Input bar */}
+      <ScreenPortal>
       <div
-        className="fixed inset-x-0 mx-auto w-full min-w-0 px-[clamp(8px,3vw,12px)] py-3"
+        className="fixed inset-x-0 mx-auto w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,12px)] py-3"
         style={{
           background: "rgba(13,11,20,0.95)",
           backdropFilter: "blur(20px)",
@@ -237,6 +239,7 @@ export default function Chat() {
           )}
         </div>
       </div>
+      </ScreenPortal>
     </div>
   );
 }

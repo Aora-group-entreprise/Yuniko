@@ -399,6 +399,7 @@ export default function PostDetail() {
       </div>
 
       {/* Comment input */}
+      <ScreenPortal>
       <div
         className="fixed inset-x-0 mx-auto w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,16px)] py-3"
         style={{
@@ -444,6 +445,7 @@ export default function PostDetail() {
           </button>
         </div>
       </div>
+      </ScreenPortal>
 
       <BottomNav />
 
