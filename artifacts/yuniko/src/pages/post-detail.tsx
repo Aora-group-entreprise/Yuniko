@@ -146,14 +146,18 @@ export default function PostDetail() {
   useEffect(() => {
     const scroller = detailScrollRef.current;
     if (!scroller) return;
+    const openComments = new URLSearchParams(window.location.search).get("comments") === "1";
     updateCommentInputVisibility();
-    if (new URLSearchParams(window.location.search).get("comments") === "1") {
+    if (openComments) {
+      setCommentInputVisible(true);
       window.requestAnimationFrame(() => {
-        const commentsSection = commentsSectionRef.current;
-        if (commentsSection) {
-          scroller.scrollTo({ top: Math.max(0, commentsSection.offsetTop), behavior: "auto" });
-          updateCommentInputVisibility();
-        }
+        window.requestAnimationFrame(() => {
+          const commentsSection = commentsSectionRef.current;
+          if (commentsSection) {
+            scroller.scrollTo({ top: Math.max(0, commentsSection.offsetTop), behavior: "auto" });
+          }
+          setCommentInputVisible(true);
+        });
       });
     }
     scroller.addEventListener("scroll", updateCommentInputVisibility, { passive: true });
@@ -169,8 +173,12 @@ export default function PostDetail() {
     const commentsSection = commentsSectionRef.current;
     if (!scroller || !commentsSection) return;
 
+    setCommentInputVisible(true);
     scroller.scrollTo({ top: Math.max(0, commentsSection.offsetTop), behavior: "smooth" });
-    window.setTimeout(updateCommentInputVisibility, 300);
+    window.setTimeout(() => {
+      setCommentInputVisible(true);
+      updateCommentInputVisibility();
+    }, 350);
   };
 
   const submitComment = async () => {
