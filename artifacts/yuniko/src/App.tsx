@@ -204,17 +204,28 @@ function AppContent() {
   const [location, navigate] = useLocation();
   const initialRouteHandledRef = useRef(false);
 
-  // Browsers such as Firefox can restore the last URL/scroll position when a
-  // standalone/PWA window is reopened. Yuniko always starts a fresh app session
-  // on the Home feed, while normal in-app navigation remains untouched.
+  // Firefox can restore the last SPA URL after a cold reopen, including
+  // when the document is restored from its back-forward cache. Keep browser
+  // scroll restoration disabled and normalize only the document's first show.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const previousScrollRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      window.scrollTo(0, 0);
+      if (event.persisted && user && splashDone && !isLoading) {
+        initialRouteHandledRef.current = true;
+        navigate("/");
+      }
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
     return () => {
       window.history.scrollRestoration = previousScrollRestoration;
+      window.removeEventListener("pageshow", handlePageShow);
     };
-  }, []);
+  }, [user, splashDone, isLoading, navigate]);
 
   // After splash + auth resolution: authenticate and normalize a cold launch.
   useEffect(() => {
