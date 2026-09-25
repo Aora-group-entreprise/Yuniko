@@ -471,7 +471,7 @@ export default function PostDetail() {
           transform: "none",
           boxSizing: "border-box",
           bottom: "calc(var(--yuniko-keyboard-offset, 0px) + var(--yuniko-nav-height, 64px))",
-          paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
+          paddingBottom: 12,
         }}
         data-testid="comment-input-bar"
       >
