@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, Send, BadgeCheck, MoreHorizontal, Trash2, Flag, Copy } from "lucide-react";
 import { posts, getUserById, formatCount } from "@/data/mockData";
@@ -46,6 +46,10 @@ export default function PostDetail() {
   const [showOptions, setShowOptions] = useState(false);
   const [following, setFollowing] = useState(fallbackUser?.isFollowing ?? false);
   const [localComments, setLocalComments] = useState<DetailComment[]>([]);
+  const [commentInputVisible, setCommentInputVisible] = useState(false);
+  const detailScrollRef = useRef<HTMLDivElement | null>(null);
+  const commentsSectionRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (!livePostId) return;
     let cancelled = false;
@@ -126,6 +130,39 @@ export default function PostDetail() {
   const goBack = () => {
     if (window.history.length > 1) window.history.back();
     else setLocation("/");
+  };
+
+  const updateCommentInputVisibility = () => {
+    const scroller = detailScrollRef.current;
+    const commentsSection = commentsSectionRef.current;
+    if (!scroller || !commentsSection) return;
+
+    const scrollerTop = scroller.getBoundingClientRect().top;
+    const commentsTop = commentsSection.getBoundingClientRect().top;
+    const commentsBottom = commentsSection.getBoundingClientRect().bottom;
+    const reachedComments = commentsTop <= scrollerTop + 8 && commentsBottom > scrollerTop + 8;
+    setCommentInputVisible(reachedComments);
+  };
+
+  useEffect(() => {
+    const scroller = detailScrollRef.current;
+    if (!scroller) return;
+    updateCommentInputVisibility();
+    scroller.addEventListener("scroll", updateCommentInputVisibility, { passive: true });
+    window.addEventListener("resize", updateCommentInputVisibility);
+    return () => {
+      scroller.removeEventListener("scroll", updateCommentInputVisibility);
+      window.removeEventListener("resize", updateCommentInputVisibility);
+    };
+  }, [post?.id, localComments.length]);
+
+  const scrollToComments = () => {
+    const scroller = detailScrollRef.current;
+    const commentsSection = commentsSectionRef.current;
+    if (!scroller || !commentsSection) return;
+
+    scroller.scrollTo({ top: Math.max(0, commentsSection.offsetTop), behavior: "smooth" });
+    window.setTimeout(updateCommentInputVisibility, 300);
   };
 
   const submitComment = async () => {
@@ -258,7 +295,7 @@ export default function PostDetail() {
         </button>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pb-40">
+      <div ref={detailScrollRef} className="flex-1 min-h-0 overflow-y-auto pb-8">
       {/* User row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <button onClick={() => setLocation(`/user/${user.id}`)}>
@@ -290,7 +327,7 @@ export default function PostDetail() {
       {/* Post image */}
       <div className="w-full">
         {post.imageUrl ? (
-          <img src={post.imageUrl} alt={post.caption} className="w-full object-contain bg-black" style={{ maxHeight: 520 }} />
+          <img src={post.imageUrl} alt={post.caption} className="block w-full h-auto max-h-[520px] object-contain bg-black" />
         ) : (
           <div className="w-full min-h-[180px] flex items-center justify-center px-6 text-center text-white/40 text-sm">
             No media attached to this post.
@@ -313,7 +350,7 @@ export default function PostDetail() {
           />
           <span className="text-white/80 text-sm font-medium">{formatCount(likeCount)}</span>
         </button>
-        <button className="flex items-center gap-1.5" data-testid="btn-comment-detail">
+        <button onClick={scrollToComments} className="flex items-center gap-1.5" data-testid="btn-comment-detail">
           <MessageCircle size={24} className="text-white/80" strokeWidth={1.8} />
           <span className="text-white/80 text-sm font-medium">{formatCount(post.comments + localComments.filter(c => c.id.startsWith("c") && !["c1","c2","c3","c4","c5"].includes(c.id)).length)}</span>
         </button>
@@ -353,7 +390,7 @@ export default function PostDetail() {
       </div>
 
       {/* Comments */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div ref={commentsSectionRef} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <p className="px-4 py-3 text-white/50 text-xs font-semibold uppercase tracking-wider">
           {localComments.length} {t("comments")}
         </p>
@@ -398,7 +435,8 @@ export default function PostDetail() {
       </div>
       </div>
 
-      {/* Comment input */}
+      {/* Comment input: appears only after the comments section reaches the top of the scroll area */}
+      {commentInputVisible && (
       <ScreenPortal>
       <div
         className="fixed inset-x-0 mx-auto w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,16px)] py-3"
@@ -446,6 +484,7 @@ export default function PostDetail() {
         </div>
       </div>
       </ScreenPortal>
+      )}
 
       <BottomNav />
 
