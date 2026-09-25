@@ -139,7 +139,6 @@ export default function PostDetail() {
 
     const scrollerTop = scroller.getBoundingClientRect().top;
     const commentsTop = commentsSection.getBoundingClientRect().top;
-    const commentsBottom = commentsSection.getBoundingClientRect().bottom;
     const reachedComments = commentsTop <= scrollerTop + 8;
     setCommentInputVisible(reachedComments);
   };
@@ -304,7 +303,11 @@ export default function PostDetail() {
         </button>
       </header>
 
-      <div ref={detailScrollRef} className="flex-1 min-h-0 overflow-y-auto pb-28">
+      <div
+        ref={detailScrollRef}
+        className="flex-1 min-h-0 overflow-y-scroll pb-28"
+        style={{ touchAction: "pan-y", overscrollBehaviorY: "contain", WebkitOverflowScrolling: "touch" }}
+      >
       {/* User row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <button onClick={() => setLocation(`/user/${user.id}`)}>

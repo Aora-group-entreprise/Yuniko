@@ -99,7 +99,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
     tapTimerRef.current = setTimeout(() => {
       tapTimerRef.current = null;
       setLocation(`/post/${post.id}?comments=1`);
-    }, 300);
+    }, 200);
   }, [handleLike, liked, post.id, setLocation]);
 
   return (
