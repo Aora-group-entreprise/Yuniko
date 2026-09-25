@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, Sparkles, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -41,7 +41,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
   const [saved, setSaved] = useState(post.isSaved);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [heartBurst, setHeartBurst] = useState(false);
-  const [lastTap, setLastTap] = useState(0);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const livePostId = post.id.startsWith("live_") ? post.id.slice("live_".length) : null;
 
   if (!author) return null;
@@ -86,17 +86,21 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
     }
   }, [livePostId, saved]);
 
-  const handleDoubleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTap < 320) {
-      if (!liked) {
-        void handleLike();
-      }
+  const handleImageTap = useCallback(() => {
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = null;
+      if (!liked) void handleLike();
       setHeartBurst(true);
       setTimeout(() => setHeartBurst(false), 800);
+      return;
     }
-    setLastTap(now);
-  }, [handleLike, lastTap, liked]);
+
+    tapTimerRef.current = setTimeout(() => {
+      tapTimerRef.current = null;
+      setLocation(`/post/${post.id}?comments=1`);
+    }, 300);
+  }, [handleLike, liked, post.id, setLocation]);
 
   return (
     <div className="relative w-full h-full" data-testid={`post-card-${post.id}`}>
@@ -105,7 +109,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
         src={post.imageUrl}
         alt={post.caption}
         className="absolute inset-0 block w-full h-full min-w-0 min-h-0 max-w-full max-h-full object-cover bg-black"
-        onClick={handleDoubleTap}
+        onClick={handleImageTap}
         loading="eager"
         decoding="auto"
       />
@@ -180,7 +184,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
         <ActionBtn
           icon={<MessageCircle size={25} className="text-white" strokeWidth={1.8} />}
           label={formatCount(post.comments)}
-          onClick={() => setLocation(`/post/${post.id}`)}
+          onClick={() => setLocation(`/post/${post.id}?comments=1`)}
           testId="btn-comment"
         />
         <ActionBtn

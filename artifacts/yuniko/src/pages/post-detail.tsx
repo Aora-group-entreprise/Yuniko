@@ -140,7 +140,7 @@ export default function PostDetail() {
     const scrollerTop = scroller.getBoundingClientRect().top;
     const commentsTop = commentsSection.getBoundingClientRect().top;
     const commentsBottom = commentsSection.getBoundingClientRect().bottom;
-    const reachedComments = commentsTop <= scrollerTop + 8 && commentsBottom > scrollerTop + 8;
+    const reachedComments = commentsTop <= scrollerTop + 8;
     setCommentInputVisible(reachedComments);
   };
 
@@ -148,6 +148,15 @@ export default function PostDetail() {
     const scroller = detailScrollRef.current;
     if (!scroller) return;
     updateCommentInputVisibility();
+    if (new URLSearchParams(window.location.search).get("comments") === "1") {
+      window.requestAnimationFrame(() => {
+        const commentsSection = commentsSectionRef.current;
+        if (commentsSection) {
+          scroller.scrollTo({ top: Math.max(0, commentsSection.offsetTop), behavior: "auto" });
+          updateCommentInputVisibility();
+        }
+      });
+    }
     scroller.addEventListener("scroll", updateCommentInputVisibility, { passive: true });
     window.addEventListener("resize", updateCommentInputVisibility);
     return () => {
@@ -295,7 +304,7 @@ export default function PostDetail() {
         </button>
       </header>
 
-      <div ref={detailScrollRef} className="flex-1 min-h-0 overflow-y-auto pb-8">
+      <div ref={detailScrollRef} className="flex-1 min-h-0 overflow-y-auto pb-28">
       {/* User row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <button onClick={() => setLocation(`/user/${user.id}`)}>
