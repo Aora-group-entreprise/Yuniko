@@ -17,6 +17,7 @@
     ]
   },
   "vars": {
-    "SUPABASE_URL": "https://pqjrmtkfgwoocbvmwbby.supabase.co"
+    "SUPABASE_URL": "https://pqjrmtkfgwoocbvmwbby.supabase.co",
+    "YUNIKO_APP_URL": "https://yunikov1-app.lafatriniainaallane.workers.dev"
   }
 }
