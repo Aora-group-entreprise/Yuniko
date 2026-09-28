@@ -131,7 +131,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
     }, 200);
   }, [handleLike, liked, openViewer]);
 
-  const openComments = useCallback(async () => {
+  const openComments = useCallback(async (fromViewer = false) => {
     const supportsSheet =
       typeof window !== "undefined" &&
       typeof window.CSS !== "undefined" &&
@@ -143,7 +143,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
       return;
     }
 
-    setViewerOpen(true);
+    if (fromViewer) setViewerOpen(true);
     setCommentsOpen(true);
 
     if (!livePostId || comments.length > 0) return;
@@ -299,7 +299,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
         <ActionBtn
           icon={<MessageCircle size={25} className="text-white" strokeWidth={1.8} />}
           label={formatCount(post.comments)}
-          onClick={() => void openComments()}
+          onClick={() => void openComments(false)}
           testId="btn-comment"
         />
         <ActionBtn
@@ -323,10 +323,11 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
         />
       </div>
 
-      {viewerOpen && (
+      {(viewerOpen || commentsOpen) && (
         <PostViewer
           post={post}
           author={author}
+          showViewer={viewerOpen}
           liked={liked}
           likeCount={likeCount}
           saved={saved}
@@ -335,7 +336,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
             setViewerOpen(false);
           }}
           onLike={handleLike}
-          onComment={() => void openComments()}
+          onComment={() => void openComments(true)}
           onShare={() => {}}
           onSave={handleSave}
           commentsOpen={commentsOpen}
@@ -476,6 +477,7 @@ function PostViewer({
 }: {
   post: Post;
   author: LiveAuthor;
+  showViewer: boolean;
   liked: boolean;
   likeCount: number;
   saved: boolean;
@@ -503,36 +505,42 @@ function PostViewer({
   onCloseComments: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] bg-black">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <img
-          src={post.imageUrl}
-          alt={post.caption}
-          className="max-h-full max-w-full w-full h-full object-contain"
-        />
-      </div>
+    <div className="fixed inset-0 z-[80] pointer-events-none">
+      {showViewer && (
+        <>
+          <div className="absolute inset-0 flex items-center justify-center bg-black pointer-events-auto">
+            <img
+              src={post.imageUrl}
+              alt={post.caption}
+              className="max-h-full max-w-full w-full h-full object-contain"
+            />
+          </div>
 
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 z-[82] w-10 h-10 rounded-full flex items-center justify-center bg-black/50 backdrop-blur-sm"
-        aria-label="Close image"
-      >
-        <X size={22} className="text-white" />
-      </button>
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 z-[82] w-10 h-10 rounded-full flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto"
+            aria-label="Close image"
+          >
+            <X size={22} className="text-white" />
+          </button>
 
-      <div
-        className="absolute inset-x-0 bottom-0 z-[82] px-4 pt-8 pb-[calc(14px+env(safe-area-inset-bottom,0px))]"
-        style={{
-          background: "linear-gradient(to top, rgba(0,0,0,0.92), rgba(0,0,0,0))",
-        }}
-      >
-        <div className="flex items-end justify-center gap-2.5">
-          <ViewerAction icon={<Heart size={23} strokeWidth={1.8} className={liked ? "fill-red-500 text-red-500" : "text-white"} />} label={formatCount(likeCount)} onClick={onLike} />
-          <ViewerAction icon={<MessageCircle size={23} strokeWidth={1.8} className="text-white" />} label={formatCount(post.comments + comments.length)} onClick={onComment} />
-          <ViewerAction icon={<Share2 size={23} strokeWidth={1.8} className="text-white" />} label={formatCount(post.shares)} onClick={onShare} />
-          <ViewerAction icon={<Bookmark size={23} strokeWidth={1.8} className={saved ? "fill-yellow-400 text-yellow-400" : "text-white"} />} label={formatCount(post.saves)} onClick={onSave} />
-        </div>
-      </div>
+          <div
+            className="absolute inset-x-0 bottom-0 z-[82] px-3 pt-10 pb-[calc(10px+env(safe-area-inset-bottom,0px))] pointer-events-auto"
+            style={{
+              background: "linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.68) 42%, rgba(0,0,0,0) 100%)",
+            }}
+          >
+            <div className="mx-auto w-full max-w-[560px] rounded-xl border border-white/10 bg-black/35 backdrop-blur-md overflow-hidden">
+              <div className="grid grid-cols-4 divide-x divide-white/10">
+                <ViewerAction icon={<Heart size={21} strokeWidth={1.9} className={liked ? "fill-blue-500 text-blue-500" : "text-white"} />} label={formatCount(likeCount)} onClick={onLike} active={liked} />
+                <ViewerAction icon={<MessageCircle size={21} strokeWidth={1.9} className="text-white" />} label={formatCount(post.comments + comments.length)} onClick={onComment} />
+                <ViewerAction icon={<Share2 size={21} strokeWidth={1.9} className="text-white" />} label={formatCount(post.shares)} onClick={onShare} />
+                <ViewerAction icon={<Bookmark size={21} strokeWidth={1.9} className={saved ? "fill-yellow-400 text-yellow-400" : "text-white"} />} label={formatCount(post.saves)} onClick={onSave} active={saved} />
+              </div>
+            </div>
+          </div>
+        </>
+      )
 
       {commentsOpen && (
         <div className="absolute inset-0 z-[90] bg-black/45">
@@ -622,21 +630,21 @@ function ViewerAction({
   icon,
   label,
   onClick,
+  active,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
+  active?: boolean;
 }) {
   return (
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.88 }}
-      className="flex-1 max-w-[88px] min-w-0 flex flex-col items-center gap-1 py-2 rounded-xl"
+      className="min-w-0 w-full min-h-[52px] flex items-center justify-center gap-2 px-2.5 py-2 rounded-none"
     >
-      <div className="w-11 h-11 rounded-full flex items-center justify-center bg-black/45 backdrop-blur-sm">
-        {icon}
-      </div>
-      <span className="text-white text-[11px] font-medium">{label}</span>
+      <div className="shrink-0 flex items-center justify-center">{icon}</div>
+      <span className={active ? "text-blue-400 text-xs font-semibold truncate" : "text-white text-xs font-medium truncate"}>{label}</span>
     </motion.button>
   );
 }
