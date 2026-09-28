@@ -540,7 +540,7 @@ function PostViewer({
             </div>
           </div>
         </>
-      )
+      )}
 
       {commentsOpen && (
         <div className="absolute inset-0 z-[90] bg-black/45">
