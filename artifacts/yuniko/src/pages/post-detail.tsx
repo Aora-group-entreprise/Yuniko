@@ -47,6 +47,8 @@ export default function PostDetail() {
   const [following, setFollowing] = useState(fallbackUser?.isFollowing ?? false);
   const [localComments, setLocalComments] = useState<DetailComment[]>([]);
   const [commentInputVisible, setCommentInputVisible] = useState(false);
+  const [commentsSheetOpen, setCommentsSheetOpen] = useState(false);
+  const [commentsSheetSupported, setCommentsSheetSupported] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const detailScrollRef = useRef<HTMLDivElement | null>(null);
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
@@ -176,9 +178,24 @@ export default function PostDetail() {
   };
 
   useEffect(() => {
+    const supportsSheet =
+      typeof window !== "undefined" &&
+      typeof window.CSS !== "undefined" &&
+      typeof window.CSS.supports === "function" &&
+      window.CSS.supports("position", "fixed");
+
+    setCommentsSheetSupported(supportsSheet);
+    const openComments =
+      new URLSearchParams(window.location.search).get("comments") === "1";
+
+    if (openComments && supportsSheet) {
+      setCommentsSheetOpen(true);
+      return;
+    }
+
     const scroller = detailScrollRef.current;
     if (!scroller) return;
-    const openComments = new URLSearchParams(window.location.search).get("comments") === "1";
+
     updateCommentInputVisibility();
     if (openComments) {
       setCommentInputVisible(true);
@@ -186,12 +203,16 @@ export default function PostDetail() {
         window.requestAnimationFrame(() => {
           const commentsSection = commentsSectionRef.current;
           if (commentsSection) {
-            scroller.scrollTo({ top: Math.max(0, commentsSection.offsetTop), behavior: "auto" });
+            scroller.scrollTo({
+              top: Math.max(0, commentsSection.offsetTop),
+              behavior: "auto",
+            });
           }
           setCommentInputVisible(true);
         });
       });
     }
+
     scroller.addEventListener("scroll", updateCommentInputVisibility, { passive: true });
     window.addEventListener("resize", updateCommentInputVisibility);
     return () => {
@@ -200,17 +221,38 @@ export default function PostDetail() {
     };
   }, [post?.id, localComments.length]);
 
+  useEffect(() => {
+    if (!commentsSheetOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [commentsSheetOpen]);
   const scrollToComments = () => {
+    if (commentsSheetSupported) {
+      setCommentsSheetOpen(true);
+      return;
+    }
+
     const scroller = detailScrollRef.current;
     const commentsSection = commentsSectionRef.current;
     if (!scroller || !commentsSection) return;
 
     setCommentInputVisible(true);
-    scroller.scrollTo({ top: Math.max(0, commentsSection.offsetTop), behavior: "smooth" });
+    scroller.scrollTo({
+      top: Math.max(0, commentsSection.offsetTop),
+      behavior: "smooth",
+    });
     window.setTimeout(() => {
       setCommentInputVisible(true);
       updateCommentInputVisibility();
     }, 350);
+  };
+
+  const closeCommentsSheet = () => {
+    setCommentsSheetOpen(false);
+    setLocation(`/post/${postId}`);
   };
 
   const submitComment = async () => {
@@ -488,7 +530,7 @@ export default function PostDetail() {
       </div>
 
       {/* Comment input: appears only after the comments section reaches the top of the scroll area */}
-      {commentInputVisible && (
+      {!commentsSheetOpen && commentInputVisible && (
       <ScreenPortal>
       <div
         className="fixed inset-x-0 mx-auto w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,16px)] py-3"
@@ -542,6 +584,18 @@ export default function PostDetail() {
       </ScreenPortal>
       )}
 
+      {commentsSheetOpen && (
+        <CommentSheet
+          comments={localComments}
+          authUser={authUser}
+          commentText={commentText}
+          setCommentText={setCommentText}
+          onClose={closeCommentsSheet}
+          onSubmit={submitComment}
+          onLike={toggleCommentLike}
+        />
+      )}
+
       <BottomNav />
 
       {/* Post options */}
@@ -580,5 +634,132 @@ export default function PostDetail() {
         </ScreenPortal>
       )}
     </div>
+  );
+}
+
+
+function CommentSheet({
+  comments,
+  authUser,
+  commentText,
+  setCommentText,
+  onClose,
+  onSubmit,
+  onLike,
+}: {
+  comments: DetailComment[];
+  authUser: any;
+  commentText: string;
+  setCommentText: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+  onLike: (id: string) => void;
+}) {
+  return (
+    <ScreenPortal>
+      <>
+        <div className="fixed inset-0 z-[70] bg-black/55" onClick={onClose} />
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-label="Comments"
+          className="fixed inset-x-0 bottom-0 z-[71] mx-auto w-full max-w-[430px] h-[82vh] min-h-0 rounded-t-[22px] overflow-hidden flex flex-col"
+          style={{
+            background: "rgba(18,15,30,0.99)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 -14px 45px rgba(0,0,0,0.45)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          }}
+          data-testid="comments-sheet"
+        >
+          <div className="shrink-0 px-4 pt-3 pb-2">
+            <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mb-3" />
+            <div className="flex items-center">
+              <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center text-white/70" aria-label="Close comments">
+                <ArrowLeft size={20} />
+              </button>
+              <h2 className="flex-1 text-center text-white font-semibold text-base">{t("comments")}</h2>
+              <div className="w-9 h-9" />
+            </div>
+          </div>
+
+          <div
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 pb-3"
+            style={{ WebkitOverflowScrolling: "touch" }}
+            data-testid="comments-sheet-list"
+          >
+            {comments.length === 0 ? (
+              <div className="h-full min-h-[180px] flex items-center justify-center px-8 text-center text-white/40 text-sm">
+                {t("comments")}
+              </div>
+            ) : (
+              comments.map((comment) => {
+                const cUser = comment.author ?? (
+                  comment.userId === "me"
+                    ? {
+                        id: "me",
+                        displayName: authUser?.displayName ?? "You",
+                        avatar: authUser?.avatarUrl ?? "https://picsum.photos/seed/me/200/200",
+                        verified: false,
+                      }
+                    : getUserById(comment.userId)
+                );
+                if (!cUser) return null;
+                return (
+                  <div key={comment.id} className="flex gap-3 px-3 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.045)" }}>
+                    <img src={cUser.avatar} alt={cUser.displayName} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="text-white font-semibold text-sm">{cUser.displayName}</span>
+                        <span className="text-white/80 text-sm break-words">{comment.text}</span>
+                      </div>
+                      <div className="flex items-center gap-4 mt-1.5">
+                        <span className="text-white/35 text-xs">{comment.timestamp}</span>
+                        <button onClick={() => onLike(comment.id)} className={comment.liked ? "text-pink-400 text-xs" : "text-white/40 text-xs"}>
+                          {comment.likes} {t("like")}
+                        </button>
+                        <button className="text-white/40 text-xs">{t("replyTo")}</button>
+                      </div>
+                    </div>
+                    <button onClick={() => onLike(comment.id)} className="shrink-0 pt-1">
+                      <Heart
+                        size={15}
+                        strokeWidth={1.8}
+                        style={{ color: comment.liked ? "#FF006E" : undefined, fill: comment.liked ? "#FF006E" : undefined }}
+                        className={comment.liked ? "" : "text-white/35"}
+                      />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="shrink-0 px-3 py-3" style={{ background: "rgba(13,11,20,0.98)", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center gap-2">
+              <img src={authUser?.avatarUrl ?? "https://picsum.photos/seed/me/200/200"} alt="me" className="w-8 h-8 rounded-full object-cover shrink-0" />
+              <div className="flex-1 min-w-0 flex items-center px-3 py-2 rounded-full" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <input
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") onSubmit(); }}
+                  placeholder={t("writeComment")}
+                  className="w-full bg-transparent text-white/85 text-sm outline-none placeholder:text-white/30"
+                  data-testid="input-comment-sheet"
+                />
+              </div>
+              <button
+                onClick={onSubmit}
+                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: commentText.trim() ? "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)" : "rgba(255,255,255,0.08)" }}
+                data-testid="btn-send-comment-sheet"
+              >
+                <Send size={14} className={commentText.trim() ? "text-white" : "text-white/30"} />
+              </button>
+            </div>
+          </div>
+        </section>
+      </>
+    </ScreenPortal>
   );
 }
