@@ -47,8 +47,40 @@ export default function PostDetail() {
   const [following, setFollowing] = useState(fallbackUser?.isFollowing ?? false);
   const [localComments, setLocalComments] = useState<DetailComment[]>([]);
   const [commentInputVisible, setCommentInputVisible] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const detailScrollRef = useRef<HTMLDivElement | null>(null);
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const updateKeyboardState = () => {
+      const viewport = window.visualViewport;
+      const layoutHeight = window.innerHeight;
+      const visualHeight = viewport?.height ?? document.documentElement.clientHeight ?? layoutHeight;
+      const visualTop = viewport?.offsetTop ?? 0;
+      const keyboardOffset = Math.max(0, layoutHeight - visualHeight - visualTop);
+      const activeElement = document.activeElement;
+      const textInputFocused = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+      setKeyboardOpen(keyboardOffset > 80 || (textInputFocused && keyboardOffset > 0));
+    };
+
+    updateKeyboardState();
+    window.addEventListener("resize", updateKeyboardState);
+    window.addEventListener("orientationchange", updateKeyboardState);
+    window.addEventListener("focusin", updateKeyboardState);
+    window.addEventListener("focusout", updateKeyboardState);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", updateKeyboardState);
+    viewport?.addEventListener("scroll", updateKeyboardState);
+
+    return () => {
+      window.removeEventListener("resize", updateKeyboardState);
+      window.removeEventListener("orientationchange", updateKeyboardState);
+      window.removeEventListener("focusin", updateKeyboardState);
+      window.removeEventListener("focusout", updateKeyboardState);
+      viewport?.removeEventListener("resize", updateKeyboardState);
+      viewport?.removeEventListener("scroll", updateKeyboardState);
+    };
+  }, []);
 
   useEffect(() => {
     if (!livePostId) return;
@@ -470,7 +502,11 @@ export default function PostDetail() {
           marginRight: "auto",
           transform: "none",
           boxSizing: "border-box",
-          bottom: "calc(var(--yuniko-keyboard-offset, 0px) + var(--yuniko-nav-height, 64px))",
+          // When the keyboard is open, keep the composer directly above it.
+          // When it is closed, reserve the bottom navigation space.
+          bottom: keyboardOpen
+            ? "var(--yuniko-keyboard-offset, 0px)"
+            : "calc(var(--yuniko-keyboard-offset, 0px) + var(--yuniko-nav-height, 64px))",
           paddingBottom: 12,
         }}
         data-testid="comment-input-bar"
