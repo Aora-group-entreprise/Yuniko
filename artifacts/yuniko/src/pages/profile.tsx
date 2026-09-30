@@ -298,7 +298,7 @@ export default function Profile({ userId }: ProfilePageProps) {
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full text-white/45 bg-white/5">All time</span>
         </div>)}
         <p className="text-white/30 text-[11px] leading-relaxed px-1">Les statistiques sont calculées à partir des visites de profil et des impressions réellement enregistrées.</p>
-      </div>
+      </div>}
 
       <BottomNav />
 
