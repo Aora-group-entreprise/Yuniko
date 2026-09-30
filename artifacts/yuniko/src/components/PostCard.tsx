@@ -4,6 +4,7 @@ import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, Mor
 import { motion, AnimatePresence } from "framer-motion";
 import { Post, getUserById, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
+import { useAuth } from "@/lib/auth-context";
 import { apiJson } from "@/lib/api";
 
 export interface LiveAuthor {
@@ -25,6 +26,7 @@ interface PostCardProps {
 
 export default function PostCard({ post, onOptions, liveAuthor, initialViewer = false, onViewerClose }: PostCardProps) {
   const [, setLocation] = useLocation();
+  const { user: authUser } = useAuth();
   const mockUser = !liveAuthor ? getUserById(post.userId) : null;
 
   // Resolve author from liveAuthor prop or fall back to mock data
@@ -44,6 +46,16 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
   const [saved, setSaved] = useState(post.isSaved);
   const [following, setFollowing] = useState(Boolean(author?.isFollowing));
   const [followLoading, setFollowLoading] = useState(false);
+
+  useEffect(() => {
+    setFollowing(Boolean(author?.isFollowing));
+  }, [author?.userId, author?.isFollowing]);
+
+  const isOwnPost = Boolean(
+    authUser?.id &&
+    author?.userId &&
+    Number(authUser.id) === Number(author.userId),
+  );
   const [likeCount, setLikeCount] = useState(post.likes);
   const [heartBurst, setHeartBurst] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(initialViewer);
@@ -441,7 +453,7 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
               )}
             </div>
           </div>
-          {author.userId && !post.isSponsored && (
+          {author.userId && !isOwnPost && !post.isSponsored && (
             <motion.button
               whileTap={{ scale: 0.93 }}
               onClick={() => void handleFollow()}

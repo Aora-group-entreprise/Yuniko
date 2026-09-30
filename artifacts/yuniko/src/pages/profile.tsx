@@ -71,6 +71,11 @@ export default function Profile({ userId }: ProfilePageProps) {
   } : null;
   const user = isDatabaseProfile ? (remoteUser ?? (isOwn && authUser ? authUserToDisplay(authUser) : null)) : getUserById(targetId);
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  useEffect(() => {
+    setFollowing(Boolean(user?.isFollowing));
+  }, [user?.id, user?.isFollowing]);
   const [tab, setTab] = useState<"grid"|"saved"|"analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
@@ -204,7 +209,30 @@ export default function Profile({ userId }: ProfilePageProps) {
     {label:t("following"),value:formatCount(user.following),onClick:()=>setLocation(`/following/${user.id}`)},
   ];
   const goBack=()=>{if(window.history.length>1)window.history.back();else setLocation("/")};
-  const toggleFollowing=async()=>{const numericId=Number(user.id),nextFollowing=!following;setFollowing(nextFollowing);if(!Number.isInteger(numericId)||numericId<=0)return;try{const result=await apiJson<{following:boolean}>(`/users/${numericId}/follow`,{method:"POST"});setFollowing(result.following)}catch{setFollowing(following)}};
+  const toggleFollowing=async()=>{
+    const numericId=Number(user.id);
+    if (!Number.isInteger(numericId) || numericId <= 0 || followLoading) return;
+    const previousFollowing = following;
+    setFollowing(!previousFollowing);
+    setFollowLoading(true);
+    try {
+      const result = await apiJson<{following:boolean}>(`/users/${numericId}/follow`,{method:"POST"});
+      const nextFollowing = Boolean(result.following);
+      setFollowing(nextFollowing);
+      setRemoteProfile((current) => current ? {
+        ...current,
+        following: nextFollowing,
+        stats: {
+          ...current.stats,
+          followers: Math.max(0, current.stats.followers + (nextFollowing === previousFollowing ? 0 : (nextFollowing ? 1 : -1))),
+        },
+      } : current);
+    } catch {
+      setFollowing(previousFollowing);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20">
@@ -241,7 +269,7 @@ export default function Profile({ userId }: ProfilePageProps) {
 
         {!isOwn && (
           <div className="flex justify-center gap-2 mb-4">
-            <button onClick={toggleFollowing} className="px-6 py-2 rounded-xl text-sm font-semibold text-white" style={{background:following?"rgba(255,255,255,0.1)":GRADIENT,border:following?"1px solid rgba(255,255,255,0.15)":"none",boxShadow:following?"none":"0 2px 12px rgba(255,0,110,0.35)"}} data-testid="btn-follow-profile">{following?t("following"):t("follow")}</button>
+            <button onClick={() => void toggleFollowing()} disabled={followLoading} className="px-6 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{background:following?"rgba(255,255,255,0.1)":GRADIENT,border:following?"1px solid rgba(255,255,255,0.15)":"none",boxShadow:following?"none":"0 2px 12px rgba(255,0,110,0.35)"}} data-testid="btn-follow-profile">{following?t("following"):t("follow")}</button>
             <button onClick={()=>setLocation(`/chat/${user.id}`)} className="w-10 h-10 rounded-xl flex items-center justify-center" style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)"}} data-testid="btn-message-user"><MessageCircle size={16} className="text-white/80"/></button>
             <button onClick={()=>setLocation(`/voice-call/${user.id}`)} className="w-10 h-10 rounded-xl flex items-center justify-center" style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)"}} data-testid="btn-voice-call-user"><Phone size={16} className="text-white/80"/></button>
           </div>
