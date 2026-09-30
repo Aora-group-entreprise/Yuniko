@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, MoreVertical, Sparkles, ExternalLink, X, Send, Download } from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, MoreVertical, Sparkles, ExternalLink, X, Send, Download, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Post, getUserById, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
@@ -455,6 +455,13 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
   );
 }
 
+function avatarSrcForViewer(author: LiveAuthor) {
+  return (
+    author.avatarUrl ??
+    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(author.displayName)}&backgroundColor=FF006E`
+  );
+}
+
 function ActionBtn({
   icon,
   label,
@@ -550,99 +557,175 @@ function PostViewer({
     <div className="fixed inset-0 z-[80] pointer-events-none">
       {showViewer && (
         <>
-          <div className="absolute inset-0 flex items-center justify-center bg-black pointer-events-auto">
-            <img
-              src={post.imageUrl}
-              alt={post.caption}
-              className="max-h-full max-w-full w-auto h-auto object-contain"
-            />
-          </div>
+          <div className="absolute inset-0 bg-black pointer-events-auto">
+            {/* Photo area: the image stays between the top controls and the publication controls. */}
+            <div className="absolute inset-x-0 top-0 bottom-[132px] flex items-center justify-center overflow-hidden">
+              <img
+                src={post.imageUrl}
+                alt={post.caption}
+                className="max-h-full max-w-full w-auto h-auto object-contain"
+              />
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-4 left-4 z-[82] w-12 h-12 rounded-full flex items-center justify-center bg-black/55 backdrop-blur-md border border-white/10 shadow-lg pointer-events-auto touch-manipulation"
-            aria-label="Close image"
-          >
-            <X size={30} strokeWidth={1.8} className="text-white" />
-          </button>
-
-          <button
-            type="button"
-            onClick={onToggleOptions}
-            className="absolute top-4 right-4 z-[82] w-12 h-12 rounded-full flex items-center justify-center bg-black/55 backdrop-blur-md border border-white/10 shadow-lg pointer-events-auto touch-manipulation"
-            aria-label={t("moreOptions")}
-            aria-expanded={optionsOpen}
-          >
-            <MoreVertical size={28} strokeWidth={2} className="text-white" />
-          </button>
-
-          {optionsOpen && (
-            <div
-              className="absolute inset-0 z-[88] bg-black/35 pointer-events-auto"
-              onClick={onCloseOptions}
-              role="presentation"
-            >
-              <section
-                role="dialog"
-                aria-modal="true"
-                aria-label={t("moreOptions")}
-                className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[430px] rounded-t-[24px] overflow-hidden border border-white/10 bg-[#16131d]/[.98] shadow-[0_-18px_55px_rgba(0,0,0,.65)]"
-                style={{ paddingBottom: "env(safe-area-inset-bottom,0px)" }}
-                onClick={(event) => event.stopPropagation()}
+              {/* Publication information, kept on the lower edge of the photo like a native photo viewer. */}
+              <div
+                className="absolute inset-x-0 bottom-0 px-5 pt-12 pb-4 pointer-events-none"
+                style={{
+                  background: "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.42) 58%, transparent 100%)",
+                }}
               >
-                <div className="px-4 pt-3 pb-2">
-                  <div className="mx-auto h-1.5 w-12 rounded-full bg-white/20" />
-                  <h2 className="mt-3 text-center text-white text-base font-semibold">{t("moreOptions")}</h2>
-                </div>
-                <div className="px-3 pb-3">
-                  <button
-                    type="button"
-                    onClick={onDownload}
-                    className="flex w-full items-center gap-4 rounded-2xl px-4 py-4 text-left text-white transition-colors active:bg-white/10 touch-manipulation"
-                  >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10">
-                      <Download size={23} strokeWidth={1.9} />
-                    </span>
-                    <span className="text-[15px] font-semibold">{t("downloadImage")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSave();
-                      onCloseOptions();
-                    }}
-                    className="flex w-full items-center gap-4 rounded-2xl px-4 py-4 text-left text-white transition-colors active:bg-white/10 touch-manipulation"
-                  >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10">
-                      <Bookmark size={23} strokeWidth={1.9} className={saved ? "fill-yellow-400 text-yellow-400" : "text-white"} />
-                    </span>
-                    <span className="text-[15px] font-semibold">{saved ? t("unsavePost") : t("savePost")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onCloseOptions}
-                    className="mt-1 w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold text-white/55 touch-manipulation"
-                  >
-                    {t("cancel")}
-                  </button>
-                </div>
-              </section>
-            </div>
-          )}
+                <div className="mx-auto w-full max-w-[560px]">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={avatarSrcForViewer(author)}
+                      alt={author.displayName}
+                      className="w-10 h-10 rounded-full object-cover shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-white text-[16px] font-bold truncate">{author.displayName}</span>
+                        {author.verified && (
+                          <BadgeCheck size={15} className="text-blue-400 fill-blue-400 shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-white/65 text-[13px]">
+                        <span>{post.timestamp}</span>
+                        <span aria-hidden="true">·</span>
+                        <Users size={14} strokeWidth={1.9} />
+                        {post.location && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="truncate">{post.location}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-          <div
-            className="absolute inset-x-0 bottom-0 z-[82] px-3 pt-10 pb-[calc(10px+env(safe-area-inset-bottom,0px))] pointer-events-auto"
-            style={{
-              background: "linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.68) 42%, rgba(0,0,0,0) 100%)",
-            }}
-          >
-            <div className="mx-auto w-full max-w-[560px] rounded-xl border border-white/10 bg-black/35 backdrop-blur-md overflow-hidden">
-              <div className="grid grid-cols-4 divide-x divide-white/10">
-                <ViewerAction icon={<Heart size={21} strokeWidth={1.9} className={liked ? "fill-blue-500 text-blue-500" : "text-white"} />} label={formatCount(likeCount)} onClick={onLike} active={liked} />
-                <ViewerAction icon={<MessageCircle size={21} strokeWidth={1.9} className="text-white" />} label={formatCount(post.comments + comments.length)} onClick={onComment} />
-                <ViewerAction icon={<Share2 size={21} strokeWidth={1.9} className="text-white" />} label={formatCount(post.shares)} onClick={onShare} />
-                <ViewerAction icon={<Bookmark size={21} strokeWidth={1.9} className={saved ? "fill-yellow-400 text-yellow-400" : "text-white"} />} label={formatCount(post.saves)} onClick={onSave} active={saved} />
+                  {post.caption && (
+                    <p className="mt-2 text-white text-[14px] leading-snug line-clamp-2">
+                      {post.caption}
+                    </p>
+                  )}
+
+                  {post.hashtags.length > 0 && (
+                    <p className="mt-1 text-[13px] text-white/75 line-clamp-1">
+                      {post.hashtags.slice(0, 3).join(" ")}
+                    </p>
+                  )}
+
+                  <div className="mt-2 flex items-center gap-2 text-white/85 text-[13px]">
+                    <span className="inline-flex items-center justify-center -space-x-1">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 border border-black">
+                        <Heart size={11} className="fill-white text-white" />
+                      </span>
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 border border-black">
+                        <Heart size={11} className="fill-white text-white" />
+                      </span>
+                    </span>
+                    <span>{formatCount(likeCount)} {likeCount === 1 ? t("reaction") : t("reactions")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Minimal top bar, only close and more options. */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute top-3 left-3 z-[92] w-12 h-12 flex items-center justify-center pointer-events-auto touch-manipulation"
+              aria-label="Close image"
+            >
+              <X size={34} strokeWidth={1.8} className="text-white drop-shadow-[0_2px_5px_rgba(0,0,0,.6)]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleOptions}
+              className="absolute top-3 right-3 z-[92] w-12 h-12 flex items-center justify-center pointer-events-auto touch-manipulation"
+              aria-label={t("moreOptions")}
+              aria-expanded={optionsOpen}
+            >
+              <MoreVertical size={31} strokeWidth={2} className="text-white drop-shadow-[0_2px_5px_rgba(0,0,0,.6)]" />
+            </button>
+
+            {optionsOpen && (
+              <div
+                className="absolute inset-0 z-[98] bg-black/35 pointer-events-auto"
+                onClick={onCloseOptions}
+                role="presentation"
+              >
+                <section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={t("moreOptions")}
+                  className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[430px] rounded-t-[24px] overflow-hidden border border-white/10 bg-[#16131d]/[.98] shadow-[0_-18px_55px_rgba(0,0,0,.65)]"
+                  style={{ paddingBottom: "env(safe-area-inset-bottom,0px)" }}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="px-4 pt-3 pb-2">
+                    <div className="mx-auto h-1.5 w-12 rounded-full bg-white/20" />
+                    <h2 className="mt-3 text-center text-white text-base font-semibold">{t("moreOptions")}</h2>
+                  </div>
+                  <div className="px-3 pb-3">
+                    <button
+                      type="button"
+                      onClick={onDownload}
+                      className="flex w-full items-center gap-4 rounded-2xl px-4 py-4 text-left text-white transition-colors active:bg-white/10 touch-manipulation"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10">
+                        <Download size={23} strokeWidth={1.9} />
+                      </span>
+                      <span className="text-[15px] font-semibold">{t("downloadImage")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSave();
+                        onCloseOptions();
+                      }}
+                      className="flex w-full items-center gap-4 rounded-2xl px-4 py-4 text-left text-white transition-colors active:bg-white/10 touch-manipulation"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10">
+                        <Bookmark size={23} strokeWidth={1.9} className={saved ? "fill-yellow-400 text-yellow-400" : "text-white"} />
+                      </span>
+                      <span className="text-[15px] font-semibold">{saved ? t("unsavePost") : t("savePost")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onCloseOptions}
+                      className="mt-1 w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold text-white/55 touch-manipulation"
+                    >
+                      {t("cancel")}
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {/* Three separate rounded action buttons, with Save intentionally kept in ⋮. */}
+            <div
+              className="absolute inset-x-0 bottom-0 z-[82] px-3 pt-3 pb-[calc(10px+env(safe-area-inset-bottom,0px))] pointer-events-auto"
+              style={{
+                background: "linear-gradient(to top, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.9) 70%, rgba(0,0,0,0.72) 100%)",
+              }}
+            >
+              <div className="mx-auto flex w-full max-w-[560px] items-center gap-3">
+                <ViewerAction
+                  icon={<Heart size={24} strokeWidth={1.9} className={liked ? "fill-blue-500 text-blue-500" : "text-white"} />}
+                  label={formatCount(likeCount)}
+                  onClick={onLike}
+                  active={liked}
+                />
+                <ViewerAction
+                  icon={<MessageCircle size={25} strokeWidth={1.9} className="text-white" />}
+                  label={formatCount(post.comments + comments.length)}
+                  onClick={onComment}
+                />
+                <ViewerAction
+                  icon={<Share2 size={25} strokeWidth={1.9} className="text-white" />}
+                  label={formatCount(post.shares)}
+                  onClick={onShare}
+                />
               </div>
             </div>
           </div>
@@ -750,7 +833,7 @@ function ViewerAction({
     <motion.button
       onClick={onClick}
       whileTap={{ scale: 0.88 }}
-      className="min-w-0 w-full min-h-[52px] flex items-center justify-center gap-2 px-2.5 py-2 rounded-none"
+      className="min-w-0 flex-1 min-h-[58px] flex items-center justify-center gap-2 px-3 py-2 rounded-full bg-[#242424] border border-white/10 shadow-[0_2px_12px_rgba(0,0,0,.35)] touch-manipulation"
     >
       <div className="shrink-0 flex items-center justify-center">{icon}</div>
       <span className={active ? "text-blue-400 text-xs font-semibold truncate" : "text-white text-xs font-medium truncate"}>{label}</span>
