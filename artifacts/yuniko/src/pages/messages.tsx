@@ -35,7 +35,9 @@ export default function Messages(){
   const [selected,setSelected]=useState<Conversation|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState<string|null>(null);
-  const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean}|null>(null);
+  const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean;swiping:boolean;offset:number}|null>(null);
+  const rowRefs=useRef<Record<number,HTMLButtonElement|null>>({});
+  const suppressClickRef=useRef(false);
 
   const load=()=>{
     setLoading(true);setError(null);
@@ -98,30 +100,65 @@ export default function Messages(){
         {loading?<div className="flex justify-center py-20 text-white/40 text-sm">Loading...</div>:error?<div className="flex flex-col items-center py-20 gap-3"><p className="text-red-300/70 text-sm text-center px-6">{error}</p><button onClick={load} className="text-white text-sm px-4 py-2 rounded-xl" style={{background:GRADIENT}}>Retry</button></div>:filtered.length===0?<div className="flex flex-col items-center justify-center py-20 gap-4"><div className="w-16 h-16 rounded-full flex items-center justify-center" style={{background:"rgba(255,0,110,0.1)",border:"1px solid rgba(255,0,110,0.2)"}}><MessageSquarePlus size={28} style={{color:"#FF3D9A"}}/></div><p className="text-white/40 text-sm">{query?t("noMessages"):"Follow each other to become friends and start chatting."}</p></div>:filtered.map(conv=>{
           const onTouchStart=(e:React.TouchEvent)=>{
             const touch=e.touches[0]; if(!touch)return;
-            const state={id:conv.id,x:touch.clientX,y:touch.clientY,startedAt:Date.now(),longPressTimer:null as number|null,longPressed:false};
-            state.longPressTimer=window.setTimeout(()=>{state.longPressed=true;if(navigator.vibrate)navigator.vibrate(25);setSelected(conv);},2000);
+            const row=rowRefs.current[conv.id];
+            if(row){row.style.transition="none";row.style.transform="translate3d(0,0,0)";}
+            const state={id:conv.id,x:touch.clientX,y:touch.clientY,startedAt:Date.now(),longPressTimer:null as number|null,longPressed:false,swiping:false,offset:0};
+            state.longPressTimer=window.setTimeout(()=>{
+              state.longPressed=true;
+              if(navigator.vibrate)navigator.vibrate(25);
+              suppressClickRef.current=true;
+              setSelected(conv);
+            },500);
             gestureRef.current=state;
           };
           const onTouchMove=(e:React.TouchEvent)=>{
             const state=gestureRef.current, touch=e.touches[0]; if(!state||state.id!==conv.id||!touch)return;
-            if(Math.abs(touch.clientY-state.y)>20||Math.abs(touch.clientX-state.x)>20){if(state.longPressTimer!==null){window.clearTimeout(state.longPressTimer);state.longPressTimer=null;}}
+            const dx=touch.clientX-state.x, dy=touch.clientY-state.y;
+            if(!state.swiping && Math.abs(dy)>10 && Math.abs(dy)>=Math.abs(dx)){
+              if(state.longPressTimer!==null){window.clearTimeout(state.longPressTimer);state.longPressTimer=null;}
+              return;
+            }
+            if(!state.swiping && Math.abs(dx)>10 && Math.abs(dx)>Math.abs(dy)){
+              state.swiping=true;
+              if(state.longPressTimer!==null){window.clearTimeout(state.longPressTimer);state.longPressTimer=null;}
+              suppressClickRef.current=true;
+            }
+            if(!state.swiping)return;
+            const raw=Math.max(0,dx);
+            const offset=raw<=140?raw:140+(raw-140)*0.2;
+            state.offset=Math.min(offset,190);
+            const row=rowRefs.current[conv.id];
+            if(row)row.style.transform="translate3d("+state.offset+"px,0,0)";
+            e.preventDefault();
           };
           const onTouchEnd=(e:React.TouchEvent)=>{
             const state=gestureRef.current; gestureRef.current=null;
             if(!state||state.id!==conv.id)return;
             if(state.longPressTimer!==null){window.clearTimeout(state.longPressTimer);state.longPressTimer=null;}
-            const touch=e.changedTouches[0]; if(!touch)return;
-            const dx=touch.clientX-state.x, dy=touch.clientY-state.y, duration=Date.now()-state.startedAt;
-            if(state.longPressed)return;
-            if(dx>140&&Math.abs(dy)<70&&duration>=350){void archive(conv);return;}
-            if(Math.abs(dx)<35&&Math.abs(dy)<35&&duration<2000)setLocation(`/chat/${conv.user.id}`);
+            const row=rowRefs.current[conv.id];
+            if(state.longPressed){
+              if(row){row.style.transition="transform 180ms ease-out";row.style.transform="translate3d(0,0,0)";}
+              return;
+            }
+            if(state.swiping){
+              const shouldArchive=state.offset>=110;
+              if(row){
+                row.style.transition="transform 180ms cubic-bezier(.2,.8,.2,1)";
+                row.style.transform=shouldArchive?"translate3d(100%,0,0)":"translate3d(0,0,0)";
+              }
+              if(shouldArchive){window.setTimeout(()=>{void archive(conv);},180);}
+              return;
+            }
           };
           return <div key={conv.id} className="relative w-full overflow-hidden" style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
             <div className="absolute inset-y-0 left-0 w-24 flex items-center justify-center pointer-events-none" style={{background:"rgba(34,197,94,0.18)"}}><Archive size={20} className="text-green-300"/></div>
             <button
-              onClick={()=>setLocation(`/chat/${conv.user.id}`)}
+              ref={el=>{rowRefs.current[conv.id]=el;}}
+              onClick={()=>{if(suppressClickRef.current){suppressClickRef.current=false;return;}setLocation(`/chat/${conv.user.id}`);}}
               onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
+              style={{touchAction:"pan-y",willChange:"transform"}}
               className="relative z-10 w-full flex items-center gap-3 px-4 py-3.5 text-left bg-background active:bg-white/5"
               data-testid={`conversation-${conv.id}`}
             >
