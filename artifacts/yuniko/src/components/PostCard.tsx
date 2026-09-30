@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, Sparkles, ExternalLink, X, Send } from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, MoreVertical, Sparkles, ExternalLink, X, Send, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Post, getUserById, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
@@ -42,6 +42,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
   const [likeCount, setLikeCount] = useState(post.likes);
   const [heartBurst, setHeartBurst] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerOptionsOpen, setViewerOptionsOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<Array<{
     id: string;
@@ -99,6 +100,33 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
       setSaved(saved);
     }
   }, [livePostId, saved]);
+
+  const downloadImage = useCallback(async () => {
+    try {
+      const response = await fetch(post.imageUrl, { mode: "cors" });
+      if (!response.ok) throw new Error("Image download failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `yuniko-${post.id}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      const link = document.createElement("a");
+      link.href = post.imageUrl;
+      link.download = `yuniko-${post.id}.jpg`;
+      link.target = "_blank";
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      setViewerOptionsOpen(false);
+    }
+  }, [post.id, post.imageUrl]);
 
   const openViewer = useCallback(() => {
     const supportsViewer =
@@ -334,11 +362,16 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
           onClose={() => {
             setCommentsOpen(false);
             setViewerOpen(false);
+            setViewerOptionsOpen(false);
           }}
           onLike={handleLike}
           onComment={() => void openComments(true)}
           onShare={() => {}}
           onSave={handleSave}
+          optionsOpen={viewerOptionsOpen}
+          onToggleOptions={() => setViewerOptionsOpen((open) => !open)}
+          onCloseOptions={() => setViewerOptionsOpen(false)}
+          onDownload={downloadImage}
           commentsOpen={commentsOpen}
           comments={comments}
           commentsLoading={commentsLoading}
@@ -467,6 +500,10 @@ function PostViewer({
   onComment,
   onShare,
   onSave,
+  optionsOpen,
+  onToggleOptions,
+  onCloseOptions,
+  onDownload,
   commentsOpen,
   comments,
   commentsLoading,
@@ -487,6 +524,10 @@ function PostViewer({
   onComment: () => void;
   onShare: () => void;
   onSave: () => void;
+  optionsOpen: boolean;
+  onToggleOptions: () => void;
+  onCloseOptions: () => void;
+  onDownload: () => void;
   commentsOpen: boolean;
   comments: Array<{
     id: string;
@@ -513,17 +554,82 @@ function PostViewer({
             <img
               src={post.imageUrl}
               alt={post.caption}
-              className="max-h-full max-w-full w-full h-full object-contain"
+              className="max-h-full max-w-full w-auto h-auto object-contain"
             />
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 z-[82] w-10 h-10 rounded-full flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto"
+            className="absolute top-4 left-4 z-[82] w-12 h-12 rounded-full flex items-center justify-center bg-black/55 backdrop-blur-md border border-white/10 shadow-lg pointer-events-auto touch-manipulation"
             aria-label="Close image"
           >
-            <X size={22} className="text-white" />
+            <X size={30} strokeWidth={1.8} className="text-white" />
           </button>
+
+          <button
+            type="button"
+            onClick={onToggleOptions}
+            className="absolute top-4 right-4 z-[82] w-12 h-12 rounded-full flex items-center justify-center bg-black/55 backdrop-blur-md border border-white/10 shadow-lg pointer-events-auto touch-manipulation"
+            aria-label={t("moreOptions")}
+            aria-expanded={optionsOpen}
+          >
+            <MoreVertical size={28} strokeWidth={2} className="text-white" />
+          </button>
+
+          {optionsOpen && (
+            <div
+              className="absolute inset-0 z-[88] bg-black/35 pointer-events-auto"
+              onClick={onCloseOptions}
+              role="presentation"
+            >
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-label={t("moreOptions")}
+                className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[430px] rounded-t-[24px] overflow-hidden border border-white/10 bg-[#16131d]/[.98] shadow-[0_-18px_55px_rgba(0,0,0,.65)]"
+                style={{ paddingBottom: "env(safe-area-inset-bottom,0px)" }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="px-4 pt-3 pb-2">
+                  <div className="mx-auto h-1.5 w-12 rounded-full bg-white/20" />
+                  <h2 className="mt-3 text-center text-white text-base font-semibold">{t("moreOptions")}</h2>
+                </div>
+                <div className="px-3 pb-3">
+                  <button
+                    type="button"
+                    onClick={onDownload}
+                    className="flex w-full items-center gap-4 rounded-2xl px-4 py-4 text-left text-white transition-colors active:bg-white/10 touch-manipulation"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10">
+                      <Download size={23} strokeWidth={1.9} />
+                    </span>
+                    <span className="text-[15px] font-semibold">{t("downloadImage")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSave();
+                      onCloseOptions();
+                    }}
+                    className="flex w-full items-center gap-4 rounded-2xl px-4 py-4 text-left text-white transition-colors active:bg-white/10 touch-manipulation"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10">
+                      <Bookmark size={23} strokeWidth={1.9} className={saved ? "fill-yellow-400 text-yellow-400" : "text-white"} />
+                    </span>
+                    <span className="text-[15px] font-semibold">{saved ? t("unsavePost") : t("savePost")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCloseOptions}
+                    className="mt-1 w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold text-white/55 touch-manipulation"
+                  >
+                    {t("cancel")}
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
 
           <div
             className="absolute inset-x-0 bottom-0 z-[82] px-3 pt-10 pb-[calc(10px+env(safe-area-inset-bottom,0px))] pointer-events-auto"
