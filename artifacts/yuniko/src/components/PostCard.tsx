@@ -568,87 +568,26 @@ function PostViewer({
                   className="block max-w-full max-h-[calc(100vh-158px)] w-auto h-auto object-contain"
                 />
 
-                {/* Metadata belongs to the photo itself, not to the screen. */}
-                <div
-                  className="absolute inset-x-0 bottom-0 px-5 pt-16 pb-4 pointer-events-none"
-                  style={{
-                    background: "linear-gradient(to top, rgba(0,0,0,0.84) 0%, rgba(0,0,0,0.46) 55%, transparent 100%)",
-                  }}
-                >
-                  <div className="w-full">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={avatarSrcForViewer(author)}
-                        alt={author.displayName}
-                        className="w-10 h-10 rounded-full object-cover shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-white text-[16px] font-bold truncate">{author.displayName}</span>
-                          {author.verified && (
-                            <BadgeCheck size={15} className="text-blue-400 fill-blue-400 shrink-0" />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-white/70 text-[13px]">
-                          <span>{post.timestamp}</span>
-                          <span aria-hidden="true">·</span>
-                          <Users size={14} strokeWidth={1.9} />
-                          {post.location && (
-                            <>
-                              <span aria-hidden="true">·</span>
-                              <span className="truncate">{post.location}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {post.caption && (
-                      <p className="mt-2 text-white text-[14px] leading-snug line-clamp-2">
-                        {post.caption}
-                      </p>
-                    )}
-
-                    {post.hashtags.length > 0 && (
-                      <p className="mt-1 text-[13px] text-white/75 line-clamp-1">
-                        {post.hashtags.slice(0, 3).join(" ")}
-                      </p>
-                    )}
-
-                    <div className="mt-2 flex items-center gap-2 text-white/90 text-[13px]">
-                      <span className="inline-flex items-center justify-center -space-x-1">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 border border-black">
-                          <Heart size={11} className="fill-white text-white" />
-                        </span>
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 border border-black">
-                          <Heart size={11} className="fill-white text-white" />
-                        </span>
-                      </span>
-                      <span>{formatCount(likeCount)} {likeCount === 1 ? t("reaction") : t("reactions")}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Only the two primary controls stay in the top bar. */}
             <button
               type="button"
               onClick={onClose}
-              className="absolute top-2 left-3 z-[92] w-12 h-12 flex items-center justify-center pointer-events-auto touch-manipulation"
+              className="absolute top-2 left-3 z-[92] w-10 h-10 flex items-center justify-center pointer-events-auto touch-manipulation"
               aria-label="Close image"
             >
-              <X size={34} strokeWidth={1.8} className="text-white drop-shadow-[0_2px_5px_rgba(0,0,0,.65)]" />
+              <X size={29} strokeWidth={1.8} className="text-white drop-shadow-[0_2px_5px_rgba(0,0,0,.65)]" />
             </button>
 
             <button
               type="button"
               onClick={onToggleOptions}
-              className="absolute top-2 right-3 z-[92] w-12 h-12 flex items-center justify-center pointer-events-auto touch-manipulation"
+              className="absolute top-2 right-3 z-[92] w-10 h-10 flex items-center justify-center pointer-events-auto touch-manipulation"
               aria-label={t("moreOptions")}
               aria-expanded={optionsOpen}
             >
-              <MoreVertical size={31} strokeWidth={2} className="text-white drop-shadow-[0_2px_5px_rgba(0,0,0,.65)]" />
+              <MoreVertical size={27} strokeWidth={2} className="text-white drop-shadow-[0_2px_5px_rgba(0,0,0,.65)]" />
             </button>
 
             {optionsOpen && (
@@ -707,25 +646,25 @@ function PostViewer({
 
             {/* Facebook-like proportions: shorter rounded pills, separated by real black space. */}
             <div
-              className="absolute inset-x-0 bottom-0 z-[82] px-7 pt-2 pb-[calc(10px+env(safe-area-inset-bottom,0px))] pointer-events-auto"
+              className="absolute inset-x-0 bottom-0 z-[82] px-6 pt-1 pb-[calc(7px+env(safe-area-inset-bottom,0px))] pointer-events-auto"
               style={{
                 background: "linear-gradient(to top, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.92) 72%, rgba(0,0,0,0.72) 100%)",
               }}
             >
-              <div className="mx-auto flex w-full max-w-[760px] items-center gap-7">
+              <div className="mx-auto flex w-full max-w-[680px] items-center gap-4">
                 <ViewerAction
-                  icon={<Heart size={25} strokeWidth={1.9} className={liked ? "fill-blue-500 text-blue-500" : "text-white"} />}
+                  icon={<Heart size={21} strokeWidth={1.9} className={liked ? "fill-blue-500 text-blue-500" : "text-white"} />}
                   label={formatCount(likeCount)}
                   onClick={onLike}
                   active={liked}
                 />
                 <ViewerAction
-                  icon={<MessageCircle size={27} strokeWidth={1.9} className="text-white" />}
+                  icon={<MessageCircle size={22} strokeWidth={1.9} className="text-white" />}
                   label={formatCount(post.comments + comments.length)}
                   onClick={onComment}
                 />
                 <ViewerAction
-                  icon={<Share2 size={27} strokeWidth={1.9} className="text-white" />}
+                  icon={<Share2 size={22} strokeWidth={1.9} className="text-white" />}
                   label={formatCount(post.shares)}
                   onClick={onShare}
                 />
