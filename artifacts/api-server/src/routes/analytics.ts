@@ -25,12 +25,12 @@ analyticsRouter.post("/analytics/post/:postId/impression", authMiddleware, async
     const [post] = await selectRows("posts", { select: "id,userId,views", filters: [eq("id", postId)], limit: 1 });
     if (!post) return res.status(404).json({ error: "Post not found" });
     const [viewer] = await selectRows("users", { select: "id,auth_user_id", filters: [eq("id", viewerId)], limit: 1 });
-    const viewerUuid = viewer?.authUserId;
+    const viewerUuid = String(viewer?.authUserId ?? "");
     if (!viewerUuid) return res.json({ recorded: false, reason: "viewer_not_linked" });
     const alreadySeen = await selectRows("seen_posts", { select: "postId", filters: [eq("postId", postId), eq("userId", viewerUuid)], limit: 1 });
     const currentViews = Number(post.views ?? 0);
     await updateRows("posts", { views: currentViews + 1 }, [eq("id", postId)]);
-    if (alreadySeen.length === 0) await insertRow("seen_posts", { postId, userId: viewerUuid, seenAt: new Date() });
+    if (alreadySeen.length === 0) await insertRow("seen_posts", { postId, userId: viewerUuid });
     return res.status(201).json({ recorded: true, views: currentViews + 1, uniqueViewer: alreadySeen.length === 0 });
   } catch (err) { return supabaseError(res, err); }
 });
