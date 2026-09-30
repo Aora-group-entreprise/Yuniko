@@ -18,9 +18,11 @@ interface PostCardProps {
   post: Post;
   onOptions?: () => void;
   liveAuthor?: LiveAuthor;
+  initialViewer?: boolean;
+  onViewerClose?: () => void;
 }
 
-export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps) {
+export default function PostCard({ post, onOptions, liveAuthor, initialViewer = false, onViewerClose }: PostCardProps) {
   const [, setLocation] = useLocation();
   const mockUser = !liveAuthor ? getUserById(post.userId) : null;
 
@@ -41,7 +43,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
   const [saved, setSaved] = useState(post.isSaved);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [heartBurst, setHeartBurst] = useState(false);
-  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(initialViewer);
   const [viewerOptionsOpen, setViewerOptionsOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<Array<{
@@ -363,6 +365,7 @@ export default function PostCard({ post, onOptions, liveAuthor }: PostCardProps)
             setCommentsOpen(false);
             setViewerOpen(false);
             setViewerOptionsOpen(false);
+            onViewerClose?.();
           }}
           onLike={handleLike}
           onComment={() => void openComments(true)}
