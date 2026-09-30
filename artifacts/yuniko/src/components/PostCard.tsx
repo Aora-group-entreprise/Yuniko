@@ -558,14 +558,16 @@ function PostViewer({
             }}
           >
             <div className="shrink-0 px-4 pt-3 pb-2">
-              <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mb-3" />
-              <div className="flex items-center">
-                <button onClick={onCloseComments} className="w-9 h-9 rounded-full flex items-center justify-center text-white/70" aria-label="Close comments">
-                  <X size={20} />
-                </button>
-                <h2 className="flex-1 text-center text-white font-semibold text-base">{t("comments")}</h2>
-                <div className="w-9 h-9" />
-              </div>
+              <button
+                type="button"
+                onClick={onCloseComments}
+                className="mx-auto mb-3 flex h-8 w-16 items-center justify-center rounded-full touch-manipulation"
+                aria-label="Close comments"
+                title="Close comments"
+              >
+                <span className="block w-10 h-1 rounded-full bg-white/25" />
+              </button>
+              <h2 className="text-center text-white font-semibold text-base">{t("comments")}</h2>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 pb-3" style={{ WebkitOverflowScrolling: "touch" }}>
