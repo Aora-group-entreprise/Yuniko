@@ -122,4 +122,196 @@ usersRouter.get("/users/:id", authMiddleware, async (req: AuthenticatedRequest, 
   }
 });
 
+
+function mapFriendUser(user: Record<string, unknown>, followers = 0, mutualFriends = 0) {
+  return {
+    id: Number(user.id),
+    avatar: String(user.avatarUrl ?? ""),
+    displayName: String(user.displayName ?? user.username ?? ""),
+    username: String(user.username ?? ""),
+    followers,
+    mutualFriends,
+  };
+}
+
+async function followerCounts() {
+  const follows = await selectRows("follows", { limit: 5000 });
+  const counts = new Map<number, number>();
+  for (const row of follows) {
+    const id = Number(row.followingId);
+    if (Number.isInteger(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+usersRouter.get("/friend-requests", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const incoming = await selectRows("follows", {
+      filters: [eq("followingId", req.userId!), eq("status", "pending")],
+      order: { column: "createdAt", ascending: false },
+      limit: 100,
+    });
+    const ids = incoming.map((row) => Number(row.followerId)).filter((id) => Number.isInteger(id) && id > 0);
+    if (!ids.length) return res.json({ requests: [] });
+    const [allUsers, counts] = await Promise.all([
+      selectRows("users", { limit: 1000 }),
+      followerCounts(),
+    ]);
+    const byId = new Map(allUsers.map((user) => [Number(user.id), user]));
+    const requests = ids.flatMap((id) => {
+      const user = byId.get(id);
+      if (!user) return [];
+      return [{ user: mapFriendUser(user, counts.get(id) ?? 0, 0), mutualFriends: 0 }];
+    });
+    return res.json({ requests });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
+usersRouter.get("/friend-requests/sent", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const outgoing = await selectRows("follows", {
+      filters: [eq("followerId", req.userId!), eq("status", "pending")],
+      order: { column: "createdAt", ascending: false },
+      limit: 100,
+    });
+    const ids = outgoing.map((row) => Number(row.followingId)).filter((id) => Number.isInteger(id) && id > 0);
+    if (!ids.length) return res.json({ users: [] });
+    const [allUsers, counts] = await Promise.all([
+      selectRows("users", { limit: 1000 }),
+      followerCounts(),
+    ]);
+    const byId = new Map(allUsers.map((user) => [Number(user.id), user]));
+    return res.json({
+      users: ids.flatMap((id) => {
+        const user = byId.get(id);
+        return user ? [mapFriendUser(user, counts.get(id) ?? 0)] : [];
+      }),
+    });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
+usersRouter.get("/friends/suggestions", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const [allUsers, allFollows, counts] = await Promise.all([
+      selectRows("users", { limit: 1000 }),
+      selectRows("follows", { limit: 5000 }),
+      followerCounts(),
+    ]);
+    const related = new Set<number>();
+    for (const row of allFollows) {
+      const followerId = Number(row.followerId);
+      const followingId = Number(row.followingId);
+      if (followerId === req.userId!) related.add(followingId);
+      if (followingId === req.userId!) related.add(followerId);
+    }
+    const suggestions = allUsers
+      .filter((user) => {
+        const id = Number(user.id);
+        return id > 0 && id !== req.userId! && !related.has(id);
+      })
+      .sort((a, b) => (counts.get(Number(b.id)) ?? 0) - (counts.get(Number(a.id)) ?? 0))
+      .slice(0, 20)
+      .map((user) => mapFriendUser(user, counts.get(Number(user.id)) ?? 0));
+    return res.json({ users: suggestions });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
+usersRouter.post("/friend-requests/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  const targetId = Number(req.params["id"]);
+  if (!Number.isInteger(targetId) || targetId <= 0 || targetId === req.userId) {
+    return res.status(400).json({ error: "Invalid friend request target" });
+  }
+  try {
+    const [target] = await selectRows("users", { filters: [eq("id", targetId)], limit: 1 });
+    if (!target) return res.status(404).json({ error: "User not found" });
+    const existing = await selectRows("follows", {
+      filters: [eq("followerId", req.userId!), eq("followingId", targetId)],
+      limit: 1,
+    });
+    if (existing.length) return res.status(409).json({ error: "Request already exists" });
+    const incoming = await selectRows("follows", {
+      filters: [eq("followerId", targetId), eq("followingId", req.userId!)],
+      limit: 1,
+    });
+    if (incoming.length && String(incoming[0].status ?? "") === "pending") {
+      await updateRows("follows", { status: "accepted", isFriend: true }, [
+        eq("followerId", targetId),
+        eq("followingId", req.userId!),
+      ]);
+      await insertRow("follows", { followerId: req.userId!, followingId: targetId, isFriend: true, status: "accepted" });
+      const { ensureFriendConversation } = await import("./messages");
+      await ensureFriendConversation(req.userId!, targetId);
+      return res.json({ status: "accepted", friend: true });
+    }
+    await insertRow("follows", { followerId: req.userId!, followingId: targetId, isFriend: false, status: "pending" });
+    return res.status(201).json({ status: "pending" });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
+usersRouter.delete("/friend-requests/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  const targetId = Number(req.params["id"]);
+  if (!Number.isInteger(targetId) || targetId <= 0) return res.status(400).json({ error: "Invalid user id" });
+  try {
+    const incoming = await selectRows("follows", {
+      filters: [eq("followerId", targetId), eq("followingId", req.userId!), eq("status", "pending")],
+      limit: 1,
+    });
+    const outgoing = await selectRows("follows", {
+      filters: [eq("followerId", req.userId!), eq("followingId", targetId), eq("status", "pending")],
+      limit: 1,
+    });
+    if (incoming.length) {
+      await deleteRows("follows", [eq("followerId", targetId), eq("followingId", req.userId!), eq("status", "pending")]);
+    } else if (outgoing.length) {
+      await deleteRows("follows", [eq("followerId", req.userId!), eq("followingId", targetId), eq("status", "pending")]);
+    } else {
+      return res.status(404).json({ error: "Friend request not found" });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
+usersRouter.post("/friend-requests/:id/accept", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  const requesterId = Number(req.params["id"]);
+  if (!Number.isInteger(requesterId) || requesterId <= 0) return res.status(400).json({ error: "Invalid requester id" });
+  try {
+    const pending = await selectRows("follows", {
+      filters: [eq("followerId", requesterId), eq("followingId", req.userId!), eq("status", "pending")],
+      limit: 1,
+    });
+    if (!pending.length) return res.status(404).json({ error: "Friend request not found" });
+    await updateRows("follows", { status: "accepted", isFriend: true }, [
+      eq("followerId", requesterId),
+      eq("followingId", req.userId!),
+    ]);
+    const reciprocal = await selectRows("follows", {
+      filters: [eq("followerId", req.userId!), eq("followingId", requesterId)],
+      limit: 1,
+    });
+    if (reciprocal.length) {
+      await updateRows("follows", { status: "accepted", isFriend: true }, [
+        eq("followerId", req.userId!),
+        eq("followingId", requesterId),
+      ]);
+    } else {
+      await insertRow("follows", { followerId: req.userId!, followingId: requesterId, isFriend: true, status: "accepted" });
+    }
+    const { ensureFriendConversation } = await import("./messages");
+    await ensureFriendConversation(req.userId!, requesterId);
+    return res.json({ accepted: true });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
 export default usersRouter;

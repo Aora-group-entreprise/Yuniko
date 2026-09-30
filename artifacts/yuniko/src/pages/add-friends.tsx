@@ -1,20 +1,38 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Search, UserCheck, UserPlus, X } from "lucide-react";
-import { users, friendRequests, suggestedFriends } from "@/data/mockData";
+import { apiJson } from "@/lib/api";
 import { t } from "@/lib/i18n";
-import { formatCount } from "@/data/mockData";
 import BottomNav from "@/components/BottomNav";
 
 type Tab = "requests" | "suggested" | "search" | "sent";
+
+type FriendUser = {
+  id: number;
+  avatar: string;
+  displayName: string;
+  username: string;
+  followers: number;
+  mutualFriends?: number;
+};
+
+type FriendRequest = {
+  user: FriendUser;
+  mutualFriends: number;
+};
 
 export default function AddFriends() {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<Tab>("requests");
   const [query, setQuery] = useState("");
-  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
-  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
-  const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set());
+  const [requests, setRequests] = useState<FriendRequest[]>([]);
+  const [suggestions, setSuggestions] = useState<FriendUser[]>([]);
+  const [sent, setSent] = useState<FriendUser[]>([]);
+  const [searchResults, setSearchResults] = useState<FriendUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   const tabs = [
     { id: "requests" as Tab, label: t("friendRequests") },
@@ -23,24 +41,123 @@ export default function AddFriends() {
     { id: "sent" as Tab, label: t("sent") },
   ];
 
-  const filteredUsers = query
-    ? users.filter(
-        (u) =>
-          u.displayName.toLowerCase().includes(query.toLowerCase()) ||
-          u.username.toLowerCase().includes(query.toLowerCase())
-      )
-    : users;
+  const setBusy = (id: number, busy: boolean) => {
+    setBusyIds((prev) => {
+      const next = new Set(prev);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [requestData, suggestionData, sentData] = await Promise.all([
+        apiJson<{ requests: FriendRequest[] }>("/friend-requests"),
+        apiJson<{ users: FriendUser[] }>("/friends/suggestions"),
+        apiJson<{ users: FriendUser[] }>("/friend-requests/sent"),
+      ]);
+      setRequests(requestData.requests ?? []);
+      setSuggestions(suggestionData.users ?? []);
+      setSent(sentData.users ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load friends");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData();
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "search") return;
+    const value = query.trim();
+    if (value.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = window.setTimeout(() => {
+      apiJson<{ users: FriendUser[] }>(`/users/search?q=${encodeURIComponent(value)}`)
+        .then((data) => {
+          if (!cancelled) setSearchResults(data.users ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) setSearchResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query, tab]);
+
+  const sendRequest = async (user: FriendUser) => {
+    setBusy(user.id, true);
+    try {
+      await apiJson(`/friend-requests/${user.id}`, { method: "POST" });
+      setSent((prev) => [...prev, user]);
+      setSuggestions((prev) => prev.filter((item) => item.id !== user.id));
+      setSearchResults((prev) => prev.map((item) => item.id === user.id ? { ...item } : item));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to send request");
+    } finally {
+      setBusy(user.id, false);
+    }
+  };
+
+  const cancelRequest = async (user: FriendUser) => {
+    setBusy(user.id, true);
+    try {
+      await apiJson(`/friend-requests/${user.id}`, { method: "DELETE" });
+      setSent((prev) => prev.filter((item) => item.id !== user.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to cancel request");
+    } finally {
+      setBusy(user.id, false);
+    }
+  };
+
+  const acceptRequest = async (request: FriendRequest) => {
+    setBusy(request.user.id, true);
+    try {
+      await apiJson(`/friend-requests/${request.user.id}/accept`, { method: "POST" });
+      setRequests((prev) => prev.filter((item) => item.user.id !== request.user.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to accept request");
+    } finally {
+      setBusy(request.user.id, false);
+    }
+  };
+
+  const declineRequest = async (request: FriendRequest) => {
+    setBusy(request.user.id, true);
+    try {
+      await apiJson(`/friend-requests/${request.user.id}`, { method: "DELETE" });
+      setRequests((prev) => prev.filter((item) => item.user.id !== request.user.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to decline request");
+    } finally {
+      setBusy(request.user.id, false);
+    }
+  };
+
+  const activeSearchResults = useMemo(() => searchResults, [searchResults]);
 
   return (
     <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20">
-      {/* Header */}
       <header
         className="sticky top-0 z-40 px-4 py-4 flex items-center gap-3"
-        style={{
-          background: "rgba(13,11,20,0.95)",
-          backdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-        }}
+        style={{ background: "rgba(13,11,20,0.95)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
         data-testid="add-friends-header"
       >
         <button onClick={() => setLocation("/")} data-testid="btn-back-add-friends">
@@ -49,11 +166,7 @@ export default function AddFriends() {
         <h1 className="text-base font-semibold text-white flex-1">{t("addFriends")}</h1>
       </header>
 
-      {/* Tabs */}
-      <div
-        className="flex px-4 py-2 gap-1 overflow-x-auto no-scrollbar"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
-      >
+      <div className="flex px-4 py-2 gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         {tabs.map((tabItem) => (
           <button
             key={tabItem.id}
@@ -70,13 +183,15 @@ export default function AddFriends() {
         ))}
       </div>
 
-      {/* Search tab */}
+      {error && (
+        <div className="mx-4 mt-3 rounded-xl px-3 py-2 text-xs text-red-200/80" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+          {error}
+        </div>
+      )}
+
       {tab === "search" && (
         <div className="px-4 py-3">
-          <div
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl mb-4"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
-          >
+          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl mb-4" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <Search size={16} className="text-white/40" />
             <input
               value={query}
@@ -88,122 +203,84 @@ export default function AddFriends() {
             />
             {query && <button onClick={() => setQuery("")}><X size={14} className="text-white/40" /></button>}
           </div>
-          {filteredUsers.map((user) => (
-            <UserRow
-              key={user.id}
-              user={user}
-              isSent={sentIds.has(user.id)}
-              onNavigate={() => setLocation(`/user/${user.id}`)}
-              onAction={() => {
-                const next = new Set(sentIds);
-                if (sentIds.has(user.id)) next.delete(user.id);
-                else next.add(user.id);
-                setSentIds(next);
-              }}
-            />
-          ))}
+          {searching ? (
+            <p className="text-white/35 text-sm text-center py-10">Searching...</p>
+          ) : query.trim().length < 2 ? (
+            <p className="text-white/35 text-sm text-center py-10">Enter at least 2 characters.</p>
+          ) : activeSearchResults.length === 0 ? (
+            <p className="text-white/35 text-sm text-center py-10">{t("noResults")}</p>
+          ) : (
+            activeSearchResults.map((user) => (
+              <UserRow
+                key={user.id}
+                user={user}
+                isSent={sent.some((item) => item.id === user.id)}
+                busy={busyIds.has(user.id)}
+                onNavigate={() => setLocation(`/user/${user.id}`)}
+                onAction={() => sent.some((item) => item.id === user.id) ? cancelRequest(user) : sendRequest(user)}
+              />
+            ))
+          )}
         </div>
       )}
 
-      {/* Friend requests tab */}
       {tab === "requests" && (
         <div className="px-4 py-3">
-          {friendRequests.filter((r) => !declinedIds.has(r.user.id)).length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <UserCheck size={40} className="text-white/20" />
-              <p className="text-white/40 text-sm">No friend requests</p>
-            </div>
-          ) : (
-            friendRequests
-              .filter((r) => !declinedIds.has(r.user.id))
-              .map(({ user, mutualFriends }) => (
-                <div
-                  key={user.id}
-                  className="flex items-center gap-3 py-3"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                  data-testid={`friend-request-${user.id}`}
-                >
-                  <button onClick={() => setLocation(`/user/${user.id}`)}>
-                    <img src={user.avatar} alt={user.displayName} className="w-12 h-12 rounded-full object-cover" />
+          {loading ? <p className="text-white/35 text-sm text-center py-16">Loading...</p> : requests.length === 0 ? (
+            <EmptyState icon={<UserCheck size={40} className="text-white/20" />} text="No friend requests" />
+          ) : requests.map((request) => (
+            <div key={request.user.id} className="flex items-center gap-3 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }} data-testid={`friend-request-${request.user.id}`}>
+              <button onClick={() => setLocation(`/user/${request.user.id}`)}>
+                <img src={request.user.avatar} alt={request.user.displayName} className="w-12 h-12 rounded-full object-cover" />
+              </button>
+              <div className="flex-1 min-w-0">
+                <button onClick={() => setLocation(`/user/${request.user.id}`)}>
+                  <p className="text-white font-semibold text-sm">{request.user.displayName}</p>
+                </button>
+                <p className="text-white/50 text-xs">@{request.user.username} · {request.mutualFriends} {t("mutualFriends")}</p>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    disabled={busyIds.has(request.user.id)}
+                    onClick={() => acceptRequest(request)}
+                    className="px-4 py-1.5 rounded-full text-sm font-semibold text-white disabled:opacity-50"
+                    style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)" }}
+                    data-testid={`btn-accept-${request.user.id}`}
+                  >
+                    {busyIds.has(request.user.id) ? "..." : t("accept")}
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <button onClick={() => setLocation(`/user/${user.id}`)}>
-                      <p className="text-white font-semibold text-sm">{user.displayName}</p>
-                    </button>
-                    <p className="text-white/50 text-xs">@{user.username} · {mutualFriends} {t("mutualFriends")}</p>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={() => setAcceptedIds((prev) => { const n = new Set(prev); n.add(user.id); return n; })}
-                        className="px-4 py-1.5 rounded-full text-sm font-semibold text-white"
-                        style={{ background: acceptedIds.has(user.id) ? "rgba(134,239,172,0.2)" : "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: acceptedIds.has(user.id) ? "none" : "0 2px 8px rgba(255,0,110,0.3)" }}
-                        data-testid={`btn-accept-${user.id}`}
-                      >
-                        {acceptedIds.has(user.id) ? "Accepted ✓" : t("accept")}
-                      </button>
-                      {!acceptedIds.has(user.id) && (
-                        <button
-                          onClick={() => setDeclinedIds((prev) => { const n = new Set(prev); n.add(user.id); return n; })}
-                          className="px-4 py-1.5 rounded-full text-sm font-semibold text-white/70"
-                          style={{ background: "rgba(255,255,255,0.1)" }}
-                          data-testid={`btn-decline-${user.id}`}
-                        >
-                          {t("decline")}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  <button
+                    disabled={busyIds.has(request.user.id)}
+                    onClick={() => declineRequest(request)}
+                    className="px-4 py-1.5 rounded-full text-sm font-semibold text-white/70 disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.1)" }}
+                    data-testid={`btn-decline-${request.user.id}`}
+                  >
+                    {t("decline")}
+                  </button>
                 </div>
-              ))
-          )}
-        </div>
-      )}
-
-      {/* Suggested tab */}
-      {tab === "suggested" && (
-        <div className="px-4 py-3">
-          {suggestedFriends.map((user) => (
-            <UserRow
-              key={user.id}
-              user={user}
-              isSent={sentIds.has(user.id)}
-              onNavigate={() => setLocation(`/user/${user.id}`)}
-              onAction={() => {
-                const next = new Set(sentIds);
-                if (sentIds.has(user.id)) next.delete(user.id);
-                else next.add(user.id);
-                setSentIds(next);
-              }}
-            />
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Sent tab */}
+      {tab === "suggested" && (
+        <div className="px-4 py-3">
+          {loading ? <p className="text-white/35 text-sm text-center py-16">Loading...</p> : suggestions.length === 0 ? (
+            <EmptyState icon={<UserPlus size={40} className="text-white/20" />} text="No suggestions right now" />
+          ) : suggestions.map((user) => (
+            <UserRow key={user.id} user={user} isSent={sent.some((item) => item.id === user.id)} busy={busyIds.has(user.id)} onNavigate={() => setLocation(`/user/${user.id}`)} onAction={() => sent.some((item) => item.id === user.id) ? cancelRequest(user) : sendRequest(user)} />
+          ))}
+        </div>
+      )}
+
       {tab === "sent" && (
         <div className="px-4 py-3">
-          {sentIds.size === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <UserPlus size={40} className="text-white/20" />
-              <p className="text-white/40 text-sm">No sent requests</p>
-            </div>
-          ) : (
-            users
-              .filter((u) => sentIds.has(u.id))
-              .map((user) => (
-                <UserRow
-                  key={user.id}
-                  user={user}
-                  isSent={true}
-                  label={t("requestSent")}
-                  onNavigate={() => setLocation(`/user/${user.id}`)}
-                  onAction={() => {
-                    const next = new Set(sentIds);
-                    next.delete(user.id);
-                    setSentIds(next);
-                  }}
-                />
-              ))
-          )}
+          {loading ? <p className="text-white/35 text-sm text-center py-16">Loading...</p> : sent.length === 0 ? (
+            <EmptyState icon={<UserPlus size={40} className="text-white/20" />} text="No sent requests" />
+          ) : sent.map((user) => (
+            <UserRow key={user.id} user={user} isSent={true} busy={busyIds.has(user.id)} label={t("requestSent")} onNavigate={() => setLocation(`/user/${user.id}`)} onAction={() => cancelRequest(user)} />
+          ))}
         </div>
       )}
 
@@ -212,25 +289,27 @@ export default function AddFriends() {
   );
 }
 
+function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return <div className="flex flex-col items-center justify-center py-16 gap-3">{icon}<p className="text-white/40 text-sm">{text}</p></div>;
+}
+
 function UserRow({
   user,
   isSent,
+  busy,
   label,
   onNavigate,
   onAction,
 }: {
-  user: { id: string; avatar: string; displayName: string; username: string; followers: number };
+  user: FriendUser;
   isSent: boolean;
+  busy: boolean;
   label?: string;
   onNavigate: () => void;
   onAction: () => void;
 }) {
   return (
-    <div
-      className="flex items-center gap-3 py-3"
-      style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-      data-testid={`user-row-${user.id}`}
-    >
+    <div className="flex items-center gap-3 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }} data-testid={`user-row-${user.id}`}>
       <button onClick={onNavigate}>
         <img src={user.avatar} alt={user.displayName} className="w-11 h-11 rounded-full object-cover" />
       </button>
@@ -238,11 +317,12 @@ function UserRow({
         <button onClick={onNavigate}>
           <p className="text-white font-semibold text-sm">{user.displayName}</p>
         </button>
-        <p className="text-white/50 text-xs">@{user.username} · {formatCount(user.followers)} followers</p>
+        <p className="text-white/50 text-xs">@{user.username} · {user.followers} followers</p>
       </div>
       <button
+        disabled={busy}
         onClick={onAction}
-        className="px-4 py-1.5 rounded-full text-sm font-semibold text-white flex-shrink-0"
+        className="px-4 py-1.5 rounded-full text-sm font-semibold text-white flex-shrink-0 disabled:opacity-50"
         style={{
           background: isSent ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg, #FF006E, #8B00FF)",
           border: isSent ? "1px solid rgba(255,255,255,0.15)" : "none",
@@ -250,7 +330,7 @@ function UserRow({
         }}
         data-testid={`btn-add-${user.id}`}
       >
-        {label || (isSent ? t("requestSent") : t("sendRequest"))}
+        {busy ? "..." : label || (isSent ? t("requestSent") : t("sendRequest"))}
       </button>
     </div>
   );
