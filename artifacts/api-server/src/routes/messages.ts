@@ -232,4 +232,64 @@ messagesRouter.post("/messages/conversations/:userId",authMiddleware,async(req:A
   }catch(err){return supabaseError(res,err);}
 });
 
+messagesRouter.get("/message-requests",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const currentId=Number(req.userId);
+  try{
+    const [requests,users,blockedRows]=await Promise.all([
+      selectRows("message_requests",{filters:[eq("recipientId",currentId),eq("status","pending")],order:{column:"createdAt",ascending:false},limit:100}),
+      selectRows<UserRow>("users",{limit:1000}),selectRows("blocked_users",{limit:5000}),
+    ]);
+    const blockedIds=new Set<number>();
+    for(const row of blockedRows){const blocker=Number(row.blockerId),blocked=Number(row.blockedId);if(blocker===currentId)blockedIds.add(blocked);if(blocked===currentId)blockedIds.add(blocker);}
+    const userById=new Map(users.map(user=>[Number(user.id),user]));
+    const result=requests.flatMap(request=>{const senderId=Number(request.senderId),sender=userById.get(senderId);if(!sender||blockedIds.has(senderId))return [];return [{id:Number(request.id),user:{id:senderId,username:String(sender.username??""),displayName:String(sender.displayName??sender.username??""),avatarUrl:sender.avatarUrl??null,verified:String(sender.verificationStatus??"")==="verified"},message:String(request.message??""),timestamp:dateValue(request.createdAt)}];});
+    return res.json({requests:result});
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.post("/message-requests/:userId",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const currentId=Number(req.userId),targetId=Number(req.params["userId"]);
+  const message=typeof req.body?.message==="string"?req.body.message.trim():"";
+  if(!Number.isInteger(targetId)||targetId<=0||targetId===currentId)return res.status(400).json({error:"Invalid user id"});
+  if(!message||message.length>4000)return res.status(400).json({error:"Message must be between 1 and 4000 characters"});
+  try{
+    const [target,existing,blocked]=await Promise.all([getUser(targetId),selectRows("message_requests",{filters:[eq("senderId",currentId),eq("recipientId",targetId),eq("status","pending")],limit:1}),selectRows("blocked_users",{limit:5000})]);
+    if(!target)return res.status(404).json({error:"User not found"});
+    const blockedBetween=blocked.some(row=>(Number(row.blockerId)===currentId&&Number(row.blockedId)===targetId)||(Number(row.blockerId)===targetId&&Number(row.blockedId)===currentId));
+    if(blockedBetween)return res.status(403).json({error:"Cannot send message request"});
+    if(await areFriends(currentId,targetId))return res.status(409).json({error:"You are already friends"});
+    if(existing.length)return res.status(409).json({error:"Message request already exists"});
+    const request=await insertRow("message_requests",{senderId:currentId,recipientId:targetId,message,status:"pending",createdAt:new Date(),updatedAt:new Date()});
+    return res.status(201).json({request:{id:Number(request.id),status:"pending"}});
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.post("/message-requests/:id/accept",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const requestId=Number(req.params["id"]),currentId=Number(req.userId);
+  if(!Number.isInteger(requestId)||requestId<=0)return res.status(400).json({error:"Invalid request id"});
+  try{
+    const [request]=await selectRows("message_requests",{filters:[eq("id",requestId),eq("recipientId",currentId),eq("status","pending")],limit:1});
+    if(!request)return res.status(404).json({error:"Message request not found"});
+    const senderId=Number(request.senderId);
+    const [existingFollow]=await selectRows("follows",{filters:[eq("followerId",currentId),eq("followingId",senderId)],limit:1});
+    if(existingFollow)await updateRows("follows",{status:"accepted",isFriend:true},[eq("followerId",currentId),eq("followingId",senderId)]);else await insertRow("follows",{followerId:currentId,followingId:senderId,isFriend:true,status:"accepted"});
+    const [reverseFollow]=await selectRows("follows",{filters:[eq("followerId",senderId),eq("followingId",currentId)],limit:1});
+    if(reverseFollow)await updateRows("follows",{status:"accepted",isFriend:true},[eq("followerId",senderId),eq("followingId",currentId)]);else await insertRow("follows",{followerId:senderId,followingId:currentId,isFriend:true,status:"accepted"});
+    await updateRows("message_requests",{status:"accepted",updatedAt:new Date()},[eq("id",requestId),eq("recipientId",currentId)]);
+    const conversationId=await ensureFriendConversation(currentId,senderId);
+    return res.json({accepted:true,conversationId,userId:senderId});
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.delete("/message-requests/:id",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const requestId=Number(req.params["id"]),currentId=Number(req.userId);
+  if(!Number.isInteger(requestId)||requestId<=0)return res.status(400).json({error:"Invalid request id"});
+  try{
+    const [request]=await selectRows("message_requests",{filters:[eq("id",requestId),eq("recipientId",currentId),eq("status","pending")],limit:1});
+    if(!request)return res.status(404).json({error:"Message request not found"});
+    await updateRows("message_requests",{status:"declined",updatedAt:new Date()},[eq("id",requestId),eq("recipientId",currentId)]);
+    return res.json({declined:true});
+  }catch(err){return supabaseError(res,err);}
+});
+
 export default messagesRouter;
