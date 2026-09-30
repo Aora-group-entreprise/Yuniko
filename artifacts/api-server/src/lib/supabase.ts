@@ -1,14 +1,19 @@
+import { env as cloudflareEnv } from "cloudflare:workers";
+
 type Row = Record<string, unknown>;
+const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+
+function getEnv(name: string) {
+  return runtimeEnv[name] ?? process.env[name] ?? "";
+}
+
 function getSupabaseUrl() {
-  return String(process.env["SUPABASE_URL"] ?? "").replace(/\/+$/, "");
+  return String(getEnv("SUPABASE_URL")).replace(/\/+$/, "");
 }
 
 function getSupabaseKey() {
-  return process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_KEY"] ?? "";
+  return getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_ANON_KEY") || getEnv("SUPABASE_KEY");
 }
-type Filter = { column: string; operator: "eq" | "gt" | "ilike"; value: string | number | boolean | Date };
-
-
 
 function toSnakeCase(value: string) {
   return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
