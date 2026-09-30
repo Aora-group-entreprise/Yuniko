@@ -58,15 +58,16 @@ usersRouter.get("/users/:id/relations", authMiddleware, async (req: Authenticate
     });
     const followingIds = new Set(currentFollowing.map((row) => Number(row.followingId)));
 
-    const result = ids.map((relationId) => {
+    const result = ids.flatMap((relationId) => {
       const user = byId.get(relationId);
-      if (!user) return null;
-      return {
+      if (!user) return [];
+      return [{
         ...publicUser(user),
+        id: relationId,
         followers: 0,
         isFollowing: followingIds.has(relationId),
-      };
-    }).filter(Boolean);
+      }];
+    });
 
     const followerCounts = new Map<number, number>();
     const allFollows = await selectRows("follows", { limit: 5000 });
