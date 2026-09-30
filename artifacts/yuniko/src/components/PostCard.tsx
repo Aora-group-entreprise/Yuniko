@@ -567,7 +567,7 @@ function PostViewer({
                   alt={post.caption}
                   className="block max-w-full max-h-[calc(100vh-158px)] w-auto h-auto object-contain"
                 />
-
+              </div>
             </div>
 
             {/* Only the two primary controls stay in the top bar. */}
