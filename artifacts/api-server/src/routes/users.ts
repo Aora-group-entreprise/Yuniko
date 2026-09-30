@@ -1,6 +1,6 @@
 import { Router, type Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
-import { eq, ilike, publicUser, selectRows, sortRows, supabaseError } from "../lib/supabase";
+import { deleteRows, eq, ilike, insertRow, publicUser, selectRows, sortRows, supabaseError, updateRows } from "../lib/supabase";
 
 const usersRouter = Router();
 type AuthenticatedRequest = Request & { userId?: number };
