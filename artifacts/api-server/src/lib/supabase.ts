@@ -2,6 +2,7 @@ import { env as cloudflareEnv } from "cloudflare:workers";
 
 type Row = Record<string, unknown>;
 const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+type Filter = { column: string; operator: "eq" | "gt" | "ilike"; value: string | number | boolean | Date };
 
 function getEnv(name: string) {
   return runtimeEnv[name] ?? process.env[name] ?? "";
