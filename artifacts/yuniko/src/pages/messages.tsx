@@ -37,6 +37,7 @@ export default function Messages(){
   const [error,setError]=useState<string|null>(null);
   const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean;swiping:boolean;offset:number}|null>(null);
   const rowRefs=useRef<Record<number,HTMLButtonElement|null>>({});
+  const archiveRefs=useRef<Record<number,HTMLDivElement|null>>({});
   const suppressClickRef=useRef(false);
 
   const load=()=>{
@@ -101,7 +102,9 @@ export default function Messages(){
           const onTouchStart=(e:React.TouchEvent)=>{
             const touch=e.touches[0]; if(!touch)return;
             const row=rowRefs.current[conv.id];
+            const archiveIcon=archiveRefs.current[conv.id];
             if(row){row.style.transition="none";row.style.transform="translate3d(0,0,0)";}
+            if(archiveIcon){archiveIcon.style.transition="none";archiveIcon.style.opacity="0";archiveIcon.style.transform="translate3d(0,0,0) scale(.78) rotate(-8deg)";}
             const state={id:conv.id,x:touch.clientX,y:touch.clientY,startedAt:Date.now(),longPressTimer:null as number|null,longPressed:false,swiping:false,offset:0};
             state.longPressTimer=window.setTimeout(()=>{
               state.longPressed=true;
@@ -128,7 +131,17 @@ export default function Messages(){
             const offset=raw<=140?raw:140+(raw-140)*0.2;
             state.offset=Math.min(offset,190);
             const row=rowRefs.current[conv.id];
+            const archiveIcon=archiveRefs.current[conv.id];
             if(row)row.style.transform="translate3d("+state.offset+"px,0,0)";
+            if(archiveIcon){
+              const progress=Math.min(state.offset/110,1);
+              const opacity=0.08+0.92*progress;
+              const scale=0.78+0.22*progress;
+              const rotation=-8+8*progress;
+              const parallax=Math.min(state.offset*0.12,13);
+              archiveIcon.style.opacity=String(opacity);
+              archiveIcon.style.transform="translate3d("+parallax+"px,0,0) scale("+scale+") rotate("+rotation+"deg)";
+            }
             e.preventDefault();
           };
           const onTouchEnd=(e:React.TouchEvent)=>{
@@ -136,22 +149,29 @@ export default function Messages(){
             if(!state||state.id!==conv.id)return;
             if(state.longPressTimer!==null){window.clearTimeout(state.longPressTimer);state.longPressTimer=null;}
             const row=rowRefs.current[conv.id];
+            const archiveIcon=archiveRefs.current[conv.id];
             if(state.longPressed){
               if(row){row.style.transition="transform 180ms ease-out";row.style.transform="translate3d(0,0,0)";}
+              if(archiveIcon){archiveIcon.style.transition="opacity 150ms ease-out, transform 180ms cubic-bezier(.2,.8,.2,1)";archiveIcon.style.opacity="0";archiveIcon.style.transform="translate3d(0,0,0) scale(.78) rotate(-8deg)";}
               return;
             }
             if(state.swiping){
               const shouldArchive=state.offset>=110;
               if(row){
-                row.style.transition="transform 180ms cubic-bezier(.2,.8,.2,1)";
+                row.style.transition=shouldArchive?"transform 220ms cubic-bezier(.2,.8,.2,1)":"transform 260ms cubic-bezier(.16,1,.3,1)";
                 row.style.transform=shouldArchive?"translate3d(100%,0,0)":"translate3d(0,0,0)";
               }
-              if(shouldArchive){window.setTimeout(()=>{void archive(conv);},180);}
+              if(archiveIcon){
+                archiveIcon.style.transition=shouldArchive?"opacity 140ms ease-out, transform 220ms cubic-bezier(.2,.8,.2,1)":"opacity 180ms ease-out, transform 260ms cubic-bezier(.16,1,.3,1)";
+                archiveIcon.style.opacity=shouldArchive?"1":"0";
+                archiveIcon.style.transform=shouldArchive?"translate3d(13px,0,0) scale(1.08) rotate(0deg)":"translate3d(0,0,0) scale(.78) rotate(-8deg)";
+              }
+              if(shouldArchive){window.setTimeout(()=>{void archive(conv);},220);}
               return;
             }
           };
           return <div key={conv.id} className="relative w-full overflow-hidden" style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-            <div className="absolute inset-y-0 left-0 w-24 flex items-center justify-center pointer-events-none" style={{background:"rgba(34,197,94,0.18)"}}><Archive size={20} className="text-green-300"/></div>
+            <div ref={el=>{archiveRefs.current[conv.id]=el;}} className="absolute inset-y-0 left-0 w-24 flex items-center justify-center pointer-events-none" style={{opacity:0,transform:"translate3d(0,0,0) scale(.78) rotate(-8deg)"}}><Archive size={20} className="text-green-300"/></div>
             <button
               ref={el=>{rowRefs.current[conv.id]=el;}}
               onClick={()=>{if(suppressClickRef.current){suppressClickRef.current=false;return;}setLocation(`/chat/${conv.user.id}`);}}
