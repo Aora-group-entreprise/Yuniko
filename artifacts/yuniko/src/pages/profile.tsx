@@ -249,7 +249,7 @@ export default function Profile({ userId }: ProfilePageProps) {
       </div>
 
       <div className="flex px-4 mb-1" style={{borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-        {[{id:"grid",icon:Grid3X3},{id:"saved",icon:BookmarkIcon},...(isOwn?[{id:"analytics",icon:BarChart2}]:[])].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as typeof tab)} className="flex-1 py-3 flex items-center justify-center" style={{borderBottom:tab===tabItem.id?"2px solid #FF3D9A":"2px solid transparent"}} data-testid={`tab-${tabItem.id}`}><tabItem.icon size={20} style={{color:tab===tabItem.id?"#FF3D9A":"rgba(255,255,255,0.35)"}} strokeWidth={1.8}/></button>)}
+        {[{id:"grid",icon:Grid3X3},...(isOwn?[{id:"saved",icon:BookmarkIcon},{id:"analytics",icon:BarChart2}]:[])].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as typeof tab)} className="flex-1 py-3 flex items-center justify-center" style={{borderBottom:tab===tabItem.id?"2px solid #FF3D9A":"2px solid transparent"}} data-testid={`tab-${tabItem.id}`}><tabItem.icon size={20} style={{color:tab===tabItem.id?"#FF3D9A":"rgba(255,255,255,0.35)"}} strokeWidth={1.8}/></button>)}
       </div>
 
       {tab==="grid"&&(
