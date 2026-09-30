@@ -6,6 +6,7 @@ import ScreenPortal from "@/components/ScreenPortal";
 import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
+import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUser } from "@/lib/session-cache";
 
 type Message={id:number;senderId:number;text?:string;imageUrl?:string;timestamp:string|null;read:boolean;reactions:string[];type:"text"|"image"};
 
@@ -23,11 +24,14 @@ export default function Chat(){
   const [,setLocation]=useLocation();
   const params=useParams<{userId:string}>();
   const {user:authUser}=useAuth();
+  setSessionUser(Number(authUser?.id));
   const userId=Number(params?.userId);
-  const [user,setUser]=useState<ChatUser|null>(null);
-  const [messages,setMessages]=useState<Message[]>([]);
+  const cacheKey = Number.isInteger(userId) && userId > 0 ? `/messages/conversations/${userId}` : "";
+  const cachedChat = cacheKey ? getSessionCache<{ user: ChatUser; messages: Message[] }>(cacheKey) : undefined;
+  const [user,setUser]=useState<ChatUser|null>(()=>cachedChat?.user ?? null);
+  const [messages,setMessages]=useState<Message[]>(()=>cachedChat?.messages ?? []);
   const [inputText,setInputText]=useState("");
-  const [loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(!cachedChat);
   const [sending,setSending]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const bottomRef=useRef<HTMLDivElement>(null);
@@ -35,7 +39,7 @@ export default function Chat(){
   const load=()=>{
     if(!Number.isInteger(userId)||userId<=0) return;
     setLoading(true);setError(null);
-    void apiJson<{user:ChatUser;messages:Message[]}>(`/messages/conversations/${userId}`)
+    void fetchSessionJson<{user:ChatUser;messages:Message[]}>(`/messages/conversations/${userId}`)
       .then(data=>{setUser(data.user);setMessages(data.messages??[]);})
       .catch(err=>setError(err instanceof Error?err.message:"Unable to load chat"))
       .finally(()=>setLoading(false));
@@ -50,6 +54,7 @@ export default function Chat(){
     try{
       const data=await apiJson<{message:Message}>(`/messages/conversations/${user.id}`,{method:"POST",body:JSON.stringify({text})});
       setMessages(prev=>[...prev,data.message]);
+      invalidateSessionCache(cacheKey);
       setInputText("");
     }catch(err){setError(err instanceof Error?err.message:"Unable to send message");}
     finally{setSending(false);}

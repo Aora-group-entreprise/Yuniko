@@ -6,6 +6,8 @@ import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
+import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUser } from "@/lib/session-cache";
+import { useAuth } from "@/lib/auth-context";
 
 type Conversation = {
   id: number;
@@ -30,11 +32,14 @@ function formatTime(value:string|null){
 
 export default function Messages(){
   const [,setLocation]=useLocation();
+  const {user:authUser}=useAuth();
+  setSessionUser(Number(authUser?.id));
   const [query,setQuery]=useState("");
   const [showNewMsg,setShowNewMsg]=useState(false);
-  const [conversations,setConversations]=useState<Conversation[]>([]);
+  const cachedConversations = getSessionCache<{ conversations?: Conversation[] }>("/messages/conversations");
+  const [conversations,setConversations]=useState<Conversation[]>(() => cachedConversations?.conversations ?? []);
   const [selected,setSelected]=useState<Conversation|null>(null);
-  const [loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(!cachedConversations);
   const [error,setError]=useState<string|null>(null);
   const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean;swiping:boolean;offset:number}|null>(null);
   const rowRefs=useRef<Record<number,HTMLButtonElement|null>>({});
@@ -43,7 +48,7 @@ export default function Messages(){
 
   const load=()=>{
     setLoading(true);setError(null);
-    void apiJson<{conversations:Conversation[]}>("/messages/conversations")
+    void fetchSessionJson<{conversations:Conversation[]}>("/messages/conversations")
       .then(data=>setConversations(data.conversations??[]))
       .catch(err=>setError(err instanceof Error?err.message:"Unable to load messages"))
       .finally(()=>setLoading(false));
@@ -60,8 +65,8 @@ export default function Messages(){
 
   const archive=async(conv:Conversation)=>{
     setConversations(current=>current.filter(item=>item.id!==conv.id));
-    try{await apiJson("/messages/conversations/"+conv.id+"/archive",{method:"POST"});}
-    catch{load();}
+    try{await apiJson("/messages/conversations/"+conv.id+"/archive",{method:"POST"});invalidateSessionCache("/messages/conversations");}
+    catch{invalidateSessionCache("/messages/conversations");load();}
   };
 
   const deleteConversation=async()=>{
@@ -69,7 +74,7 @@ export default function Messages(){
     const id=selected.id;
     setSelected(null);
     setConversations(current=>current.filter(item=>item.id!==id));
-    try{await apiJson("/messages/conversations/"+id,{method:"DELETE"});}
+    try{await apiJson("/messages/conversations/"+id,{method:"DELETE"});invalidateSessionCache("/messages/conversations");}
     catch{load();}
   };
 
@@ -80,7 +85,11 @@ export default function Messages(){
     setConversations(current=>current.filter(item=>item.user.id!==userId));
     try{
       await apiJson("/blocked-users/"+userId,{method:"POST"});
-    }catch{load();}
+      invalidateSessionCache("/messages/conversations");
+    }catch{
+      invalidateSessionCache("/messages/conversations");
+      load();
+    }
   };
 
   return <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background flex flex-col overflow-hidden">

@@ -8,9 +8,9 @@ import PostCard, { type LiveAuthor } from "@/components/PostCard";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
+import { fetchSessionJson, getSessionCache, setSessionUser, warmSessionData } from "@/lib/session-cache";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
 
@@ -57,61 +57,62 @@ function relativeTime(iso: string): string {
 export default function Home() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  setSessionUser(Number(user?.id));
   const [optionsPostId, setOptionsPostId] = useState<string | null>(null);
   const [worldFeedOpen, setWorldFeedOpen] = useState(false);
   const isOnline = useOnlineStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
-  const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
-  const [feedLoading, setFeedLoading] = useState(true);
-  const [storiesLoading, setStoriesLoading] = useState(true);
+  const cachedFeed = getSessionCache<{ posts?: any[] }>("/posts/feed");
+  const cachedStories = getSessionCache<{ stories?: LiveStory[] }>("/stories");
+
+  const convertPosts = (items: any[]): LiveFeedPost[] =>
+    items.map((p) => ({
+      post: {
+        id: `live_${p.id}`,
+        userId: `live_${p.userId}`,
+        imageUrl: p.mediaUrl ?? `https://picsum.photos/seed/live${p.id}/600/900`,
+        caption: p.caption ?? "",
+        hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
+        likes: p.likes ?? 0,
+        comments: p.comments ?? 0,
+        shares: p.shares ?? 0,
+        saves: p.saves ?? 0,
+        timestamp: relativeTime(p.createdAt),
+        isLiked: Boolean(p.liked),
+        isSaved: Boolean(p.saved),
+        location: p.location ?? undefined,
+      } satisfies Post,
+      author: {
+        userId: Number(p.userId),
+        displayName: p.authorDisplayName,
+        username: p.authorUsername,
+        avatarUrl: p.authorAvatarUrl,
+        isFollowing: Boolean(p.isFollowing),
+      },
+    }));
+
+  const [livePosts, setLivePosts] = useState<LiveFeedPost[]>(() => convertPosts(cachedFeed?.posts ?? []));
+  const [liveStories, setLiveStories] = useState<LiveStory[]>(() => cachedStories?.stories ?? []);
+  const [feedLoading, setFeedLoading] = useState(!cachedFeed);
 
   useEffect(() => {
     if (!user) return;
 
-    setFeedLoading(true);
-    setStoriesLoading(true);
-    apiFetch("/posts/feed")
-      .then((r) => r.json())
-      .then((d: { posts?: any[] }) => {
-        const converted: LiveFeedPost[] = (d.posts ?? []).map((p) => ({
-          post: {
-            id: `live_${p.id}`,
-            userId: `live_${p.userId}`,
-            imageUrl: p.mediaUrl ?? `https://picsum.photos/seed/live${p.id}/600/900`,
-            caption: p.caption ?? "",
-            hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
-            likes: p.likes ?? 0,
-            comments: p.comments ?? 0,
-            shares: p.shares ?? 0,
-            saves: p.saves ?? 0,
-            timestamp: relativeTime(p.createdAt),
-            isLiked: Boolean(p.liked),
-            isSaved: Boolean(p.saved),
-            location: p.location ?? undefined,
-          } satisfies Post,
-          author: {
-            userId: Number(p.userId),
-            displayName: p.authorDisplayName,
-            username: p.authorUsername,
-            avatarUrl: p.authorAvatarUrl,
-            isFollowing: Boolean(p.isFollowing),
-          },
-        }));
-        setLivePosts(converted);
-      })
-      .catch(() => setLivePosts([]))
-      .finally(() => {
+    fetchSessionJson<{ posts?: any[] }>("/posts/feed")
+      .then((data) => {
+        setLivePosts(convertPosts(data.posts ?? []));
         setFeedLoading(false);
-        apiFetch("/stories")
-          .then((r) => r.json())
-          .then((d: { stories?: any[] }) => {
-            if (d.stories) setLiveStories(d.stories);
-          })
-          .catch(() => {})
-          .finally(() => setStoriesLoading(false));
+        window.setTimeout(() => warmSessionData(Number(user.id)), 0);
+      })
+      .catch(() => {
+        setLivePosts([]);
+        setFeedLoading(false);
       });
+
+    fetchSessionJson<{ stories?: LiveStory[] }>("/stories")
+      .then((data) => setLiveStories(data.stories ?? []))
+      .catch(() => {})
   }, [user]);
 
   const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> =
@@ -208,8 +209,7 @@ export default function Home() {
         data-testid="stories-row"
       >
         <div className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
-          {feedLoading || storiesLoading ? <LoadingSkeleton variant="stories" /> : (
-            <>
+          <>
           <StoryAvatar userId="me" isOwn />
 
           <button onClick={() => setLocation("/live")} className="flex-shrink-0 flex flex-col items-center gap-1.5" data-testid="btn-go-live-stories">
@@ -223,8 +223,7 @@ export default function Home() {
           {liveStories.map((story) => (
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
-            </>
-          )}
+          </>
         </div>
       </div>
 

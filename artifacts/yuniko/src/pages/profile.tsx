@@ -11,6 +11,7 @@ import BottomNav from "@/components/BottomNav";
 import { apiFetch, apiJson } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
+import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUser } from "@/lib/session-cache";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -36,28 +37,34 @@ export default function Profile({ userId }: ProfilePageProps) {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
   const { user: authUser } = useAuth();
+  setSessionUser(Number(authUser?.id));
   const targetId = userId || params?.userId || "me";
   const isOwn = targetId === "me" || (authUser && targetId === String(authUser.id));
   const isDatabaseProfile = isOwn || /^\d+$/.test(targetId);
-  const [remoteProfile, setRemoteProfile] = useState<RemoteProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(isDatabaseProfile && !!authUser);
+  const profileCacheKey = isDatabaseProfile && authUser
+    ? `/users/${isOwn ? authUser.id : Number(targetId)}`
+    : "";
+  const cachedRemoteProfile = profileCacheKey ? getSessionCache<RemoteProfile>(profileCacheKey) : undefined;
+  const [remoteProfile, setRemoteProfile] = useState<RemoteProfile | null>(() => cachedRemoteProfile ?? null);
+  const [profileLoading, setProfileLoading] = useState(isDatabaseProfile && !!authUser && !cachedRemoteProfile);
 
   useEffect(() => {
     if (!isDatabaseProfile || !authUser) return;
     const id = isOwn ? authUser.id : Number(targetId);
     if (!Number.isInteger(id) || id <= 0) { setProfileLoading(false); return; }
-    const controller = new AbortController();
-    setProfileLoading(true);
-    apiFetch(`/users/${id}`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Profile unavailable");
-        setRemoteProfile((await response.json()) as RemoteProfile);
+    setProfileLoading(!getSessionCache<RemoteProfile>(`/users/${id}`));
+    let cancelled = false;
+    void fetchSessionJson<RemoteProfile>(`/users/${id}`)
+      .then((data) => {
+        if (!cancelled) setRemoteProfile(data);
       })
-      .catch((error: unknown) => {
-        if ((error as { name?: string }).name !== "AbortError") setRemoteProfile(null);
+      .catch(() => {
+        if (!cancelled) setRemoteProfile(null);
       })
-      .finally(() => setProfileLoading(false));
-    return () => controller.abort();
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [authUser, isDatabaseProfile, isOwn, targetId]);
 
   const remoteUser = remoteProfile ? {
@@ -91,10 +98,8 @@ export default function Profile({ userId }: ProfilePageProps) {
 
   useEffect(() => {
     if (!isOwn || !authUser) return;
-    apiFetch("/posts/mine")
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Posts unavailable");
-        const data = await response.json() as { posts?: Array<{id:number; caption:string; mediaUrl:string|null}> };
+    fetchSessionJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/mine")
+      .then((data) => {
         setOwnPosts((data.posts ?? []).map((post) => ({
           id: String(post.id),
           url: `/post/live_${post.id}`,
@@ -112,7 +117,7 @@ export default function Profile({ userId }: ProfilePageProps) {
     }
     setSavedPostsError(null);
     try {
-      const data = await apiJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/saved");
+      const data = await fetchSessionJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/saved");
       setSavedPosts((data.posts ?? []).map((post) => ({
         ...post,
         url: `/post/live_${post.id}`,
@@ -174,6 +179,7 @@ export default function Profile({ userId }: ProfilePageProps) {
         } catch {}
         throw new Error(message);
       }
+      invalidateSessionCache("/posts/mine");
       setOwnPosts((current) => current.filter((post) => post.id !== deletePostId));
       setRemoteProfile((current) => current ? {
         ...current,
