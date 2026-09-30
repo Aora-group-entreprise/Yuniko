@@ -544,12 +544,12 @@ function PostViewer({
       )}
 
       {commentsOpen && (
-        <div className="absolute inset-0 z-[90] bg-black/45">
+        <div className="absolute inset-0 z-[90] bg-black/45 pointer-events-auto">
           <section
             role="dialog"
             aria-modal="true"
             aria-label="Comments"
-            className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[430px] h-[78vh] rounded-t-[22px] overflow-hidden flex flex-col"
+            className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[430px] h-[78vh] rounded-t-[22px] overflow-hidden flex flex-col pointer-events-auto"
             style={{
               background: "rgba(18,15,30,0.99)",
               border: "1px solid rgba(255,255,255,0.08)",
