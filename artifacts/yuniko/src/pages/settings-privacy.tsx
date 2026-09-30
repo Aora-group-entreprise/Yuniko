@@ -4,6 +4,7 @@ import { ArrowLeft, ChevronRight } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
 import BottomNav from "@/components/BottomNav";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 type Settings = { privateAccount:boolean; readReceipts:boolean; messagePermissions:string; commentPermissions:string; storyPermissions:string };
 const OPTIONS=[["everyone","everyone"],["friendsOnly","friendsOnly"],["onlyMe","onlyMe"]] as const;
@@ -12,7 +13,7 @@ export default function PrivacySettings(){
  const [,setLocation]=useLocation(); const [s,setS]=useState<Settings|null>(null); const [error,setError]=useState("");
  useEffect(()=>{apiJson<Settings>("/settings").then(setS).catch(e=>setError(e.message))},[]);
  const patch=async(values:Partial<Settings>)=>{if(!s)return; const previous=s; setError(""); setS({...s,...values}); try{await apiJson("/settings",{method:"PATCH",body:JSON.stringify(values)})}catch(e){setS(previous);setError(e instanceof Error?e.message:"Failed to save")}};
- if(!s)return <div className="min-h-screen bg-background text-white flex items-center justify-center">{error||"Loading..."}</div>;
+ if(!s)return <div className="min-h-screen bg-background text-white">{error?<div className="px-4 py-6 text-red-400 text-sm">{error}</div>:<LoadingSkeleton variant="settings" />}</div>;
  return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20"><header className="sticky top-0 z-40 px-4 py-4 flex items-center gap-3" style={{background:"rgba(13,11,20,.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,.06)"}}><button onClick={()=>setLocation("/settings")}><ArrowLeft size={22} className="text-white/80"/></button><h1 className="text-base font-semibold text-white">{t("privacy")}</h1></header>
  <div className="px-4 py-4 flex flex-col gap-4">{error&&<p className="text-red-400 text-xs">{error}</p>}
  <div><p className="text-white/50 text-xs font-semibold uppercase tracking-wider mb-3">Account</p><div className="rounded-2xl overflow-hidden" style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)"}}>

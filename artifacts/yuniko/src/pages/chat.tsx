@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import ScreenPortal from "@/components/ScreenPortal";
 import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 type Message={id:number;senderId:number;text?:string;imageUrl?:string;timestamp:string|null;read:boolean;reactions:string[];type:"text"|"image"};
 
@@ -54,7 +55,7 @@ export default function Chat(){
     finally{setSending(false);}
   };
 
-  if(loading) return <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] bg-background flex items-center justify-center text-white/40 text-sm">Loading...</div>;
+  if(loading) return <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] bg-background overflow-y-auto"><LoadingSkeleton variant="chat" /></div>;
   if(error&&!user) return <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] bg-background flex flex-col items-center justify-center gap-4 px-6"><p className="text-red-300/70 text-sm text-center">{error}</p><button onClick={()=>setLocation("/messages")} className="px-4 py-2 rounded-xl text-white text-sm" style={{background:GRADIENT}}>Back</button></div>;
   if(!user) return null;
 

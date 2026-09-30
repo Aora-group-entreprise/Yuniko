@@ -4,6 +4,7 @@ import { ArrowLeft, Archive, RotateCcw } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
 import BottomNav from "@/components/BottomNav";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 type ArchivedConversation={
   id:number;
@@ -38,7 +39,7 @@ export default function ArchivedChats(){
       <h1 className="text-base font-semibold text-white">{t("archivedChats")}</h1>
     </header>
     <div className="flex-1 overflow-y-auto pb-24">
-      {loading?<div className="flex justify-center py-20 text-white/40 text-sm">Loading...</div>:conversations.length===0?<div className="flex flex-col items-center justify-center py-24 gap-3"><Archive size={48} className="text-white/20"/><p className="text-white/40 text-sm">No archived chats</p></div>:conversations.map(conv=><div key={conv.id} className="flex items-center gap-3 px-4 py-3.5" style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+      {loading?<LoadingSkeleton variant="list" />:conversations.length===0?<div className="flex flex-col items-center justify-center py-24 gap-3"><Archive size={48} className="text-white/20"/><p className="text-white/40 text-sm">No archived chats</p></div>:conversations.map(conv=><div key={conv.id} className="flex items-center gap-3 px-4 py-3.5" style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
         <button onClick={()=>setLocation(`/chat/${conv.user.id}`)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
           <img src={conv.user.avatarUrl??`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(conv.user.displayName)}`} alt={conv.user.displayName} className="w-12 h-12 rounded-full object-cover"/>
           <div className="flex-1 min-w-0"><p className="text-white/85 font-semibold text-sm truncate">{conv.user.displayName}</p><p className="text-white/40 text-sm truncate">{conv.lastMessage||"No messages yet"}</p></div>

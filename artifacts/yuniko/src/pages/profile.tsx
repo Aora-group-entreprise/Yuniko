@@ -10,6 +10,7 @@ import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import { apiFetch, apiJson } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -187,7 +188,7 @@ export default function Profile({ userId }: ProfilePageProps) {
     }
   };
 
-  if (profileLoading) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center"><div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" /></div>;
+  if (profileLoading) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20"><LoadingSkeleton variant="profile" /></div>;
   if (!user) return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center"><p className="text-white/50">User not found</p></div>;
 
   const userPosts = isOwn

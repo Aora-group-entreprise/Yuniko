@@ -4,6 +4,7 @@ import { ArrowLeft, BookmarkIcon } from "lucide-react";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import { apiJson } from "@/lib/api";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 interface SavedPost {
   id: number;
@@ -42,9 +43,7 @@ export default function Saved() {
       </header>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
-        </div>
+        <LoadingSkeleton variant="list" />
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <BookmarkIcon size={48} className="text-white/20" />

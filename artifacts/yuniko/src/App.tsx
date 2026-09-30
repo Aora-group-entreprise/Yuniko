@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 
-import SplashScreen from "@/components/SplashScreen";
 import Home from "@/pages/home";
 import Notifications from "@/pages/notifications";
 import Create from "@/pages/create";
@@ -199,7 +198,6 @@ function AnimatedRoutes() {
 
 // Inner component — has access to AuthProvider context
 function AppContent() {
-  const [splashDone, setSplashDone] = useState(false);
   const { user, isLoading } = useAuth();
   const [location, navigate] = useLocation();
   const initialRouteHandledRef = useRef(false);
@@ -214,7 +212,7 @@ function AppContent() {
 
     const handlePageShow = (event: PageTransitionEvent) => {
       window.scrollTo(0, 0);
-      if (event.persisted && user && splashDone && !isLoading) {
+      if (event.persisted && user && !isLoading) {
         initialRouteHandledRef.current = true;
         navigate("/");
       }
@@ -225,11 +223,11 @@ function AppContent() {
       window.history.scrollRestoration = previousScrollRestoration;
       window.removeEventListener("pageshow", handlePageShow);
     };
-  }, [user, splashDone, isLoading, navigate]);
+  }, [user, isLoading, navigate]);
 
-  // After splash + auth resolution: authenticate and normalize a cold launch.
+  // After auth resolution: authenticate and normalize a cold launch.
   useEffect(() => {
-    if (!splashDone || isLoading) return;
+    if (isLoading) return;
     const onAuthPage = location === "/login";
     if (!user && !onAuthPage) {
       navigate("/login");
@@ -243,7 +241,7 @@ function AppContent() {
     if (user && onAuthPage) {
       navigate("/");
     }
-  }, [splashDone, isLoading, user, location, navigate]);
+  }, [isLoading, user, location, navigate]);
 
   useEffect(() => {
     if (!user) return;
@@ -276,10 +274,7 @@ function AppContent() {
   }, [user]);
 
   return (
-    <>
-      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
-      <AnimatedRoutes />
-    </>
+    <AnimatedRoutes />
   );
 }
 

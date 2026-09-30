@@ -5,6 +5,7 @@ import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 type Conversation = {
   id: number;
@@ -98,7 +99,7 @@ export default function Messages(){
         <input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t("searchUsers")} className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/30" data-testid="input-search-messages"/>
       </div></div>
       <div data-testid="conversations-list">
-        {loading?<div className="flex justify-center py-20 text-white/40 text-sm">Loading...</div>:error?<div className="flex flex-col items-center py-20 gap-3"><p className="text-red-300/70 text-sm text-center px-6">{error}</p><button onClick={load} className="text-white text-sm px-4 py-2 rounded-xl" style={{background:GRADIENT}}>Retry</button></div>:filtered.length===0?<div className="flex flex-col items-center justify-center py-20 gap-4"><div className="w-16 h-16 rounded-full flex items-center justify-center" style={{background:"rgba(255,0,110,0.1)",border:"1px solid rgba(255,0,110,0.2)"}}><MessageSquarePlus size={28} style={{color:"#FF3D9A"}}/></div><p className="text-white/40 text-sm">{query?t("noMessages"):"Follow each other to become friends and start chatting."}</p></div>:filtered.map(conv=>{
+        {loading?<LoadingSkeleton variant="list" />:error?<div className="flex flex-col items-center py-20 gap-3"><p className="text-red-300/70 text-sm text-center px-6">{error}</p><button onClick={load} className="text-white text-sm px-4 py-2 rounded-xl" style={{background:GRADIENT}}>Retry</button></div>:filtered.length===0?<div className="flex flex-col items-center justify-center py-20 gap-4"><div className="w-16 h-16 rounded-full flex items-center justify-center" style={{background:"rgba(255,0,110,0.1)",border:"1px solid rgba(255,0,110,0.2)"}}><MessageSquarePlus size={28} style={{color:"#FF3D9A"}}/></div><p className="text-white/40 text-sm">{query?t("noMessages"):"Follow each other to become friends and start chatting."}</p></div>:filtered.map(conv=>{
           const onTouchStart=(e:React.TouchEvent)=>{
             const touch=e.touches[0]; if(!touch)return;
             const row=rowRefs.current[conv.id];

@@ -5,6 +5,7 @@ import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 type RelationUser = {
   id: number;
@@ -84,7 +85,7 @@ export default function Followers({ mode = "followers" }: { mode?: "followers" |
 
       <div data-testid="followers-list">
         {loading ? (
-          <div className="py-16 text-center text-white/40 text-sm">Loading...</div>
+          <LoadingSkeleton variant="list" />
         ) : error ? (
           <div className="py-16 px-4 text-center text-red-300/80 text-sm">{error}</div>
         ) : users.length === 0 ? (

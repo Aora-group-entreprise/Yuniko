@@ -10,6 +10,7 @@ import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
 
@@ -63,15 +64,18 @@ export default function Home() {
 
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>([]);
   const [liveStories, setLiveStories] = useState<LiveStory[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
+  const [storiesLoading, setStoriesLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
 
+    setFeedLoading(true);
+    setStoriesLoading(true);
     apiFetch("/posts/feed")
       .then((r) => r.json())
       .then((d: { posts?: any[] }) => {
-        if (!d.posts) return;
-        const converted: LiveFeedPost[] = d.posts.map((p) => ({
+        const converted: LiveFeedPost[] = (d.posts ?? []).map((p) => ({
           post: {
             id: `live_${p.id}`,
             userId: `live_${p.userId}`,
@@ -97,14 +101,17 @@ export default function Home() {
         }));
         setLivePosts(converted);
       })
-      .catch(() => setLivePosts([]));
-
-    apiFetch("/stories")
-      .then((r) => r.json())
-      .then((d: { stories?: any[] }) => {
-        if (d.stories) setLiveStories(d.stories);
-      })
-      .catch(() => {});
+      .catch(() => setLivePosts([]))
+      .finally(() => {
+        setFeedLoading(false);
+        apiFetch("/stories")
+          .then((r) => r.json())
+          .then((d: { stories?: any[] }) => {
+            if (d.stories) setLiveStories(d.stories);
+          })
+          .catch(() => {})
+          .finally(() => setStoriesLoading(false));
+      });
   }, [user]);
 
   const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> =
@@ -201,6 +208,8 @@ export default function Home() {
         data-testid="stories-row"
       >
         <div className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
+          {feedLoading || storiesLoading ? <LoadingSkeleton variant="stories" /> : (
+            <>
           <StoryAvatar userId="me" isOwn />
 
           <button onClick={() => setLocation("/live")} className="flex-shrink-0 flex flex-col items-center gap-1.5" data-testid="btn-go-live-stories">
@@ -214,6 +223,8 @@ export default function Home() {
           {liveStories.map((story) => (
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -248,7 +259,7 @@ export default function Home() {
         }}
         data-testid="posts-feed"
       >
-        {allFeedItems.length === 0 ? (
+        {feedLoading ? <LoadingSkeleton variant="feed" /> : allFeedItems.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center px-8 text-center">
             <Globe size={34} className="text-pink-400/70 mb-3" />
             <p className="text-white font-semibold">Your feed is empty</p>

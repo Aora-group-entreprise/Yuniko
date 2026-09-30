@@ -5,6 +5,7 @@ import { stories, getUserById } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 
 const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🔥", "👏"];
 
@@ -134,13 +135,7 @@ export default function StoryViewer() {
     setTimeout(() => setReactionShown(null), 1500);
   };
 
-  if (liveStoryLoading) {
-    return (
-      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
-        <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
-      </div>
-    );
-  }
+  if (liveStoryLoading) return <LoadingSkeleton variant="story" />;
 
   if (!storyUser || userStories.length === 0) {
     return (

@@ -5,6 +5,7 @@ import { posts, getUserById, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import ScreenPortal from "@/components/ScreenPortal";
+import { LoadingSkeleton } from "@/components/ui/skeleton";
 import { apiJson } from "@/lib/api";
 import PostCard from "@/components/PostCard";
 import { useAuth } from "@/lib/auth-context";
@@ -344,13 +345,7 @@ export default function PostDetail() {
     }
   };
 
-  if (loadingRemotePost) {
-    return (
-      <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background flex items-center justify-center">
-        <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-pink-400 animate-spin" />
-      </div>
-    );
-  }
+  if (loadingRemotePost) return <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background overflow-y-auto"><LoadingSkeleton variant="post" /></div>;
 
   if (isLivePost && livePostError) {
     return (
