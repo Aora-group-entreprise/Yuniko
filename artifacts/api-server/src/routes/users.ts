@@ -33,6 +33,59 @@ usersRouter.get("/users/search", authMiddleware, async (req, res) => {
   }
 });
 
+usersRouter.get("/users/:id/relations", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  const id = Number(req.params["id"]);
+  const mode = String(req.query["mode"] ?? "followers");
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid user id" });
+  if (mode !== "followers" && mode !== "following") return res.status(400).json({ error: "Invalid relation mode" });
+
+  try {
+    const relationColumn = mode === "followers" ? "followingId" : "followerId";
+    const userColumn = mode === "followers" ? "followerId" : "followingId";
+    const relations = await selectRows("follows", {
+      filters: [eq(relationColumn, id)],
+      order: { column: "createdAt", ascending: false },
+      limit: 1000,
+    });
+    const ids = relations.map((row) => Number(row[userColumn])).filter((value) => Number.isInteger(value) && value > 0);
+    if (!ids.length) return res.json({ users: [] });
+
+    const allUsers = await selectRows("users", { limit: 1000 });
+    const byId = new Map(allUsers.map((user) => [Number(user.id), user]));
+    const currentFollowing = await selectRows("follows", {
+      filters: [eq("followerId", req.userId!)],
+      limit: 1000,
+    });
+    const followingIds = new Set(currentFollowing.map((row) => Number(row.followingId)));
+
+    const result = ids.map((relationId) => {
+      const user = byId.get(relationId);
+      if (!user) return null;
+      return {
+        ...publicUser(user),
+        followers: 0,
+        isFollowing: followingIds.has(relationId),
+      };
+    }).filter(Boolean);
+
+    const followerCounts = new Map<number, number>();
+    const allFollows = await selectRows("follows", { limit: 5000 });
+    for (const row of allFollows) {
+      const followingId = Number(row.followingId);
+      followerCounts.set(followingId, (followerCounts.get(followingId) ?? 0) + 1);
+    }
+
+    return res.json({
+      users: result.map((user) => ({
+        ...user,
+        followers: followerCounts.get(Number(user.id)) ?? 0,
+      })),
+    });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
 usersRouter.get("/users/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
   const id = Number(req.params["id"]);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid user id" });
