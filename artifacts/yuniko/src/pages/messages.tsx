@@ -104,12 +104,12 @@ export default function Messages(){
           };
           const onTouchMove=(e:React.TouchEvent)=>{
             const state=gestureRef.current, touch=e.touches[0]; if(!state||state.id!==conv.id||!touch)return;
-            if(Math.abs(touch.clientY-state.y)>20||Math.abs(touch.clientX-state.x)>20&&state.longPressTimer!==null)window.clearTimeout(state.longPressTimer);
+            if(Math.abs(touch.clientY-state.y)>20||Math.abs(touch.clientX-state.x)>20){if(state.longPressTimer!==null){window.clearTimeout(state.longPressTimer);state.longPressTimer=null;}}
           };
           const onTouchEnd=(e:React.TouchEvent)=>{
             const state=gestureRef.current; gestureRef.current=null;
             if(!state||state.id!==conv.id)return;
-            if(state.longPressTimer!==null)window.clearTimeout(state.longPressTimer);
+            if(state.longPressTimer!==null){window.clearTimeout(state.longPressTimer);state.longPressTimer=null;}
             const touch=e.changedTouches[0]; if(!touch)return;
             const dx=touch.clientX-state.x, dy=touch.clientY-state.y, duration=Date.now()-state.startedAt;
             if(state.longPressed)return;
