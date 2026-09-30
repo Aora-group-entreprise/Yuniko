@@ -194,10 +194,22 @@ interactionsRouter.post("/users/:id/follow", authMiddleware, async (req: Authent
   try {
     const filters = [eq("followerId", req.userId!), eq("followingId", followingId)];
     const existing = await selectRows("follows", { filters, limit: 1 });
-    if (existing.length) await deleteRows("follows", filters);
-    else {
-      await insertRow("follows", { followerId: req.userId!, followingId });
+    if (existing.length) {
+      await deleteRows("follows", filters);
+      await updateRows("follows", { isFriend: false }, [eq("followerId", followingId), eq("followingId", req.userId!)]);
+    } else {
+      await insertRow("follows", { followerId: req.userId!, followingId, isFriend: false, status: "accepted" });
       await notify(followingId, req.userId!, "follow", "started following you");
+      const reciprocal = await selectRows("follows", {
+        filters: [eq("followerId", followingId), eq("followingId", req.userId!)],
+        limit: 1,
+      });
+      if (reciprocal.length) {
+        await updateRows("follows", { isFriend: true }, [eq("followerId", req.userId!), eq("followingId", followingId)]);
+        await updateRows("follows", { isFriend: true }, [eq("followerId", followingId), eq("followingId", req.userId!)]);
+        const { ensureFriendConversation } = await import("./messages");
+        await ensureFriendConversation(req.userId!, followingId);
+      }
     }
     return res.json({ following: existing.length === 0 });
   } catch (err) {

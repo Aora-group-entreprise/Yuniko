@@ -9,6 +9,7 @@ import interactionsRouter from "./interactions";
 import settingsRouter from "./settings";
 import accountSettingsRouter from "./account-settings";
 import analyticsRouter from "./analytics";
+import messagesRouter from "./messages";
 
 const router: IRouter = Router();
 
@@ -16,6 +17,7 @@ router.use(healthRouter);
 router.use(selfTestRouter);
 router.use(authRouter);
 router.use(interactionsRouter);
+router.use(messagesRouter);
 router.use(postsRouter);
 router.use(storiesRouter);
 router.use(usersRouter);
