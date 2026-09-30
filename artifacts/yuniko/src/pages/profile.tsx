@@ -79,6 +79,8 @@ export default function Profile({ userId }: ProfilePageProps) {
   const [savedPostsError, setSavedPostsError] = useState<string | null>(null);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [deletingPost, setDeletingPost] = useState(false);
+  const [analytics, setAnalytics] = useState({ profileViews: 0, postImpressions: 0, reach: 0 });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
     if (!isOwn || !authUser) return;
@@ -117,6 +119,22 @@ export default function Profile({ userId }: ProfilePageProps) {
   useEffect(() => {
     void loadSavedPosts();
   }, [authUser, isOwn]);
+
+  useEffect(() => {
+    if (!isDatabaseProfile || !authUser || !user || isOwn) return;
+    void apiFetch(`/analytics/profile/${user.id}/view`, { method: "POST" }).catch(() => {});
+  }, [authUser, isDatabaseProfile, isOwn, user?.id]);
+
+  useEffect(() => {
+    if (!isOwn || !authUser || tab !== "analytics") return;
+    let cancelled = false;
+    setAnalyticsLoading(true);
+    apiJson<{ profileViews: number; postImpressions: number; reach: number }>("/analytics/me")
+      .then((data) => { if (!cancelled) setAnalytics(data); })
+      .catch(() => { if (!cancelled) setAnalytics({ profileViews: 0, postImpressions: 0, reach: 0 }); })
+      .finally(() => { if (!cancelled) setAnalyticsLoading(false); });
+    return () => { cancelled = true; };
+  }, [authUser, isOwn, tab]);
 
   useEffect(() => {
     const handleSavedPostChanged = () => {
@@ -270,7 +288,17 @@ export default function Profile({ userId }: ProfilePageProps) {
           )}
         </div>
       )}
-      {tab==="analytics"&&<div className="px-4 py-4 flex flex-col gap-3">{[{label:"Profile Views",value:"—",change:"Coming soon"},{label:"Post Impressions",value:"—",change:"Coming soon"},{label:"Reach",value:"—",change:"Coming soon"}].map(stat=><div key={stat.label} className="p-4 rounded-2xl flex items-center justify-between" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)"}}><div><p className="text-white/55 text-xs mb-1">{stat.label}</p><p className="text-white font-bold text-xl">{stat.value}</p></div><span className="text-sm font-semibold px-2.5 py-1 rounded-full text-white/40 bg-white/5">{stat.change}</span></div>)}</div>}
+      {tab==="analytics"&&<div className="px-4 py-4 flex flex-col gap-3">
+        {[
+          {label:"Profile Views",value:analytics.profileViews},
+          {label:"Post Impressions",value:analytics.postImpressions},
+          {label:"Reach",value:analytics.reach},
+        ].map(stat=><div key={stat.label} className="p-4 rounded-2xl flex items-center justify-between" style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)"}}>
+          <div><p className="text-white/55 text-xs mb-1">{stat.label}</p><p className="text-white font-bold text-xl">{analyticsLoading?"…":formatCount(stat.value)}</p></div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full text-white/45 bg-white/5">All time</span>
+        </div>)}
+        <p className="text-white/30 text-[11px] leading-relaxed px-1">Les statistiques sont calculées à partir des visites de profil et des impressions réellement enregistrées.</p>
+      </div>
 
       <BottomNav />
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, MoreVertical, Sparkles, ExternalLink, X, Send, Download, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -60,6 +60,10 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
   const [commentsLoading, setCommentsLoading] = useState(false);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const livePostId = post.id.startsWith("live_") ? post.id.slice("live_".length) : null;
+  useEffect(() => {
+    if (!livePostId) return;
+    void apiJson(`/analytics/post/${livePostId}/impression`, { method: "POST" }).catch(() => {});
+  }, [livePostId]);
 
   if (!author) return null;
 

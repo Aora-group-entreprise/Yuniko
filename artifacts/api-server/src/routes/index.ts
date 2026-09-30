@@ -8,6 +8,7 @@ import usersRouter from "./users";
 import interactionsRouter from "./interactions";
 import settingsRouter from "./settings";
 import accountSettingsRouter from "./account-settings";
+import analyticsRouter from "./analytics";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(storiesRouter);
 router.use(usersRouter);
 router.use(settingsRouter);
 router.use(accountSettingsRouter);
+router.use(analyticsRouter);
 
 export default router;

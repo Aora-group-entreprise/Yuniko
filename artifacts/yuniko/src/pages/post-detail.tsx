@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import ScreenPortal from "@/components/ScreenPortal";
 import { apiJson } from "@/lib/api";
+import PostCard from "@/components/PostCard";
 import { useAuth } from "@/lib/auth-context";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
@@ -363,6 +364,29 @@ export default function PostDetail() {
   }
 
   if (!post || !user) return null;
+
+  if (isLivePost) {
+    return (
+      <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-black overflow-hidden">
+        <PostCard
+          post={{
+            ...post,
+            isLiked: liked,
+            isSaved: saved,
+          }}
+          liveAuthor={{
+            displayName: user.displayName,
+            username: user.username,
+            avatarUrl: user.avatar,
+            verified: user.verified,
+            isFollowing: following,
+          }}
+          initialViewer
+          onViewerClose={goBack}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background flex flex-col overflow-hidden">
