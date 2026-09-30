@@ -74,8 +74,8 @@ export default function Profile({ userId }: ProfilePageProps) {
   const [tab, setTab] = useState<"grid"|"saved"|"analytics">("grid");
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
-  const [ownPosts, setOwnPosts] = useState<Array<{id:string; imageUrl:string; caption:string}>>([]);
-  const [savedPosts, setSavedPosts] = useState<Array<{id:number; caption:string; mediaUrl:string|null}>>([]);
+  const [ownPosts, setOwnPosts] = useState<Array<{id:string; url:string; imageUrl:string; caption:string}>>([]);
+  const [savedPosts, setSavedPosts] = useState<Array<{id:number; url:string; caption:string; mediaUrl:string|null}>>([]);
   const [savedPostsError, setSavedPostsError] = useState<string | null>(null);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [deletingPost, setDeletingPost] = useState(false);
@@ -88,6 +88,7 @@ export default function Profile({ userId }: ProfilePageProps) {
         const data = await response.json() as { posts?: Array<{id:number; caption:string; mediaUrl:string|null}> };
         setOwnPosts((data.posts ?? []).map((post) => ({
           id: String(post.id),
+          url: `/post/live_${post.id}`,
           imageUrl: post.mediaUrl ?? `https://api.dicebear.com/8.x/shapes/svg?seed=post-${post.id}`,
           caption: post.caption ?? "",
         })));
@@ -157,6 +158,7 @@ export default function Profile({ userId }: ProfilePageProps) {
     : remoteProfile
       ? remoteProfile.posts.map(post => ({
           id:String(post.id),
+          url:`/post/live_${post.id}`,
           imageUrl:post.mediaUrl ?? `https://api.dicebear.com/8.x/shapes/svg?seed=post-${post.id}`,
           caption:post.caption,
         }))
@@ -219,7 +221,7 @@ export default function Profile({ userId }: ProfilePageProps) {
         <div className="grid grid-cols-3 gap-0.5 px-0.5">
           {userPosts.length > 0 ? userPosts.map((post) => (
             <div key={post.id} className="relative aspect-square overflow-hidden group">
-              <button onClick={() => setLocation(`/post/live_${post.id}`)} className="absolute inset-0" data-testid={`grid-post-${post.id}`}>
+              <button onClick={() => setLocation(post.url)} className="absolute inset-0" data-testid={`grid-post-${post.id}`}>
                 <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
               </button>
               {isOwn && (
@@ -248,7 +250,7 @@ export default function Profile({ userId }: ProfilePageProps) {
               <p className="text-white/30 text-xs mt-1">{savedPostsError}</p>
             </div>
           ) : isOwn && savedPosts.length > 0 ? savedPosts.map((post) => (
-            <button key={post.id} onClick={() => setLocation(`/post/live_${post.id}`)} className="aspect-square overflow-hidden" data-testid={`profile-saved-post-${post.id}`}>
+            <button key={post.id} onClick={() => setLocation(post.url)} className="aspect-square overflow-hidden" data-testid={`profile-saved-post-${post.id}`}>
               {post.mediaUrl ? (
                 <img src={post.mediaUrl} alt={post.caption} className="w-full h-full object-cover" />
               ) : (
