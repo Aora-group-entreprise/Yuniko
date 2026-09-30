@@ -104,7 +104,10 @@ export default function Profile({ userId }: ProfilePageProps) {
     setSavedPostsError(null);
     try {
       const data = await apiJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/saved");
-      setSavedPosts((data.posts ?? []).map((post) => ({\n        ...post,\n        url: `/post/live_${post.id}`,\n      })));
+      setSavedPosts((data.posts ?? []).map((post) => ({
+        ...post,
+        url: `/post/live_${post.id}`,
+      })));
     } catch (error) {
       setSavedPosts([]);
       setSavedPostsError(error instanceof Error ? error.message : "Unable to load saved posts");
@@ -162,7 +165,10 @@ export default function Profile({ userId }: ProfilePageProps) {
           imageUrl:post.mediaUrl ?? `https://api.dicebear.com/8.x/shapes/svg?seed=post-${post.id}`,
           caption:post.caption,
         }))
-      : getPostsByUser(user.id).map(post => ({\n          ...post,\n          url: `/post/live_${post.id}`,\n        }));
+      : getPostsByUser(user.id).map(post => ({
+          ...post,
+          url: `/post/live_${post.id}`,
+        }));
   const statItems = [
     {label:t("posts"),value:formatCount(user.posts),onClick:undefined},
     {label:t("followers"),value:formatCount(user.followers),onClick:()=>setLocation(`/followers/${user.id}`)},
