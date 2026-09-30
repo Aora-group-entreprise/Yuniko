@@ -88,9 +88,11 @@ export default function Home() {
             location: p.location ?? undefined,
           } satisfies Post,
           author: {
+            userId: Number(p.userId),
             displayName: p.authorDisplayName,
             username: p.authorUsername,
             avatarUrl: p.authorAvatarUrl,
+            isFollowing: Boolean(p.isFollowing),
           },
         }));
         setLivePosts(converted);

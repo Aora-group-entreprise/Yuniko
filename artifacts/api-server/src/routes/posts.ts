@@ -62,7 +62,12 @@ async function feedRows(viewerId: number) {
   });
 }
 
-function serializeFeedPost(row: FeedPostRow, likedIds: Set<number>, savedIds: Set<number>) {
+function serializeFeedPost(
+  row: FeedPostRow,
+  likedIds: Set<number>,
+  savedIds: Set<number>,
+  followingIds: Set<number>,
+) {
   return {
     id: row.id,
     userId: row.userId,
@@ -79,6 +84,7 @@ function serializeFeedPost(row: FeedPostRow, likedIds: Set<number>, savedIds: Se
     authorDisplayName: row.authorDisplayName,
     authorUsername: row.authorUsername,
     authorAvatarUrl: row.authorAvatarUrl,
+    isFollowing: followingIds.has(Number(row.userId)),
     liked: likedIds.has(row.id),
     saved: savedIds.has(row.id),
   };
@@ -158,6 +164,15 @@ postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: 
       selectedCountries = [];
     }
 
+    const followingIds = new Set(
+      (await selectRows("follows", {
+        select: "following_id",
+        filters: [eq("followerId", req.userId!)],
+        limit: 5000,
+      }).catch(() => []))
+        .map((row) => Number(row.followingId)),
+    );
+
     // Interaction tables must never prevent the feed itself from rendering.
     // The post counters are already stored on the post row, so an interaction
     // table/query failure can safely fall back to empty liked/saved state.
@@ -174,7 +189,7 @@ postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: 
       : 0;
 
     return res.json({
-      posts: selectedRows.map((row) => serializeFeedPost(row, likedIds, savedIds)),
+      posts: selectedRows.map((row) => serializeFeedPost(row, likedIds, savedIds, followingIds)),
       newPostsCount,
       latestCreatedAt: candidates[0]?.createdAt ?? null,
       scope: {

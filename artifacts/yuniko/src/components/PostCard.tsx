@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
 
 export interface LiveAuthor {
+  userId?: number;
   displayName: string;
   username: string;
   avatarUrl: string | null;
@@ -41,6 +42,8 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
 
   const [liked, setLiked] = useState(post.isLiked);
   const [saved, setSaved] = useState(post.isSaved);
+  const [following, setFollowing] = useState(Boolean(author?.isFollowing));
+  const [followLoading, setFollowLoading] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [heartBurst, setHeartBurst] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(initialViewer);
@@ -89,6 +92,24 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
       setLikeCount((prev) => Math.max(0, prev + (nextLiked ? -1 : 1)));
     }
   }, [liked, livePostId]);
+
+  const handleFollow = useCallback(async () => {
+    if (!author?.userId || followLoading) return;
+    const nextFollowing = !following;
+    setFollowing(nextFollowing);
+    setFollowLoading(true);
+    try {
+      const result = await apiJson<{ following: boolean }>(
+        "/users/" + author.userId + "/follow",
+        { method: "POST" },
+      );
+      setFollowing(Boolean(result.following));
+    } catch {
+      setFollowing(following);
+    } finally {
+      setFollowLoading(false);
+    }
+  }, [author?.userId, followLoading, following]);
 
   const handleSave = useCallback(async () => {
     const nextSaved = !saved;
@@ -420,16 +441,21 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
               )}
             </div>
           </div>
-          {!author.isFollowing && !post.isSponsored && (
+          {author.userId && !post.isSponsored && (
             <motion.button
               whileTap={{ scale: 0.93 }}
-              className="px-3.5 py-1 rounded-full text-xs font-semibold text-white flex-shrink-0"
+              onClick={() => void handleFollow()}
+              disabled={followLoading}
+              className="px-3.5 py-1 rounded-full text-xs font-semibold text-white flex-shrink-0 disabled:opacity-60"
               style={{
-                background: "linear-gradient(135deg, #FF006E, #8B00FF)",
-                boxShadow: "0 2px 12px rgba(255,0,110,0.35)",
+                background: following
+                  ? "rgba(255,255,255,0.14)"
+                  : "linear-gradient(135deg, #FF006E, #8B00FF)",
+                boxShadow: following ? "none" : "0 2px 12px rgba(255,0,110,0.35)",
+                border: following ? "1px solid rgba(255,255,255,0.18)" : "none",
               }}
             >
-              {t("follow")}
+              {following ? t("following") : t("follow")}
             </motion.button>
           )}
           {post.isSponsored && post.sponsorCta && (
