@@ -35,7 +35,7 @@ export default function Messages(){
   const [selected,setSelected]=useState<Conversation|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState<string|null>(null);
-  const swipeStart=useRef<{id:number;x:number}|null>(null);
+  const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean}|null>(null);
 
   const load=()=>{
     setLoading(true);setError(null);
@@ -96,12 +96,30 @@ export default function Messages(){
       </div></div>
       <div data-testid="conversations-list">
         {loading?<div className="flex justify-center py-20 text-white/40 text-sm">Loading...</div>:error?<div className="flex flex-col items-center py-20 gap-3"><p className="text-red-300/70 text-sm text-center px-6">{error}</p><button onClick={load} className="text-white text-sm px-4 py-2 rounded-xl" style={{background:GRADIENT}}>Retry</button></div>:filtered.length===0?<div className="flex flex-col items-center justify-center py-20 gap-4"><div className="w-16 h-16 rounded-full flex items-center justify-center" style={{background:"rgba(255,0,110,0.1)",border:"1px solid rgba(255,0,110,0.2)"}}><MessageSquarePlus size={28} style={{color:"#FF3D9A"}}/></div><p className="text-white/40 text-sm">{query?t("noMessages"):"Follow each other to become friends and start chatting."}</p></div>:filtered.map(conv=>{
-          const onTouchStart=(e:React.TouchEvent)=>{swipeStart.current={id:conv.id,x:e.touches[0]?.clientX??0};};
-          const onTouchEnd=(e:React.TouchEvent)=>{const start=swipeStart.current;swipeStart.current=null;if(!start||start.id!==conv.id)return;const dx=(e.changedTouches[0]?.clientX??start.x)-start.x;if(dx>70)void archive(conv);};
+          const onTouchStart=(e:React.TouchEvent)=>{
+            const touch=e.touches[0]; if(!touch)return;
+            const state={id:conv.id,x:touch.clientX,y:touch.clientY,startedAt:Date.now(),longPressTimer:null as number|null,longPressed:false};
+            state.longPressTimer=window.setTimeout(()=>{state.longPressed=true;if(navigator.vibrate)navigator.vibrate(25);setSelected(conv);},2000);
+            gestureRef.current=state;
+          };
+          const onTouchMove=(e:React.TouchEvent)=>{
+            const state=gestureRef.current, touch=e.touches[0]; if(!state||state.id!==conv.id||!touch)return;
+            if(Math.abs(touch.clientY-state.y)>20||Math.abs(touch.clientX-state.x)>20&&state.longPressTimer!==null)window.clearTimeout(state.longPressTimer);
+          };
+          const onTouchEnd=(e:React.TouchEvent)=>{
+            const state=gestureRef.current; gestureRef.current=null;
+            if(!state||state.id!==conv.id)return;
+            if(state.longPressTimer!==null)window.clearTimeout(state.longPressTimer);
+            const touch=e.changedTouches[0]; if(!touch)return;
+            const dx=touch.clientX-state.x, dy=touch.clientY-state.y, duration=Date.now()-state.startedAt;
+            if(state.longPressed)return;
+            if(dx>140&&Math.abs(dy)<70&&duration>=350){void archive(conv);return;}
+            if(Math.abs(dx)<35&&Math.abs(dy)<35&&duration<2000)setLocation(`/chat/${conv.user.id}`);
+          };
           return <div key={conv.id} className="relative w-full overflow-hidden" style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
             <div className="absolute inset-y-0 left-0 w-24 flex items-center justify-center pointer-events-none" style={{background:"rgba(34,197,94,0.18)"}}><Archive size={20} className="text-green-300"/></div>
             <button
-              onClick={()=>setSelected(conv)}
+              onClick={()=>setLocation(`/chat/${conv.user.id}`)}
               onTouchStart={onTouchStart}
               onTouchEnd={onTouchEnd}
               className="relative z-10 w-full flex items-center gap-3 px-4 py-3.5 text-left bg-background active:bg-white/5"
