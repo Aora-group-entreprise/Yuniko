@@ -38,25 +38,59 @@ analyticsRouter.post("/analytics/post/:postId/impression", authMiddleware, async
 analyticsRouter.get("/analytics/me", authMiddleware, async (req: Request & { userId?: number }, res) => {
   const userId = Number(req.userId);
   if (!Number.isInteger(userId) || userId <= 0) return res.status(401).json({ error: "Unauthorized" });
+
   try {
-    const [profileViews, posts] = await Promise.all([
-      selectRows("profile_views", { select: "id,viewer_user_id,created_at", filters: [eq("profileUserId", userId)], limit: 50000 }),
-      selectRows("posts", { select: "id,views", filters: [eq("userId", userId)], limit: 500 }),
+    // Keep each metric independent. A newly-created analytics table or a
+    // stale PostgREST schema cache must not make the whole analytics screen fail.
+    const [profileViewsResult, postsResult] = await Promise.allSettled([
+      selectRows("profile_views", {
+        select: "id",
+        filters: [eq("profileUserId", userId)],
+        limit: 50000,
+      }),
+      selectRows("posts", {
+        select: "id,views",
+        filters: [eq("userId", userId)],
+        limit: 500,
+      }),
     ]);
+
+    const profileViews = profileViewsResult.status === "fulfilled" ? profileViewsResult.value : [];
+    const posts = postsResult.status === "fulfilled" ? postsResult.value : [];
+
+    const seenResults = await Promise.all(
+      posts.map(async (post) => {
+        try {
+          return await selectRows("seen_posts", {
+            select: "userId",
+            filters: [eq("postId", Number(post.id))],
+            limit: 50000,
+          });
+        } catch {
+          return [];
+        }
+      }),
+    );
+
     const seenViewerIds = new Set<string>();
-    for (const post of posts) {
-      const seen = await selectRows("seen_posts", { select: "userId", filters: [eq("postId", Number(post.id))], limit: 50000 });
-      for (const row of seen) if (row.userId) seenViewerIds.add(String(row.userId));
+    for (const seen of seenResults) {
+      for (const row of seen) {
+        if (row.userId) seenViewerIds.add(String(row.userId));
+      }
     }
+
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
+
     return res.json({
       profileViews: profileViews.length,
       postImpressions: posts.reduce((sum, post) => sum + Number(post.views ?? 0), 0),
       reach: seenViewerIds.size,
     });
-  } catch (err) { return supabaseError(res, err); }
+  } catch (err) {
+    return supabaseError(res, err);
+  }
 });
 
 export default analyticsRouter;
