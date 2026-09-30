@@ -48,6 +48,9 @@ analyticsRouter.get("/analytics/me", authMiddleware, async (req: Request & { use
       const seen = await selectRows("seen_posts", { select: "userId", filters: [eq("postId", Number(post.id))], limit: 50000 });
       for (const row of seen) if (row.userId) seenViewerIds.add(String(row.userId));
     }
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     return res.json({
       profileViews: profileViews.length,
       postImpressions: posts.reduce((sum, post) => sum + Number(post.views ?? 0), 0),

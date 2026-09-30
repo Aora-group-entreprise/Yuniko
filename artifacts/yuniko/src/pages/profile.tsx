@@ -81,6 +81,7 @@ export default function Profile({ userId }: ProfilePageProps) {
   const [deletingPost, setDeletingPost] = useState(false);
   const [analytics, setAnalytics] = useState({ profileViews: 0, postImpressions: 0, reach: 0 });
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOwn || !authUser) return;
@@ -129,9 +130,19 @@ export default function Profile({ userId }: ProfilePageProps) {
     if (!isOwn || !authUser || tab !== "analytics") return;
     let cancelled = false;
     setAnalyticsLoading(true);
-    apiJson<{ profileViews: number; postImpressions: number; reach: number }>("/analytics/me")
-      .then((data) => { if (!cancelled) setAnalytics(data); })
-      .catch(() => { if (!cancelled) setAnalytics({ profileViews: 0, postImpressions: 0, reach: 0 }); })
+    setAnalyticsError(null);
+    apiJson<{ profileViews: number; postImpressions: number; reach: number }>(`/analytics/me?_=${Date.now()}`)
+      .then((data) => {
+        if (!cancelled) {
+          setAnalytics(data);
+          setAnalyticsError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setAnalyticsError(error instanceof Error ? error.message : "Unable to load real analytics");
+        }
+      })
       .finally(() => { if (!cancelled) setAnalyticsLoading(false); });
     return () => { cancelled = true; };
   }, [authUser, isOwn, tab]);
@@ -297,6 +308,12 @@ export default function Profile({ userId }: ProfilePageProps) {
           <div><p className="text-white/55 text-xs mb-1">{stat.label}</p><p className="text-white font-bold text-xl">{analyticsLoading?"…":formatCount(stat.value)}</p></div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full text-white/45 bg-white/5">All time</span>
         </div>)}
+        {analyticsError && (
+          <div className="px-1 py-2">
+            <p className="text-red-300/80 text-xs">Les statistiques réelles n'ont pas pu être chargées.</p>
+            <p className="text-white/25 text-[10px] mt-1 break-words">{analyticsError}</p>
+          </div>
+        )}
         <p className="text-white/30 text-[11px] leading-relaxed px-1">Les statistiques sont calculées à partir des visites de profil et des impressions réellement enregistrées.</p>
       </div>}
 
