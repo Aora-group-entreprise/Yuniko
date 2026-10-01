@@ -41,7 +41,7 @@ export default function Messages(){
   const [selected,setSelected]=useState<Conversation|null>(null);
   const [loading,setLoading]=useState(!cachedConversations);
   const [error,setError]=useState<string|null>(null);
-  const [incomingCall,setIncomingCall]=useState<{id:number;callType:"voice"|"video";callerId:number;user:{id:number;displayName:string;avatarUrl:string|null}}|null>(null);
+  const [incomingCall,setIncomingCall]=useState<{id:string;callType:"voice"|"video";callerId:number;user:{id:number;displayName:string;avatarUrl:string|null}}|null>(null);
   const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean;swiping:boolean;offset:number}|null>(null);
   const rowRefs=useRef<Record<number,HTMLButtonElement|null>>({});
   const archiveRefs=useRef<Record<number,HTMLDivElement|null>>({});
