@@ -206,7 +206,7 @@ export default function Chat(){
     const file=selectedMediaFile;
     setSelectedMediaFile(null);setSelectedMediaPreview(current=>{if(current)URL.revokeObjectURL(current);return null;});
     const kind=file.type.startsWith("video/")?"video":file.type.startsWith("image/")?"image":"file";
-    await sendMedia(file,kind,file.type==="image/gif"?"gif":file.name);
+    await sendMedia(file,kind,undefined,file.type==="image/gif"?"gif":file.name);
   };
 
   const reportMessage=async()=>{
