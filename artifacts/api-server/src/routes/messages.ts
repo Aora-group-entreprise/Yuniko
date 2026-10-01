@@ -147,7 +147,8 @@ messagesRouter.get("/messages/conversations",authMiddleware,async(req:Authentica
       .filter(r=>Number(r.followingId)===currentId&&following.has(Number(r.followerId)))
       .map(r=>Number(r.followerId))
       .filter(id=>!blockedIds.has(id));
-    if(!friendIds.length) return res.json({conversations:[]});
+    const [groupMemberships,groupRows]=await Promise.all([selectRows("group_members",{filters:[eq("userId",currentId)],limit:500}),selectRows("conversation_groups",{limit:500})]);
+    const groupIds=new Set(groupMemberships.map(row=>Number(row.conversationId)));
 
     const [memberships,conversations,messages,users]=await Promise.all([
       selectRows("conversation_members",{limit:5000}),
@@ -189,6 +190,7 @@ messagesRouter.get("/messages/conversations",authMiddleware,async(req:Authentica
         unread,
       });
     }
+    for(const group of groupRows.filter(row=>groupIds.has(Number(row.conversationId)))){const conversationId=Number(group.conversationId);if(archivedIds.has(conversationId))continue;const members=membersByConversation.get(conversationId)??[];const latest=messages.find(m=>Number(m.conversationId)===conversationId);const currentMember=members.find(m=>Number(m.userId)===currentId);const unread=messages.filter(m=>Number(m.conversationId)===conversationId&&Number(m.senderId)!==currentId&&new Date(String(m.createdAt)).getTime()>(currentMember?.lastReadAt?new Date(String(currentMember.lastReadAt)).getTime():0)).length;const lastMessage=latest?.kind==="image"?"Photo":latest?.kind==="audio"?"Voice message":String(latest?.body??"");result.push({id:conversationId,kind:"group",memberCount:members.length,user:{id:0,username:"group",displayName:String(group.name),avatarUrl:group.avatarUrl??null,verified:false},lastMessage,lastMessageTime:dateValue(latest?.createdAt??group.updatedAt),unread})}
     result.sort((a,b)=>new Date(String(b.lastMessageTime??0)).getTime()-new Date(String(a.lastMessageTime??0)).getTime());
     return res.json({conversations:result});
   }catch(err){return supabaseError(res,err);}
