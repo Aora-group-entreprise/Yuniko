@@ -31,9 +31,16 @@ export async function apiJson<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const res = await apiFetch(path, options);
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data?.error ?? "Request failed (" + res.status + ")");
+  const contentType = res.headers.get("content-type") ?? "";
+  const raw = await res.text();
+  let data: T | { error?: string } | null = null;
+  if (raw) {
+    try { data = JSON.parse(raw) as T | { error?: string }; }
+    catch {
+      const preview = raw.replace(/\s+/g, " ").slice(0, 120);
+      throw new Error("API returned non-JSON (" + res.status + ", " + (contentType || "unknown content-type") + ") from " + API_BASE_URL + "/api" + (path.startsWith("/") ? path : "/" + path) + ": " + preview);
+    }
   }
+  if (!res.ok) throw new Error((data && typeof data === "object" && "error" in data && data.error) || "Request failed (" + res.status + ")");
   return data as T;
 }
