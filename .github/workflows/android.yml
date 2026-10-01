@@ -43,13 +43,11 @@ jobs:
       - name: Install Capacitor in isolated workspace
         run: |
           mkdir -p .capacitor
-          cd .capacitor
-          npm init -y --workspaces=false
-          npm install --no-save --workspaces=false --ignore-scripts @capacitor/cli@8.5.2 @capacitor/core@8.5.2 @capacitor/android@8.5.2
-          cd ..
+          printf '%s\n' '{"name":"yuniko-capacitor-ci","private":true}' > .capacitor/package.json
+          npm install --prefix .capacitor --no-save --package-lock=false --ignore-scripts @capacitor/cli@8.5.2 @capacitor/core@8.5.2 @capacitor/android@8.5.2
           mkdir -p node_modules/@capacitor
-          ln -s "$PWD/.capacitor/node_modules/@capacitor/core" node_modules/@capacitor/core
-          ln -s "$PWD/.capacitor/node_modules/@capacitor/android" node_modules/@capacitor/android
+          ln -sfn "$PWD/.capacitor/node_modules/@capacitor/core" node_modules/@capacitor/core
+          ln -sfn "$PWD/.capacitor/node_modules/@capacitor/android" node_modules/@capacitor/android
 
       - name: Generate Capacitor Android project
         run: |
