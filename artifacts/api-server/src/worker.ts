@@ -1,5 +1,6 @@
 import {httpServerHandler} from "cloudflare:node";
 import jwt from "jsonwebtoken";
+import app from "./app";
 import {CallSignalRoom} from "./call-signal";
 
 type WorkerExecutionContext = {
@@ -8,7 +9,9 @@ type WorkerExecutionContext = {
 };
 type CallSignalNamespace = {getByName(name:string):{fetch(request:Request):Promise<Response>}};
 
-const PORT=3000,nodeHandler=httpServerHandler({port:PORT});
+const PORT=3000;
+app.listen(PORT);
+const nodeHandler=httpServerHandler({port:PORT});
 function userFromCookie(r:Request){
   const c=r.headers.get("Cookie")||"",token=c.split(";").map(v=>v.trim()).find(v=>v.startsWith("yuniko_session="))?.slice(15),secret=String(process.env["SESSION_SECRET"]||"");
   if(!token||!secret)return null;
