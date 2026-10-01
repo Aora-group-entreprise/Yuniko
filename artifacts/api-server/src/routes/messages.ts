@@ -236,8 +236,8 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
     const payload=visible.map(m=>({
       id:Number(m.id),senderId:Number(m.senderId),
       text:m.deletedAt?"This message was deleted":m.kind==="text"?String(m.body??""):undefined,
-      imageUrl=m.deletedAt?undefined:m.kind==="image"?String(m.mediaUrl??""):undefined,
-      audioUrl=m.deletedAt?undefined:m.kind==="audio"?String(m.mediaUrl??""):undefined,
+      imageUrl:m.deletedAt?undefined:m.kind==="image"?String(m.mediaUrl??""):undefined,
+      audioUrl:m.deletedAt?undefined:m.kind==="audio"?String(m.mediaUrl??""):undefined,
       durationMs:m.kind==="audio"&&m.durationMs!=null?Number(m.durationMs):null,
       timestamp:dateValue(m.createdAt),read:Boolean(m.readAt),delivered:Boolean(m.deliveredAt),edited:Boolean(m.editedAt),deleted:Boolean(m.deletedAt),
       replyToMessageId:m.replyToMessageId?Number(m.replyToMessageId):null,
