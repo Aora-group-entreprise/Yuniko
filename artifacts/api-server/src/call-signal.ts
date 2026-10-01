@@ -1,3 +1,5 @@
+import {DurableObject,DurableObjectState} from "cloudflare:workers";
+
 type CallScope = {scope:"inbox"|"room";userId:number};
 type HibernatableWebSocket = WebSocket & {
   serializeAttachment(value:CallScope):void;
@@ -14,9 +16,10 @@ type WorkerWebSocketPair = {0:WebSocket;1:WebSocket};
 
 declare const WebSocketPair:new()=>WorkerWebSocketPair;
 
-export class CallSignalRoom {
+export class CallSignalRoom extends DurableObject {
   private readonly ctx:DurableObjectStateLike;
   constructor(ctx:DurableObjectStateLike,_env:unknown){
+    super(ctx as DurableObjectState,_env);
     this.ctx=ctx;
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping","pong"));
   }
