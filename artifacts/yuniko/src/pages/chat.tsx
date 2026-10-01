@@ -49,6 +49,9 @@ export default function Chat(){
   const [otherTyping,setOtherTyping]=useState(Boolean(cached?.otherTyping));
   const [otherActiveAt,setOtherActiveAt]=useState<string|null>(cached?.otherActiveAt??null);
   const [selectedMessage,setSelectedMessage]=useState<Message|null>(null);
+  const [showChatMenu,setShowChatMenu]=useState(false);
+  const [readReceiptsEnabled,setReadReceiptsEnabled]=useState(true);
+  const [nickname,setNickname]=useState("");
   const [replyingTo,setReplyingTo]=useState<Message|null>(null);
   const [editingMessage,setEditingMessage]=useState<Message|null>(null);
   const [selectedMediaFile,setSelectedMediaFile]=useState<File|null>(null);
@@ -66,8 +69,12 @@ export default function Chat(){
     if(!Number.isInteger(userId)||userId<=0)return;
     setLoading(true);setError(null);
     try{
-      const data=await fetchSessionJson<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>("/messages/conversations/"+userId);
-      setUser(data.user);setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&data.user.encryptionPublicKey?await decryptFromPublicKey(data.user.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
+      const data=await fetchSessionJson<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null;settings?:{readReceiptsEnabled?:boolean;nickname?:string}}>("/messages/conversations/"+userId);
+      setUser(data.user);
+      setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&data.user.encryptionPublicKey?await decryptFromPublicKey(data.user.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));
+      setReadReceiptsEnabled(data.settings?.readReceiptsEnabled!==false);
+      setNickname(data.settings?.nickname??"");
+      setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
       lastMessageIdRef.current=Math.max(0,...(data.messages??[]).map(m=>m.id));
     }catch(err){setError(err instanceof Error?err.message:"Unable to load chat");}
     finally{setLoading(false);}
@@ -84,9 +91,13 @@ export default function Chat(){
         const data=await fetchSessionJson<{messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>("/messages/conversations/"+userId+"?after="+lastMessageIdRef.current);
         if(cancelled)return;
         if(data.messages?.length){
+          const fresh=await Promise.all(data.messages.map(async m=>({
+            ...m,
+            text:m.text&&user?.encryptionPublicKey?await decryptFromPublicKey(user.encryptionPublicKey,m.text).catch(()=>m.text):m.text,
+          })));
           setMessages(current=>{
             const known=new Set(current.map(m=>m.id));
-            return current.concat(data.messages.filter(m=>!known.has(m.id)));
+            return current.concat(fresh.filter(m=>!known.has(m.id)));
           });
           lastMessageIdRef.current=Math.max(lastMessageIdRef.current,...data.messages.map(m=>m.id));
         }
@@ -99,7 +110,7 @@ export default function Chat(){
     document.addEventListener("visibilitychange",onVisible);
     window.addEventListener("online",onVisible);
     return()=>{cancelled=true;window.clearInterval(interval);document.removeEventListener("visibilitychange",onVisible);window.removeEventListener("online",onVisible);};
-  },[userId]);
+  },[userId,user?.encryptionPublicKey]);
 
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
   useEffect(()=>()=>{mediaRecorderRef.current?.stop();if(typingTimerRef.current!==null)window.clearTimeout(typingTimerRef.current);},[]);
@@ -122,7 +133,8 @@ export default function Chat(){
     setSending(true);setError(null);
     try{
       const device=await deviceInfo();const payload=user.encryptionPublicKey?await encryptForPublicKey(user.encryptionPublicKey,text):text;const data=await apiJson<{message:Message}>("/messages/conversations/"+user.id,{method:"POST",body:JSON.stringify({text:payload,replyToMessageId:replyingTo?.id??null,encryptionVersion:user.encryptionPublicKey?1:null,senderDeviceId:device.deviceId})});
-      setMessages(current=>current.concat(data.message));lastMessageIdRef.current=Math.max(lastMessageIdRef.current,data.message.id);
+      setMessages(current=>current.concat({...data.message,text}));
+      lastMessageIdRef.current=Math.max(lastMessageIdRef.current,data.message.id);
       setInputText("");setReplyingTo(null);invalidateSessionCache(cacheKey);void sendTyping(false);
     }catch(err){setError(err instanceof Error?err.message:"Unable to send message");}
     finally{setSending(false);}
@@ -224,7 +236,27 @@ export default function Chat(){
     if(!user)return;
     try{await apiJson("/blocked-users/"+user.id,{method:"POST"});setLocation("/messages");}
     catch(err){setError(err instanceof Error?err.message:"Unable to block user");}
-    finally{setSelectedMessage(null);}
+    finally{setSelectedMessage(null);setShowChatMenu(false);}
+  };
+
+  const updateChatSettings=async(next:{readReceiptsEnabled?:boolean;nickname?:string})=>{
+    if(!user)return;
+    try{
+      const data=await apiJson<{settings:{readReceiptsEnabled:boolean;nickname:string}}>("/messages/conversations/"+user.id+"/settings",{method:"POST",body:JSON.stringify(next)});
+      setReadReceiptsEnabled(data.settings.readReceiptsEnabled);setNickname(data.settings.nickname);setError(null);
+    }catch(err){setError(err instanceof Error?err.message:"Unable to update chat settings");}
+  };
+
+  const markConversationUnread=async()=>{
+    if(!user)return;
+    try{await apiJson("/messages/conversations/"+user.id+"/unread",{method:"POST"});invalidateSessionCache("/messages/conversations/"+user.id);setLocation("/messages");}
+    catch(err){setError(err instanceof Error?err.message:"Unable to mark conversation unread");}
+  };
+
+  const setChatNickname=async()=>{
+    const value=window.prompt("Pseudo pour cette conversation",nickname);
+    if(value===null)return;
+    await updateChatSettings({nickname:value});
   };
 
   const toggleRecording=async()=>{
@@ -250,9 +282,9 @@ export default function Chat(){
       <button onClick={()=>setLocation("/messages")}><ArrowLeft size={22} className="text-white/80"/></button>
       <button onClick={()=>setLocation("/user/"+user.id)} className="flex items-center gap-2.5 flex-1 text-left">
         <img src={avatar(user)} alt={user.displayName} className="w-9 h-9 rounded-full object-cover"/>
-        <div><div className="flex items-center gap-1"><span className="text-white font-semibold text-sm">{user.displayName}</span>{user.verified&&<BadgeCheck size={13} className="text-blue-400 fill-blue-400"/>}</div><span className="text-white/50 text-xs">{otherTyping?"typing…":otherActiveAt?"active recently":"@"+user.username}</span></div>
+        <div><div className="flex items-center gap-1"><span className="text-white font-semibold text-sm">{nickname||user.displayName}</span>{user.verified&&<BadgeCheck size={13} className="text-blue-400 fill-blue-400"/>}</div><span className="text-white/50 text-xs">{otherTyping?"typing…":otherActiveAt?"active recently":"@"+user.username}</span></div>
       </button>
-      <div className="flex items-center gap-2"><button onClick={()=>setLocation("/voice-call/"+user.id)}><Phone size={20} className="text-white/70"/></button><button onClick={()=>setLocation("/video-call/"+user.id)}><Video size={20} className="text-white/70"/></button><button><MoreHorizontal size={20} className="text-white/70"/></button></div>
+      <div className="flex items-center gap-2"><button onClick={()=>setLocation("/voice-call/"+user.id)}><Phone size={20} className="text-white/70"/></button><button onClick={()=>setLocation("/video-call/"+user.id)}><Video size={20} className="text-white/70"/></button><button onClick={()=>setShowChatMenu(true)} aria-label="Chat options"><MoreHorizontal size={20} className="text-white/70"/></button></div>
     </header>
     {error&&<div className="shrink-0 px-3 py-2 text-xs text-red-300/80 bg-red-500/5">{error}</div>}
     <div className="flex-1 overflow-y-auto px-3 py-4 pb-2" data-testid="messages-container">
@@ -273,6 +305,16 @@ export default function Chat(){
     </div>
 
     {selectedMediaPreview&&<ScreenPortal><div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center"><div className="w-full max-w-[430px] p-4 rounded-t-3xl bg-[#120f1e]"><img src={selectedMediaPreview} alt="Preview" className="w-full max-h-[55vh] object-contain rounded-2xl mb-3"/><div className="flex gap-2"><button onClick={()=>{setSelectedMediaFile(null);setSelectedMediaPreview(current=>{if(current)URL.revokeObjectURL(current);return null;});}} className="flex-1 py-3 rounded-xl bg-white/10 text-white/70">Cancel</button><button onClick={()=>void confirmMedia()} className="flex-1 py-3 rounded-xl text-white" style={{background:GRADIENT}}>Send</button></div></div></div></ScreenPortal>}
+
+    {showChatMenu&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setShowChatMenu(false)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)"}} data-testid="chat-options-panel">
+      <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2"/>
+      <div className="px-5 py-4 border-b border-white/10"><p className="text-white font-semibold text-sm">Chat</p><p className="text-white/40 text-xs mt-1">@{user.username}</p></div>
+      <button onClick={()=>void updateChatSettings({readReceiptsEnabled:!readReceiptsEnabled})} className="w-full px-5 py-4 flex items-center gap-3 text-left border-b border-white/10"><span className="text-white/85 text-sm flex-1">Confirmation de lecture</span><span className={"text-xs "+(readReceiptsEnabled?"text-pink-300":"text-white/35")}>{readReceiptsEnabled?"Activée":"Désactivée"}</span></button>
+      <button onClick={()=>void markConversationUnread()} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Marquer comme non lu</button>
+      <button onClick={()=>void setChatNickname()} className="w-full px-5 py-4 flex items-center gap-3 text-left border-b border-white/10"><span className="text-white/85 text-sm flex-1">Pseudo</span><span className="text-white/35 text-xs truncate max-w-[150px]">{nickname||"Définir"}</span></button>
+      <button onClick={()=>void blockUser()} className="w-full px-5 py-4 text-left text-red-300 text-sm">Bloquer</button>
+      <div className="h-5"/>
+    </div></></ScreenPortal>}
 
     {selectedMessage&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setSelectedMessage(null)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)"}}><div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2"/><div className="grid grid-cols-6 gap-1 px-4 py-3 border-b border-white/10">{["❤️","😂","😮","😢","🔥","👏"].map(r=><button key={r} onClick={()=>void react(r)} className="text-xl py-2">{r}</button>)}</div><button onClick={()=>{setReplyingTo(selectedMessage);setEditingMessage(null);setSelectedMessage(null);}} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Reply</button>{selectedMessage.senderId===Number(authUser?.id)&&selectedMessage.type==="text"&&!selectedMessage.deleted&&<button onClick={()=>{setEditingMessage(selectedMessage);setReplyingTo(null);setInputText(selectedMessage.text??"");setSelectedMessage(null);}} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Edit</button>}<button onClick={()=>void forwardMessage()} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Forward</button><button onClick={()=>void reportMessage()} className="w-full px-5 py-4 text-left text-orange-300 text-sm border-b border-white/10">Report</button><button onClick={()=>void blockUser()} className="w-full px-5 py-4 text-left text-red-300 text-sm border-b border-white/10">Block user</button>{selectedMessage.senderId===Number(authUser?.id)&&<button onClick={()=>void deleteMessage(true)} className="w-full px-5 py-4 text-left text-red-300 text-sm border-b border-white/10">Delete for everyone</button>}<button onClick={()=>void deleteMessage(false)} className="w-full px-5 py-4 text-left text-red-300 text-sm">Delete for me</button><div className="h-5"/></div></></ScreenPortal>}
 

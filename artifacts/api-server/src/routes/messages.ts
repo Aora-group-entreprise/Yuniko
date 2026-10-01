@@ -280,11 +280,17 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
     if(!friend) return res.status(404).json({error:"User not found"});
     const deletedForMe=new Set(deletions.map(d=>Number(d.messageId)));
     const visible=messages.filter(m=>!deletedForMe.has(Number(m.id))&&(afterId<=0||Number(m.id)>afterId));
+    const currentMember=members.find(m=>Number(m.userId)===currentId);
+    const otherMember=members.find(m=>Number(m.userId)===friendId);
+    const readReceiptsEnabled=currentMember?.readReceiptsEnabled!==false;
     const undelivered=messages.filter(m=>Number(m.senderId)===friendId&&m.deliveredAt==null&&!deletedForMe.has(Number(m.id)));
     const now=new Date();
     for(const m of undelivered) await updateRows("messages",{deliveredAt:now},[eq("id",Number(m.id))]);
+    if(readReceiptsEnabled){
+      const unreadIncoming=messages.filter(m=>Number(m.senderId)===friendId&&m.readAt==null&&!deletedForMe.has(Number(m.id)));
+      for(const m of unreadIncoming) await updateRows("messages",{readAt:now},[eq("id",Number(m.id))]);
+    }
     await updateRows("conversation_members",{lastReadAt:now,lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
-    const otherMember=members.find(m=>Number(m.userId)===friendId);
     const reactionRows=visible.length?await selectRows("message_reactions",{limit:5000}):[];
     const reactionsByMessage=new Map<number,{reaction:string,count:number,reacted:boolean}[]>();
     for(const row of reactionRows){
@@ -324,7 +330,40 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
       messages:mediaPayload,
       otherTyping:Boolean(otherMember?.typingAt&&Date.now()-new Date(String(otherMember.typingAt)).getTime()<5000),
       otherActiveAt:dateValue(otherMember?.lastActiveAt),
+      settings:{readReceiptsEnabled,nickname:currentMember?.nickname??""},
     });
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.post("/messages/conversations/:userId/settings",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const currentId=Number(req.userId),friendId=Number(req.params["userId"]);
+  if(!Number.isInteger(friendId)||friendId<=0) return res.status(400).json({error:"Invalid user id"});
+  if(!(await areFriends(currentId,friendId))) return res.status(403).json({error:"You can only manage settings for friends"});
+  try{
+    const conversationId=await ensureFriendConversation(currentId,friendId);
+    const member=await conversationForUser(conversationId,currentId);
+    if(!member) return res.status(404).json({error:"Conversation not found"});
+    const updates:Record<string,unknown>={};
+    if(typeof req.body?.readReceiptsEnabled==="boolean") updates.readReceiptsEnabled=req.body.readReceiptsEnabled;
+    if(typeof req.body?.nickname==="string"){
+      const nickname=req.body.nickname.trim();
+      if(nickname.length>40) return res.status(400).json({error:"Nickname must be 40 characters or fewer"});
+      updates.nickname=nickname||null;
+    }
+    if(!Object.keys(updates).length) return res.status(400).json({error:"No settings to update"});
+    await updateRows("conversation_members",updates,[eq("conversationId",conversationId),eq("userId",currentId)]);
+    return res.json({settings:{readReceiptsEnabled:updates.readReceiptsEnabled??member.readReceiptsEnabled!==false,nickname:updates.nickname===null?"":String(updates.nickname??member.nickname??"")}});
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.post("/messages/conversations/:userId/unread",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const currentId=Number(req.userId),friendId=Number(req.params["userId"]);
+  if(!Number.isInteger(friendId)||friendId<=0) return res.status(400).json({error:"Invalid user id"});
+  if(!(await areFriends(currentId,friendId))) return res.status(403).json({error:"You can only manage your conversations"});
+  try{
+    const conversationId=await ensureFriendConversation(currentId,friendId);
+    await updateRows("conversation_members",{lastReadAt:new Date(0)},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    return res.json({unread:true});
   }catch(err){return supabaseError(res,err);}
 });
 

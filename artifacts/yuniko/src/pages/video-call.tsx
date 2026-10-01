@@ -1,185 +1,112 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { CameraOff, Camera, MicOff, Mic, PhoneOff, SwitchCamera, Maximize2, Volume2 } from "lucide-react";
-import { getUserById, users } from "@/data/mockData";
+import { CameraOff, Camera, MicOff, Mic, PhoneOff, SwitchCamera } from "lucide-react";
+import { apiJson } from "@/lib/api";
 import { t } from "@/lib/i18n";
 
-export default function VideoCall() {
-  const [, setLocation] = useLocation();
-  const params = useParams<{ userId: string }>();
-  const userId = params?.userId ?? "u1";
-  const user = getUserById(userId) ?? users[0];
+export default function VideoCall(){
+  const [,setLocation]=useLocation();
+  const params=useParams<{userId:string}>();
+  const userId=Number(params?.userId);
+  const query=new URLSearchParams(window.location.search);
+  const incoming=query.get("incoming")==="1";
+  const initialCallId=Number(query.get("callId")||0);
+  const [callId,setCallId]=useState(initialCallId);
+  const [name,setName]=useState("Appel vidéo");
+  const [state,setState]=useState<"connecting"|"active"|"ended"|"error">("connecting");
+  const [muted,setMuted]=useState(false);
+  const [cameraOff,setCameraOff]=useState(false);
+  const [duration,setDuration]=useState(0);
+  const [facingMode,setFacingMode]=useState<"user"|"environment">("user");
+  const remoteRef=useRef<HTMLVideoElement|null>(null);
+  const localRef=useRef<HTMLVideoElement|null>(null);
+  const pcRef=useRef<RTCPeerConnection|null>(null);
+  const localStreamRef=useRef<MediaStream|null>(null);
+  const lastSignalRef=useRef(0);
+  const pendingCandidatesRef=useRef<RTCIceCandidateInit[]>([]);
 
-  const [muted, setMuted] = useState(false);
-  const [cameraOff, setCameraOff] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
-  const [callState, setCallState] = useState<"connecting" | "active" | "ended">("connecting");
+  const signal=async(id:number,kind:string,payload:unknown)=>{await apiJson("/calls/"+id+"/signal",{method:"POST",body:JSON.stringify({kind,payload})});};
+  const end=async()=>{const id=callId;setState("ended");localStreamRef.current?.getTracks().forEach(track=>track.stop());pcRef.current?.close();if(id)try{await apiJson("/calls/"+id+"/end",{method:"POST"});}catch{}window.setTimeout(()=>setLocation("/chat/"+userId),700);};
 
-  useEffect(() => {
-    const t = setTimeout(() => setCallState("active"), 2000);
-    return () => clearTimeout(t);
-  }, []);
+  useEffect(()=>{
+    let cancelled=false;let pollTimer:number|undefined;
+    const start=async()=>{
+      try{
+        let id=callId;
+        if(!id){const data=await apiJson<{call:{id:number}} >("/calls/start",{method:"POST",body:JSON.stringify({calleeId:userId,callType:"video"})});id=data.call.id;setCallId(id);}
+        const info=await apiJson<{call:{user:{displayName:string;avatarUrl:string|null}|null}} >("/calls/"+id);
+        if(info.call.user)setName(info.call.user.displayName);
+        if(!navigator.mediaDevices?.getUserMedia||typeof RTCPeerConnection==="undefined")throw new Error("WebRTC unavailable");
+        const pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});pcRef.current=pc;
+        const local=await navigator.mediaDevices.getUserMedia({audio:true,video:{facingMode}});
+        localStreamRef.current=local;
+        if(localRef.current)localRef.current.srcObject=local;
+        local.getTracks().forEach(track=>pc.addTrack(track,local));
+        pc.ontrack=event=>{if(remoteRef.current){remoteRef.current.srcObject=event.streams[0]??new MediaStream([event.track]);void remoteRef.current.play().catch(()=>{});}setState("active");};
+        pc.onicecandidate=event=>{if(event.candidate)void signal(id,"ice-candidate",event.candidate.toJSON());};
+        if(!incoming){const offer=await pc.createOffer();await pc.setLocalDescription(offer);await signal(id,"offer",offer);}else await apiJson("/calls/"+id+"/answer",{method:"POST"});
+        pollTimer=window.setInterval(async()=>{
+          try{
+            const data=await apiJson<{signals:Array<{id:number;kind:string;payload:any}>}>("/calls/"+id+"/signals?after="+lastSignalRef.current);
+            for(const signalRow of data.signals){
+              lastSignalRef.current=Math.max(lastSignalRef.current,signalRow.id);
+              if(signalRow.kind==="offer"&&!pc.currentRemoteDescription){
+                await pc.setRemoteDescription(signalRow.payload);
+                for(const candidate of pendingCandidatesRef.current)await pc.addIceCandidate(candidate).catch(()=>{});
+                pendingCandidatesRef.current=[];
+                const answer=await pc.createAnswer();await pc.setLocalDescription(answer);await signal(id,"answer",answer);
+              }else if(signalRow.kind==="answer"&&!pc.currentRemoteDescription){
+                await pc.setRemoteDescription(signalRow.payload);
+                for(const candidate of pendingCandidatesRef.current)await pc.addIceCandidate(candidate).catch(()=>{});
+                pendingCandidatesRef.current=[];
+                setState("active");
+              }else if(signalRow.kind==="ice-candidate"){
+                if(pc.remoteDescription)await pc.addIceCandidate(signalRow.payload).catch(()=>{});
+                else pendingCandidatesRef.current.push(signalRow.payload);
+              }
+            }
+            const current=await apiJson<{call:{status:string}}>("/calls/"+id);
+            if(["ended","rejected"].includes(current.call.status)&&!cancelled)setState("ended");
+          }catch{}
+        },700);
+      }catch{if(!cancelled)setState("error");}
+    };
+    void start();
+    return()=>{cancelled=true;if(pollTimer)window.clearInterval(pollTimer);pcRef.current?.close();localStreamRef.current?.getTracks().forEach(track=>track.stop());};
+  },[]);
 
-  useEffect(() => {
-    if (callState !== "active") return;
-    const interval = setInterval(() => setCallDuration((d) => d + 1), 1000);
-    return () => clearInterval(interval);
-  }, [callState]);
-
-  const formatDuration = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  useEffect(()=>{if(state!=="active")return;const timer=window.setInterval(()=>setDuration(value=>value+1),1000);return()=>window.clearInterval(timer);},[state]);
+  const toggleMute=()=>{const next=!muted;localStreamRef.current?.getAudioTracks().forEach(track=>track.enabled=!next);setMuted(next);};
+  const toggleCamera=()=>{const next=!cameraOff;localStreamRef.current?.getVideoTracks().forEach(track=>track.enabled=!next);setCameraOff(next);};
+  const switchCamera=async()=>{
+    const next=facingMode==="user"?"environment":"user";
+    try{
+      const current=localStreamRef.current?.getVideoTracks()[0];
+      if(!current)return;
+      const replacementStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:next}});
+      const replacement=replacementStream.getVideoTracks()[0];
+      const sender=pcRef.current?.getSenders().find(item=>item.track?.kind==="video");
+      if(sender)await sender.replaceTrack(replacement);
+      current.stop();
+      localStreamRef.current?.removeTrack(current);
+      localStreamRef.current?.addTrack(replacement);
+      if(localRef.current)localRef.current.srcObject=localStreamRef.current;
+      setFacingMode(next);
+    }catch{}
   };
 
-  const endCall = () => {
-    setCallState("ended");
-    setTimeout(() => setLocation("/"), 1500);
-  };
+  if(state==="error")return <div className="w-full max-w-[430px] mx-auto min-h-screen flex flex-col items-center justify-center gap-4 bg-black"><p className="text-white/60 text-sm">Impossible de démarrer l’appel vidéo.</p><button onClick={()=>setLocation("/chat/"+userId)} className="px-4 py-2 rounded-xl text-white" style={{background:"linear-gradient(135deg,#FF006E,#8B00FF)"}}>Retour</button></div>;
+  if(state==="ended")return <div className="w-full max-w-[430px] mx-auto min-h-screen flex flex-col items-center justify-center gap-4 bg-black"><p className="text-white/60 text-lg">{t("callEnded")}</p><p className="text-white/40 text-sm">{String(Math.floor(duration/60)).padStart(2,"0")+":"+String(duration%60).padStart(2,"0")}</p></div>;
 
-  if (callState === "ended") {
-    return (
-      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-black flex flex-col items-center justify-center gap-4">
-        <p className="text-white/60 text-lg">{t("callEnded")}</p>
-        <p className="text-white/40 text-sm">{formatDuration(callDuration)}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="w-full max-w-[430px] mx-auto min-h-screen relative overflow-hidden"
-      style={{ background: "#0A0A0F" }}
-      data-testid="video-call-screen"
-    >
-      {/* Remote video (full screen) */}
-      <img
-        src={user.avatar}
-        alt={user.displayName}
-        className="absolute inset-0 w-full h-full object-cover opacity-80"
-        style={{ filter: "blur(2px) brightness(0.6)" }}
-      />
-
-      {/* Remote video placeholder with actual avatar */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <img
-          src={`https://picsum.photos/seed/video_call_${userId}/400/700`}
-          alt=""
-          className="w-full h-full object-cover"
-          style={{ opacity: 0.7 }}
-        />
-      </div>
-
-      {/* Gradient overlays */}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 30%, transparent 60%, rgba(0,0,0,0.7) 100%)" }} />
-
-      {/* Top bar */}
-      <div className="absolute top-10 left-4 right-4 flex items-center justify-between">
-        <div>
-          <p className="text-white font-semibold text-lg">{user.displayName}</p>
-          <p className="text-white/60 text-sm">
-            {callState === "connecting" ? t("calling") : formatDuration(callDuration)}
-          </p>
-        </div>
-        <button
-          className="w-10 h-10 rounded-full flex items-center justify-center"
-          style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(12px)" }}
-          data-testid="btn-fullscreen"
-        >
-          <Maximize2 size={18} className="text-white" />
-        </button>
-      </div>
-
-      {/* Self video (small, corner) */}
-      <div
-        className="absolute top-28 right-4 w-24 h-32 rounded-2xl overflow-hidden"
-        style={{ border: "2px solid rgba(255,255,255,0.2)", boxShadow: "0 4px 20px rgba(0,0,0,0.5)" }}
-        data-testid="self-video"
-      >
-        {cameraOff ? (
-          <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-            <CameraOff size={20} className="text-white/40" />
-          </div>
-        ) : (
-          <img src="https://picsum.photos/seed/me_video/200/300" alt="You" className="w-full h-full object-cover" />
-        )}
-      </div>
-
-      {/* Bottom controls */}
-      <div className="absolute bottom-12 left-0 right-0">
-        <div className="flex items-center justify-center gap-5">
-          <ControlBtn
-            icon={muted ? <MicOff size={22} className="text-white" /> : <Mic size={22} className="text-white" />}
-            onClick={() => setMuted((prev) => !prev)}
-            active={!muted}
-            label={t("mute")}
-            testId="btn-mute-video"
-          />
-          <ControlBtn
-            icon={cameraOff ? <CameraOff size={22} className="text-white" /> : <Camera size={22} className="text-white" />}
-            onClick={() => setCameraOff((prev) => !prev)}
-            active={!cameraOff}
-            label={t("camera")}
-            testId="btn-camera-toggle"
-          />
-          <button
-            onClick={endCall}
-            className="w-16 h-16 rounded-full flex items-center justify-center"
-            style={{ background: "#EF4444", boxShadow: "0 4px 20px rgba(239,68,68,0.5)" }}
-            data-testid="btn-end-video-call"
-          >
-            <PhoneOff size={26} className="text-white" />
-          </button>
-          <ControlBtn
-            icon={<SwitchCamera size={22} className="text-white" />}
-            onClick={() => {}}
-            active={true}
-            label={t("switchCamera")}
-            testId="btn-switch-camera"
-          />
-          <ControlBtn
-            icon={<Volume2 size={22} className="text-white" />}
-            onClick={() => {}}
-            active={true}
-            label={t("speaker")}
-            testId="btn-speaker-video"
-          />
-        </div>
-      </div>
+  return <div className="w-full max-w-[430px] mx-auto min-h-screen bg-black relative overflow-hidden text-white">
+    <video ref={remoteRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover bg-[#0A0A0F]"/>
+    <video ref={localRef} autoPlay muted playsInline className="absolute top-6 right-4 w-24 h-32 rounded-2xl object-cover border border-white/20 bg-black"/>
+    <div className="absolute top-5 left-4 right-32"><p className="font-semibold">{name}</p><p className="text-white/50 text-sm">{state==="active"?String(Math.floor(duration/60)).padStart(2,"0")+":"+String(duration%60).padStart(2,"0"):t("calling")}</p></div>
+    <div className="absolute bottom-8 left-0 right-0 flex items-center justify-center gap-5">
+      <button onClick={toggleMute} className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center">{muted?<MicOff size={21}/>:<Mic size={21}/>}</button>
+      <button onClick={toggleCamera} className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center">{cameraOff?<CameraOff size={21}/>:<Camera size={21}/>}</button>
+      <button onClick={()=>void end()} className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center"><PhoneOff size={25}/></button>
+      <button onClick={()=>void switchCamera()} className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center"><SwitchCamera size={21}/></button>
     </div>
-  );
-}
-
-function ControlBtn({
-  icon,
-  onClick,
-  active,
-  label,
-  testId,
-}: {
-  icon: React.ReactNode;
-  onClick: () => void;
-  active: boolean;
-  label: string;
-  testId: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-1"
-      data-testid={testId}
-    >
-      <div
-        className="w-12 h-12 rounded-full flex items-center justify-center"
-        style={{
-          background: active ? "rgba(255,255,255,0.18)" : "rgba(239,68,68,0.25)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255,255,255,0.15)",
-        }}
-      >
-        {icon}
-      </div>
-      <span className="text-white/50 text-[10px]">{label}</span>
-    </button>
-  );
+  </div>;
 }
