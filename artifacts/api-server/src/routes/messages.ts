@@ -302,7 +302,11 @@ messagesRouter.get("/calls/history",authMiddleware,async(req:AuthenticatedReques
       selectRows<UserRow>("users",{limit:1000}),
     ]);
     const userById=new Map(users.map(user=>[Number(user.id),user]));
-    const rows=[
+    type CallHistoryRow = Record<string, unknown> & {
+      callDirection: "incoming" | "outgoing";
+      otherUserId: number;
+    };
+    const rows: CallHistoryRow[]=[
       ...outgoing.map(call=>({...call,callDirection:"outgoing" as const,otherUserId:Number(call.targetUserId)})),
       ...incoming.map(call=>({...call,callDirection:"incoming" as const,otherUserId:Number(call.callerId)})),
     ];
