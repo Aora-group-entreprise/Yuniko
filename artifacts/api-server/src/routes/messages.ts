@@ -292,4 +292,48 @@ messagesRouter.delete("/message-requests/:id",authMiddleware,async(req:Authentic
   }catch(err){return supabaseError(res,err);}
 });
 
+
+messagesRouter.get("/calls/history",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const currentId=Number(req.userId);
+  try{
+    const [outgoing,incoming,users]=await Promise.all([
+      selectRows("calls",{filters:[eq("callerId",currentId)],order:{column:"createdAt",ascending:false},limit:500}),
+      selectRows("calls",{filters:[eq("targetUserId",currentId)],order:{column:"createdAt",ascending:false},limit:500}),
+      selectRows<UserRow>("users",{limit:1000}),
+    ]);
+    const userById=new Map(users.map(user=>[Number(user.id),user]));
+    const rows=[
+      ...outgoing.map(call=>({...call,callDirection:"outgoing" as const,otherUserId:Number(call.targetUserId)})),
+      ...incoming.map(call=>({...call,callDirection:"incoming" as const,otherUserId:Number(call.callerId)})),
+    ];
+    rows.sort((a,b)=>new Date(String(b.createdAt??b.startedAt??0)).getTime()-new Date(String(a.createdAt??a.startedAt??0)).getTime());
+    const result=rows.flatMap(call=>{
+      const user=userById.get(call.otherUserId);
+      if(!user)return [];
+      const started=call.startedAt?new Date(String(call.startedAt)).getTime():0;
+      const ended=call.endedAt?new Date(String(call.endedAt)).getTime():0;
+      const duration=started&&ended&&ended>=started?Math.floor((ended-started)/1000):0;
+      const status=String(call.status??"");
+      const missed=call.callDirection==="incoming"&&!["answered","completed","connected"].includes(status);
+      return [{
+        id:String(call.id),
+        user:{
+          id:call.otherUserId,
+          username:String(user.username??""),
+          displayName:String(user.displayName??user.username??""),
+          avatarUrl:user.avatarUrl??null,
+          verified:String(user.verificationStatus??"")==="verified",
+        },
+        type:call.callDirection,
+        callType:String(call.kind??"").toLowerCase()==="video"?"video":"voice",
+        status,
+        missed,
+        duration,
+        timestamp:dateValue(call.createdAt??call.startedAt),
+      }];
+    });
+    return res.json({calls:result});
+  }catch(err){return supabaseError(res,err);}
+});
+
 export default messagesRouter;
