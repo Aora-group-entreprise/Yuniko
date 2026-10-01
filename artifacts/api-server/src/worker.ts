@@ -1,5 +1,34 @@
-import {httpServerHandler} from "cloudflare:node";import jwt from "jsonwebtoken";import {CallSignalRoom} from "./call-signal";
+import {httpServerHandler} from "cloudflare:node";
+import jwt from "jsonwebtoken";
+import {CallSignalRoom} from "./call-signal";
+
+type WorkerExecutionContext = {
+  waitUntil(promise:Promise<unknown>):void;
+  passThroughOnException?():void;
+};
+type CallSignalNamespace = {getByName(name:string):{fetch(request:Request):Promise<Response>}};
+
 const PORT=3000,nodeHandler=httpServerHandler({port:PORT});
-function userFromCookie(r:Request){const c=r.headers.get("Cookie")||"",token=c.split(";").map(v=>v.trim()).find(v=>v.startsWith("yuniko_session="))?.slice(15),secret=String(process.env["SESSION_SECRET"]||"");if(!token||!secret)return null;try{const p=jwt.verify(decodeURIComponent(token),secret) as {userId?:number};return Number.isInteger(p.userId)?Number(p.userId):null}catch{return null}}
-export default{async fetch(request:Request,env:Record<string,unknown>,ctx:ExecutionContext){const u=new URL(request.url);if(u.pathname==="/api/calls/ws"){if(request.method!=="GET"||request.headers.get("Upgrade")!=="websocket")return new Response("Expected WebSocket",{status:426});const userId=userFromCookie(request);if(!userId)return new Response("Unauthorized",{status:401});const scope=u.searchParams.get("scope")==="room"?"room":"inbox",room=u.searchParams.get("room");if(scope==="room"&&!room)return new Response("Missing room",{status:400});const ns=env.CALL_SIGNAL as {getByName(name:string):{fetch(r:Request):Promise<Response>}},name=scope==="room"?"room:"+room:"user:"+userId;u.searchParams.set("scope",scope);u.searchParams.set("userId",String(userId));return ns.getByName(name).fetch(new Request(u.toString(),request));}return nodeHandler.fetch(request,env,ctx)}};
+function userFromCookie(r:Request){
+  const c=r.headers.get("Cookie")||"",token=c.split(";").map(v=>v.trim()).find(v=>v.startsWith("yuniko_session="))?.slice(15),secret=String(process.env["SESSION_SECRET"]||"");
+  if(!token||!secret)return null;
+  try{const p=jwt.verify(decodeURIComponent(token),secret) as {userId?:number};return Number.isInteger(p.userId)?Number(p.userId):null}catch{return null}
+}
+export default{
+  async fetch(request:Request,env:Record<string,unknown>,ctx:WorkerExecutionContext){
+    const u=new URL(request.url);
+    if(u.pathname==="/api/calls/ws"){
+      if(request.method!=="GET"||request.headers.get("Upgrade")!=="websocket")return new Response("Expected WebSocket",{status:426});
+      const userId=userFromCookie(request);
+      if(!userId)return new Response("Unauthorized",{status:401});
+      const scope=u.searchParams.get("scope")==="room"?"room":"inbox",room=u.searchParams.get("room");
+      if(scope==="room"&&!room)return new Response("Missing room",{status:400});
+      const ns=env.CALL_SIGNAL as CallSignalNamespace,name=scope==="room"?"room:"+room:"user:"+userId;
+      u.searchParams.set("scope",scope);
+      u.searchParams.set("userId",String(userId));
+      return ns.getByName(name).fetch(new Request(u.toString(),request));
+    }
+    return nodeHandler.fetch(request,env,ctx);
+  }
+};
 export {CallSignalRoom};
