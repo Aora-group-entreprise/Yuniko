@@ -5,6 +5,13 @@ declare module "cloudflare:workers" {
     acceptWebSocket(ws: WebSocket, tags?: string[]): void;
     getWebSockets(tag?: string): WebSocket[];
     setWebSocketAutoResponse(pair: unknown): void;
+    storage: {
+      get<T>(key: string): Promise<T | undefined>;
+      put<T>(key: string, value: T): Promise<void>;
+      delete(key: string): Promise<boolean>;
+      setAlarm(scheduledTime: number): Promise<void>;
+      deleteAlarm(): Promise<void>;
+    };
   }
 
   export abstract class DurableObject {

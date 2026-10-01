@@ -23,10 +23,10 @@ if(s.type==="call-accepted"&&!incoming&&!offered.current){offered.current=true;c
 else if(s.type==="offer"&&incoming){await p.setRemoteDescription(s.payload);for(const c of ice.current)await p.addIceCandidate(c).catch(()=>{});ice.current=[];const a=await p.createAnswer();await p.setLocalDescription(a);send("answer",a)}
 else if(s.type==="answer"&&!incoming){await p.setRemoteDescription(s.payload)}
 else if(s.type==="ice"){const c=s.payload as RTCIceCandidateInit;if(p.remoteDescription)await p.addIceCandidate(c).catch(()=>{});else ice.current.push(c)}
-else if(s.type==="call-rejected"||s.type==="call-ended"||s.type==="hangup"){setStatus("ended");window.setTimeout(()=>go("/messages"),250)}
+else if(s.type==="call-rejected"||s.type==="call-ended"||s.type==="call-timeout"||s.type==="hangup"){setStatus("ended");window.setTimeout(()=>go("/messages"),250)}
 }catch{}};
 socket.onerror=()=>{if(!dead)setStatus("signaling-error")};
-}catch(e){if(!dead)setStatus(e instanceof Error?e.message:"Call failed")}};
+}catch(e){if(!dead){setStatus("ended");window.setTimeout(()=>go("/messages"),800)}}};
 void run();return()=>{dead=true;stream.current?.getTracks().forEach(t=>t.stop());pc.current?.close();ws.current?.close()};},[userId,mode,incoming]);
 useEffect(()=>{if(status!=="connected")return;const t=window.setInterval(()=>setDuration(v=>v+1),1000);return()=>window.clearInterval(t)},[status]);
 useEffect(()=>{if(audio.current)audio.current.volume=speaker?1:0},[speaker]);
