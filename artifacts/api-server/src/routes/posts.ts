@@ -9,10 +9,11 @@ import {
   updateRows,
   deleteRows,
 } from "../lib/supabase";
+import { mixCandidateSources, rankFeedCandidates, type FeedRankingCandidate } from "../lib/feed-ranking";
 
 const postsRouter = Router();
 const FEED_LIMIT = 50;
-const FEED_CANDIDATE_LIMIT = 250;
+const FEED_CANDIDATE_LIMIT = 2000;
 const FEED_MINIMUM_RESULTS = 15;
 const FEED_STAGES = [3, 5, 7] as const;
 
@@ -31,37 +32,85 @@ function feedQuality(rows: FeedPostRow[]) {
 }
 
 async function feedRows(viewerId: number) {
-  const [posts, users, settings, following] = await Promise.all([
-    selectRows("posts", {
-      filters: [eq("isWorldFeed", true)],
-      order: { column: "createdAt", ascending: false },
-      limit: FEED_CANDIDATE_LIMIT,
-    }),
+  const [posts, users, settings, following, blocked, stats, engagements, affinities, topics, distributions] = await Promise.all([
+    selectRows("posts", { filters: [eq("isWorldFeed", true)], order: { column: "createdAt", ascending: false }, limit: FEED_CANDIDATE_LIMIT }),
     selectRows("users", { limit: 1000 }),
-    // Privacy/following data is optional for rendering the world feed. If either
-    // table is unavailable, keep the feed usable instead of returning zero posts.
     selectRows("user_settings", { limit: 1000 }).catch(() => []),
     selectRows("follows", { filters: [eq("followerId", viewerId)], limit: 5000 }).catch(() => []),
+    selectRows("blocked_users", { limit: 5000 }).catch(() => []),
+    selectRows("post_stats", { limit: FEED_CANDIDATE_LIMIT }).catch(() => []),
+    selectRows("post_engagements", { filters: [eq("userId", viewerId)], limit: FEED_CANDIDATE_LIMIT }).catch(() => []),
+    selectRows("user_affinity", { filters: [eq("userId", viewerId)], limit: 5000 }).catch(() => []),
+    selectRows("user_topic_affinity", { filters: [eq("userId", viewerId)], limit: 5000 }).catch(() => []),
+    selectRows("post_distribution", { limit: FEED_CANDIDATE_LIMIT }).catch(() => []),
   ]);
   const byId = new Map(users.map((user) => [Number(user.id), user]));
   const privateById = new Map(settings.map((row) => [Number(row.userId), Boolean(row.privateAccount)]));
   const followingIds = new Set(following.map((row) => Number(row.followingId)));
-  return posts.filter((post) => {
-    const authorId = Number(post.userId);
-    return !privateById.get(authorId) || authorId === viewerId || followingIds.has(authorId);
-  }).map((post) => {
-    const author = byId.get(Number(post.userId));
-    return {
-      ...post,
-      authorDisplayName: author?.displayName ?? null,
-      authorUsername: author?.username ?? null,
-      authorAvatarUrl: author?.avatarUrl ?? null,
-      authorCountry: (author?.country as string | null) ?? null,
-      authorPrivate: privateById.get(Number(post.userId)) ?? false,
-    } as unknown as FeedPostRow;
-  });
-}
+  const blockedIds = new Set<number>();
+  for (const row of blocked) {
+    const blocker=Number(row.blockerId), blockedUser=Number(row.blockedId);
+    if (blocker===viewerId) blockedIds.add(blockedUser);
+    if (blockedUser===viewerId) blockedIds.add(blocker);
+  }
+  const statsByPost = new Map(stats.map((row) => [Number(row.postId), row]));
+  const seenByPost = new Set(engagements.filter((row) => row.lastViewedAt && Date.now()-new Date(String(row.lastViewedAt)).getTime()<7*24*60*60*1000).map((row) => Number(row.postId)));
+  const affinityByUser = new Map(affinities.map((row) => [Number(row.targetUserId), Math.max(0, Math.min(1, Number(row.score)||0))]));
+  const topicByName = new Map(topics.map((row) => [String(row.topic??"").toLowerCase(), Math.max(0, Math.min(1, Number(row.score)||0))]));
+  const distributionByPost = new Map(distributions.map((row) => [Number(row.postId), row]));
+  const viewerCountry = String(byId.get(viewerId)?.country??"").trim().toLowerCase()||null;
 
+  const baseCandidates = posts.filter((post) => {
+    const authorId=Number(post.userId);
+    if (blockedIds.has(authorId)||seenByPost.has(Number(post.id))||Boolean(post.deletedAt)) return false;
+    const isPrivate=privateById.get(authorId)??false;
+    if (isPrivate&&authorId!==viewerId&&!followingIds.has(authorId)) return false;
+    const distribution=distributionByPost.get(Number(post.id));
+    if (distribution&&String(distribution.status)==="stopped") return false;
+    if (distribution&&Number(distribution.stage)<4&&!followingIds.has(authorId)) {
+      const countries=Array.isArray(distribution.countries)?distribution.countries.map(String):[];
+      const author=byId.get(authorId);
+      const authorCountry=String(author?.country??"").trim().toLowerCase();
+      if (!countries.includes(viewerCountry??"")&&authorCountry!==viewerCountry) return false;
+    }
+    return true;
+  }).map((post) => {
+    const author=byId.get(Number(post.userId));
+    const hashtags=String(post.hashtags??"").toLowerCase().split(/[,\s#]+/).filter(Boolean);
+    const topicMatch=hashtags.length?Math.max(...hashtags.map((topic)=>topicByName.get(topic)??0),0):0;
+    const affinity=affinityByUser.get(Number(post.userId))??0;
+    const stat=statsByPost.get(Number(post.id));
+    const candidate: FeedRankingCandidate={
+      id:Number(post.id),userId:Number(post.userId),createdAt:post.createdAt,
+      likes:Number(stat?.likes??post.likes??0),comments:Number(stat?.comments??post.comments??0),
+      saves:Number(stat?.saves??post.saves??0),shares:Number(stat?.shares??post.shares??0),
+      impressions:Number(stat?.impressions??0),completionRate:Number(stat?.completionRate??0),
+      affinity,topicMatch,following:followingIds.has(Number(post.userId)),
+      local:Boolean(viewerCountry&&String(author?.country??"").trim().toLowerCase()===viewerCountry),
+      negative:Number(post.reports??0)>0?1:0,sameAuthorCount:0,sameTopicCount:0,
+      secondChance:String(distributionByPost.get(Number(post.id))?.status??"")==="held",
+    };
+    return {...post,authorDisplayName:author?.displayName??null,authorUsername:author?.username??null,authorAvatarUrl:author?.avatarUrl??null,authorCountry:(author?.country as string|null)??null,authorPrivate:privateById.get(Number(post.userId))??false,topicMatch,affinity,candidate} as unknown as FeedPostRow & {topicMatch:number;affinity:number;candidate:FeedRankingCandidate};
+  });
+
+  const followingPool=baseCandidates.filter(row=>row.candidate.following);
+  const affinityPool=baseCandidates.filter(row=>!row.candidate.following&&row.candidate.affinity>0);
+  const topicPool=baseCandidates.filter(row=>!row.candidate.following&&row.candidate.affinity<=0&&row.topicMatch>0);
+  const localPool=baseCandidates.filter(row=>!row.candidate.following&&row.candidate.affinity<=0&&row.topicMatch<=0&&row.candidate.local);
+  const explorationPool=baseCandidates.filter(row=>!row.candidate.following&&row.candidate.affinity<=0&&row.topicMatch<=0&&!row.candidate.local);
+  const mixed=mixCandidateSources([
+    {rows:followingPool,quota:0.40},{rows:affinityPool,quota:0.15},{rows:topicPool,quota:0.20},{rows:localPool,quota:0.15},{rows:explorationPool,quota:0.10},
+  ],FEED_CANDIDATE_LIMIT);
+  const ranked=rankFeedCandidates(mixed.map(row=>row.candidate),viewerId%2===0?"B":"A");
+  const rankedById=new Map(ranked.map(row=>[row.id,row]));
+  const authorCounts=new Map<number,number>();
+  return mixed.sort((a,b)=>(rankedById.get(b.id)?.score??0)-(rankedById.get(a.id)?.score??0)).filter(row=>{
+    const count=authorCounts.get(Number(row.userId))??0;
+    if(count>=2)return false;
+    authorCounts.set(Number(row.userId),count+1);
+    return true;
+  }).slice(0,FEED_LIMIT);
+}
 function serializeFeedPost(
   row: FeedPostRow,
   likedIds: Set<number>,
@@ -134,76 +183,28 @@ postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: 
       selectRows("users", { select: "country", filters: [eq("id", req.userId!)], limit: 1 }),
       feedRows(req.userId!),
     ]);
-    const availableCountries = Array.from(
-      candidates.reduce((counts, row) => {
-        const country = normalizeCountry(row.authorCountry);
-        if (country) counts.set(country, (counts.get(country) ?? 0) + 1);
-        return counts;
-      }, new Map<string, number>()),
-    ).sort(([, a], [, b]) => b - a).map(([country]) => country);
-    const viewerCountry = normalizeCountry(viewer?.country as string | null | undefined);
-    const rankedCountries = [...(viewerCountry ? [viewerCountry] : []), ...availableCountries.filter((country) => country !== viewerCountry)];
-
-    let selectedRows = candidates.slice(0, FEED_LIMIT);
-    let selectedCountries: string[] = [];
-    let feedMode: "countries" | "world" = "world";
-    for (const stageSize of FEED_STAGES) {
-      const countries = rankedCountries.slice(0, stageSize);
-      if (countries.length === 0) break;
-      const countrySet = new Set(countries);
-      const stageRows = candidates.filter((row) => countrySet.has(normalizeCountry(row.authorCountry) ?? "")).slice(0, FEED_LIMIT);
-      selectedRows = stageRows;
-      selectedCountries = countries;
-      if (feedQuality(stageRows)) {
-        feedMode = "countries";
-        break;
-      }
-    }
-    if (feedMode === "world" && !feedQuality(selectedRows)) {
-      selectedRows = candidates.slice(0, FEED_LIMIT);
-      selectedCountries = [];
-    }
-
-    const followingIds = new Set(
-      (await selectRows("follows", {
-        select: "following_id",
-        filters: [eq("followerId", req.userId!)],
-        limit: 5000,
-      }).catch(() => []))
-        .map((row) => Number(row.followingId)),
-    );
-
-    // Interaction tables must never prevent the feed itself from rendering.
-    // The post counters are already stored on the post row, so an interaction
-    // table/query failure can safely fall back to empty liked/saved state.
-    const [likes, saves] = await Promise.all([
-      selectRows("likes", { select: "post_id", filters: [eq("userId", req.userId!)] }).catch(() => []),
-      selectRows("saves", { select: "post_id", filters: [eq("userId", req.userId!)] }).catch(() => []),
+    const followingIds=new Set((await selectRows("follows",{select:"following_id",filters:[eq("followerId",req.userId!)],limit:5000}).catch(()=>[])).map(row=>Number(row.followingId)));
+    const [likes,saves]=await Promise.all([
+      selectRows("likes",{select:"post_id",filters:[eq("userId",req.userId!)]}).catch(()=>[]),
+      selectRows("saves",{select:"post_id",filters:[eq("userId",req.userId!)]}).catch(()=>[]),
     ]);
-    const likedIds = new Set(likes.map((row) => Number(row.postId)));
-    const savedIds = new Set(saves.map((row) => Number(row.postId)));
-    const sinceValue = typeof req.query["since"] === "string" ? req.query["since"] : null;
-    const sinceDate = sinceValue ? new Date(sinceValue) : null;
-    const newPostsCount = sinceDate && !Number.isNaN(sinceDate.getTime())
-      ? (await selectRows("posts", { filters: [eq("isWorldFeed", true), gt("createdAt", sinceDate)] })).length
-      : 0;
-
+    const likedIds=new Set(likes.map(row=>Number(row.postId)));
+    const savedIds=new Set(saves.map(row=>Number(row.postId)));
+    const sinceValue=typeof req.query["since"]==="string"?req.query["since"]:null;
+    const sinceDate=sinceValue?new Date(sinceValue):null;
+    const newPostsCount=sinceDate&&!Number.isNaN(sinceDate.getTime())?(await selectRows("posts",{filters:[eq("isWorldFeed",true),gt("createdAt",sinceDate)]})).length:0;
+    const viewerCountry=normalizeCountry(viewer?.country as string|null|undefined);
+    const countries=Array.from(new Set(candidates.map(row=>normalizeCountry(row.authorCountry)).filter(Boolean) as string[])).slice(0,7);
     return res.json({
-      posts: selectedRows.map((row) => serializeFeedPost(row, likedIds, savedIds, followingIds)),
+      posts:candidates.map(row=>serializeFeedPost(row,likedIds,savedIds,followingIds)),
       newPostsCount,
-      latestCreatedAt: candidates[0]?.createdAt ?? null,
-      scope: {
-        mode: feedMode,
-        countries: selectedCountries,
-        countryCount: selectedCountries.length,
-        label: feedMode === "world" ? "world" : `${selectedCountries.length} countries`,
-      },
+      latestCreatedAt:candidates[0]?.createdAt??null,
+      scope:{mode:countries.length?"countries":"world",countries,countryCount:countries.length,viewerCountry,label:countries.length?countries.length+" countries":"world"},
     });
-  } catch (err) {
-    return supabaseError(res, err);
+  } catch(err) {
+    return supabaseError(res,err);
   }
 });
-
 postsRouter.get("/posts/feed/updates", authMiddleware, async (req, res) => {
   const sinceValue = typeof req.query["since"] === "string" ? req.query["since"] : null;
   const sinceDate = sinceValue ? new Date(sinceValue) : null;
