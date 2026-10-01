@@ -44,7 +44,8 @@ jobs:
         run: |
           mkdir -p .capacitor
           npm init -y --prefix .capacitor
-          npm install --prefix .capacitor --no-save @capacitor/cli@8.5.2 @capacitor/core@8.5.2 @capacitor/android@8.5.2
+          npm install --prefix .capacitor --no-save @capacitor/cli@8.5.2
+          npm install --no-save --package-lock=false --ignore-scripts @capacitor/core@8.5.2 @capacitor/android@8.5.2
 
       - name: Generate Capacitor Android project
         run: |
