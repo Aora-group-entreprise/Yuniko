@@ -25,6 +25,9 @@ import Saved from "@/pages/saved";
 import Hashtag from "@/pages/hashtag";
 import BlockedUsers from "@/pages/blocked-users";
 import CallHistory from "@/pages/call-history";
+import Groups from "@/pages/groups";
+import GroupChat from "@/pages/group-chat";
+import RealtimeCall from "@/pages/realtime-call";
 import MessageRequests from "@/pages/message-requests";
 import ArchivedChats from "@/pages/archived-chats";
 import Help from "@/pages/help";
@@ -165,12 +168,14 @@ function AnimatedRoutes() {
             <Route path="/message-requests" component={MessageRequests} />
             <Route path="/archived-chats" component={ArchivedChats} />
             <Route path="/call-history" component={CallHistory} />
+            <Route path="/groups" component={Groups} />
+            <Route path="/group/:id" component={GroupChat} />
 
             {/* Calls */}
-            <Route path="/video-call" component={VideoCall} />
-            <Route path="/video-call/:userId" component={VideoCall} />
-            <Route path="/voice-call" component={VoiceCall} />
-            <Route path="/voice-call/:userId" component={VoiceCall} />
+            <Route path="/video-call" component={() => <RealtimeCall mode="video" />} />
+            <Route path="/video-call/:userId" component={() => <RealtimeCall mode="video" />} />
+            <Route path="/voice-call" component={() => <RealtimeCall mode="voice" />} />
+            <Route path="/voice-call/:userId" component={() => <RealtimeCall mode="voice" />} />
 
             {/* Stories */}
             <Route path="/story/:userId" component={Story} />

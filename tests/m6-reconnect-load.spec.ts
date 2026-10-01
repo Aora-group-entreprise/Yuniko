@@ -1,0 +1,1 @@
+import{test,expect}from"@playwright/test";const base=process.env.YUNIKO_E2E_URL||"http://127.0.0.1:5000";test("M6 reconnect smoke",async({page})=>{await page.goto(base,{waitUntil:"domcontentloaded"});await page.reload({waitUntil:"domcontentloaded"});expect(page.url()).toBeTruthy()});

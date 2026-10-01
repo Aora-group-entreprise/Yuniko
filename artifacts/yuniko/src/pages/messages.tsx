@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Search, Edit, UserPlus, Archive, Phone, MessageSquarePlus, MoreHorizontal, Trash2, Ban, X, ChevronRight } from "lucide-react";
+import { Search, Edit, UserPlus, Archive, Phone, MessageSquarePlus, MoreHorizontal, Trash2, Ban, X, ChevronRight, Users } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
@@ -98,7 +98,7 @@ export default function Messages(){
       <div className="flex items-center gap-3">
         <button onClick={()=>setLocation("/message-requests")} data-testid="btn-message-requests"><UserPlus size={20} className="text-white/70" strokeWidth={1.8}/></button>
         <button onClick={()=>setLocation("/archived-chats")} data-testid="btn-archived"><Archive size={20} className="text-white/70" strokeWidth={1.8}/></button>
-        <button onClick={()=>setLocation("/call-history")} data-testid="btn-call-history"><Phone size={20} className="text-white/70" strokeWidth={1.8}/></button>
+        <button onClick={()=>setLocation("/groups")} data-testid="btn-groups"><Users size={20} className="text-white/70" strokeWidth={1.8}/></button><button onClick={()=>setLocation("/call-history")} data-testid="btn-call-history"><Phone size={20} className="text-white/70" strokeWidth={1.8}/></button>
         <button onClick={()=>setShowNewMsg(true)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:GRADIENT}} data-testid="btn-new-message"><Edit size={14} className="text-white"/></button>
       </div>
     </header>

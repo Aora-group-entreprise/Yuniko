@@ -316,9 +316,11 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
       const media=await hydrateMedia(source);
       return {...item,imageUrl:item.type==="image"||item.type==="sticker"?media.url:undefined,audioUrl:item.type==="audio"?media.url:undefined,videoUrl:item.type==="video"?media.url:undefined,fileUrl:item.type==="file"?media.url:undefined};
     }));
+    const friendDevices=await selectRows("message_devices",{filters:[eq("userId",friendId)],limit:20]);
+    const friendKey=friendDevices.find(r=>!r.revokedAt)?.publicKey??null;
     return res.json({
       conversationId,
-      user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified"},
+      user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified",encryptionPublicKey:friendKey},
       messages:mediaPayload,
       otherTyping:Boolean(otherMember?.typingAt&&Date.now()-new Date(String(otherMember.typingAt)).getTime()<5000),
       otherActiveAt:dateValue(otherMember?.lastActiveAt),
@@ -342,7 +344,7 @@ messagesRouter.post("/messages/conversations/:userId",authMiddleware,async(req:A
       if(!parent) return res.status(400).json({error:"Reply target not found"});
       replyTo=Number(parent.id);
     }
-    const message=await insertRow("messages",{conversationId,senderId:currentId,kind:"text",body:text,mediaUrl:null,durationMs:null,deliveredAt:null,readAt:null,replyToMessageId:replyTo,forwardedFromMessageId:null,editedAt:null,deletedAt:null,createdAt:now});
+    const message=await insertRow("messages",{conversationId,senderId:currentId,kind:"text",body:text,mediaUrl:null,durationMs:null,deliveredAt:null,readAt:null,replyToMessageId:replyTo,forwardedFromMessageId:null,editedAt:null,deletedAt:null,createdAt:now,encryptionVersion:req.body?.encryptionVersion??null,senderDeviceId:req.body?.senderDeviceId??null});
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
     await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
     return res.status(201).json({message:{id:Number(message.id),senderId:currentId,text,timestamp:dateValue(message.createdAt),read:false,delivered:false,edited:false,deleted:false,replyToMessageId:replyTo,forwardedFromMessageId:null,reactions:[],type:"text"}});

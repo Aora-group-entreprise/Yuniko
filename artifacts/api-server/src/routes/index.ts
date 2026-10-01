@@ -10,6 +10,7 @@ import settingsRouter from "./settings";
 import accountSettingsRouter from "./account-settings";
 import analyticsRouter from "./analytics";
 import messagesRouter from "./messages";
+import m5m6Router from "./m5m6";
 
 const router: IRouter = Router();
 
@@ -18,6 +19,7 @@ router.use(selfTestRouter);
 router.use(authRouter);
 router.use(interactionsRouter);
 router.use(messagesRouter);
+router.use(m5m6Router);
 router.use(postsRouter);
 router.use(storiesRouter);
 router.use(usersRouter);

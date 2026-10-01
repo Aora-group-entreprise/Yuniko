@@ -3,6 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Phone, Video, MoreHorizontal, Image as ImageIcon, Smile, Mic, Send, Camera, BadgeCheck } from "lucide-react";
 import { t } from "@/lib/i18n";
 import ScreenPortal from "@/components/ScreenPortal";
+import {deviceInfo,encryptForPublicKey,decryptFromPublicKey} from "@/lib/e2e";
 import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
@@ -16,7 +17,7 @@ type Message={
   replyToMessageId?:number|null;forwardedFromMessageId?:number|null;reactions:Reaction[];
   type:"text"|"image"|"audio"|"video"|"file"|"sticker";
 };
-type ChatUser={id:number;username:string;displayName:string;avatarUrl:string|null;verified:boolean};
+type ChatUser={id:number;username:string;displayName:string;avatarUrl:string|null;verified:boolean;encryptionPublicKey?:string|null};
 const GRADIENT="linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
 
 function formatTime(value:string|null){
@@ -39,6 +40,7 @@ export default function Chat(){
   const [user,setUser]=useState<ChatUser|null>(()=>cached?.user??null);
   const [messages,setMessages]=useState<Message[]>(()=>cached?.messages??[]);
   const [inputText,setInputText]=useState("");
+  useEffect(()=>{void deviceInfo().then(d=>apiJson("/messages/devices",{method:"POST",body:JSON.stringify(d)})).catch(()=>{});},[]);
   const [loading,setLoading]=useState(!cached);
   const [sending,setSending]=useState(false);
   const [mediaSending,setMediaSending]=useState(false);
@@ -65,7 +67,7 @@ export default function Chat(){
     setLoading(true);setError(null);
     try{
       const data=await fetchSessionJson<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>("/messages/conversations/"+userId);
-      setUser(data.user);setMessages(data.messages??[]);setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
+      setUser(data.user);setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&data.user.encryptionPublicKey?await decryptFromPublicKey(data.user.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
       lastMessageIdRef.current=Math.max(0,...(data.messages??[]).map(m=>m.id));
     }catch(err){setError(err instanceof Error?err.message:"Unable to load chat");}
     finally{setLoading(false);}
@@ -119,7 +121,7 @@ export default function Chat(){
     if(!text||sending||!user||editingMessage)return;
     setSending(true);setError(null);
     try{
-      const data=await apiJson<{message:Message}>("/messages/conversations/"+user.id,{method:"POST",body:JSON.stringify({text,replyToMessageId:replyingTo?.id??null})});
+      const device=await deviceInfo();const payload=user.encryptionPublicKey?await encryptForPublicKey(user.encryptionPublicKey,text):text;const data=await apiJson<{message:Message}>("/messages/conversations/"+user.id,{method:"POST",body:JSON.stringify({text:payload,replyToMessageId:replyingTo?.id??null,encryptionVersion:user.encryptionPublicKey?1:null,senderDeviceId:device.deviceId})});
       setMessages(current=>current.concat(data.message));lastMessageIdRef.current=Math.max(lastMessageIdRef.current,data.message.id);
       setInputText("");setReplyingTo(null);invalidateSessionCache(cacheKey);void sendTyping(false);
     }catch(err){setError(err instanceof Error?err.message:"Unable to send message");}
@@ -250,7 +252,7 @@ export default function Chat(){
         <img src={avatar(user)} alt={user.displayName} className="w-9 h-9 rounded-full object-cover"/>
         <div><div className="flex items-center gap-1"><span className="text-white font-semibold text-sm">{user.displayName}</span>{user.verified&&<BadgeCheck size={13} className="text-blue-400 fill-blue-400"/>}</div><span className="text-white/50 text-xs">{otherTyping?"typing…":otherActiveAt?"active recently":"@"+user.username}</span></div>
       </button>
-      <div className="flex items-center gap-2"><button onClick={()=>setLocation("/voice-call")}><Phone size={20} className="text-white/70"/></button><button onClick={()=>setLocation("/video-call")}><Video size={20} className="text-white/70"/></button><button><MoreHorizontal size={20} className="text-white/70"/></button></div>
+      <div className="flex items-center gap-2"><button onClick={()=>setLocation("/voice-call/"+user.id)}><Phone size={20} className="text-white/70"/></button><button onClick={()=>setLocation("/video-call/"+user.id)}><Video size={20} className="text-white/70"/></button><button><MoreHorizontal size={20} className="text-white/70"/></button></div>
     </header>
     {error&&<div className="shrink-0 px-3 py-2 text-xs text-red-300/80 bg-red-500/5">{error}</div>}
     <div className="flex-1 overflow-y-auto px-3 py-4 pb-2" data-testid="messages-container">
