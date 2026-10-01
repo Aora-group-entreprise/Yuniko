@@ -202,20 +202,55 @@ messagesRouter.delete("/messages/conversations/:id",authMiddleware,async(req:Aut
 
 messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:AuthenticatedRequest,res)=>{
   const currentId=Number(req.userId),friendId=Number(req.params["userId"]);
+  const afterId=Number(req.query.after??0);
   if(!Number.isInteger(friendId)||friendId<=0) return res.status(400).json({error:"Invalid user id"});
   if(!(await areFriends(currentId,friendId))) return res.status(403).json({error:"You can only chat with friends"});
   try{
     const conversationId=await ensureFriendConversation(currentId,friendId);
-    const [friend,messages]=await Promise.all([
+    const [friend,messages,deletions,members]=await Promise.all([
       getUser(friendId),
       selectRows("messages",{filters:[eq("conversationId",conversationId)],order:{column:"createdAt",ascending:true},limit:500}),
+      selectRows("message_deletions",{filters:[eq("userId",currentId)],limit:5000}),
+      selectRows("conversation_members",{filters:[eq("conversationId",conversationId)],limit:10}),
     ]);
     if(!friend) return res.status(404).json({error:"User not found"});
-    await updateRows("conversation_members",{lastReadAt:new Date()},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    const deletedForMe=new Set(deletions.map(d=>Number(d.messageId)));
+    const visible=messages.filter(m=>!deletedForMe.has(Number(m.id))&&(afterId<=0||Number(m.id)>afterId));
+    const undelivered=messages.filter(m=>Number(m.senderId)===friendId&&m.deliveredAt==null&&!deletedForMe.has(Number(m.id)));
+    const now=new Date();
+    for(const m of undelivered) await updateRows("messages",{deliveredAt:now},[eq("id",Number(m.id))]);
+    await updateRows("conversation_members",{lastReadAt:now,lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    const otherMember=members.find(m=>Number(m.userId)===friendId);
+    const reactionRows=visible.length?await selectRows("message_reactions",{limit:5000}):[];
+    const reactionsByMessage=new Map<number,{reaction:string,count:number,reacted:boolean}[]>();
+    for(const row of reactionRows){
+      const id=Number(row.messageId);
+      if(!visible.some(m=>Number(m.id)===id)) continue;
+      const list=reactionsByMessage.get(id)??[];
+      const reaction=String(row.reaction);
+      const existing=list.find(item=>item.reaction===reaction);
+      if(existing){existing.count+=1;existing.reacted=existing.reacted||Number(row.userId)===currentId;}
+      else list.push({reaction,count:1,reacted:Number(row.userId)===currentId});
+      reactionsByMessage.set(id,list);
+    }
+    const payload=visible.map(m=>({
+      id:Number(m.id),senderId:Number(m.senderId),
+      text:m.deletedAt?"This message was deleted":m.kind==="text"?String(m.body??""):undefined,
+      imageUrl=m.deletedAt?undefined:m.kind==="image"?String(m.mediaUrl??""):undefined,
+      audioUrl=m.deletedAt?undefined:m.kind==="audio"?String(m.mediaUrl??""):undefined,
+      durationMs:m.kind==="audio"&&m.durationMs!=null?Number(m.durationMs):null,
+      timestamp:dateValue(m.createdAt),read:Boolean(m.readAt),delivered:Boolean(m.deliveredAt),edited:Boolean(m.editedAt),deleted:Boolean(m.deletedAt),
+      replyToMessageId:m.replyToMessageId?Number(m.replyToMessageId):null,
+      forwardedFromMessageId:m.forwardedFromMessageId?Number(m.forwardedFromMessageId):null,
+      reactions:reactionsByMessage.get(Number(m.id))??[],
+      type:m.deletedAt?"text":m.kind==="image"?"image":m.kind==="audio"?"audio":"text",
+    }));
     return res.json({
       conversationId,
       user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified"},
-      messages:messages.map(m=>({id:Number(m.id),senderId:Number(m.senderId),text:m.kind==="text"?String(m.body??""):undefined,imageUrl:m.kind==="image"?String(m.mediaUrl??""):undefined,audioUrl:m.kind==="audio"?String(m.mediaUrl??""):undefined,durationMs:m.kind==="audio"&&m.durationMs!=null?Number(m.durationMs):null,timestamp:dateValue(m.createdAt),read:Boolean(m.readAt),reactions:[],type:m.kind==="image"?"image":m.kind==="audio"?"audio":"text"})),
+      messages:payload,
+      otherTyping:Boolean(otherMember?.typingAt&&Date.now()-new Date(String(otherMember.typingAt)).getTime()<5000),
+      otherActiveAt:dateValue(otherMember?.lastActiveAt),
     });
   }catch(err){return supabaseError(res,err);}
 });
@@ -223,14 +258,99 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
 messagesRouter.post("/messages/conversations/:userId",authMiddleware,async(req:AuthenticatedRequest,res)=>{
   const currentId=Number(req.userId),friendId=Number(req.params["userId"]);
   const text=typeof req.body?.text==="string"?req.body.text.trim():"";
+  const replyToMessageId=Number(req.body?.replyToMessageId??0);
   if(!Number.isInteger(friendId)||friendId<=0) return res.status(400).json({error:"Invalid user id"});
   if(!text||text.length>4000) return res.status(400).json({error:"Message must be between 1 and 4000 characters"});
   if(!(await areFriends(currentId,friendId))) return res.status(403).json({error:"You can only message friends"});
   try{
     const conversationId=await ensureFriendConversation(currentId,friendId),now=new Date();
-    const message=await insertRow("messages",{conversationId,senderId:currentId,kind:"text",body:text,mediaUrl:null,durationMs:null,deliveredAt:now,readAt:null,createdAt:now});
+    let replyTo=null;
+    if(replyToMessageId>0){
+      const [parent]=await selectRows("messages",{filters:[eq("id",replyToMessageId),eq("conversationId",conversationId)],limit:1});
+      if(!parent) return res.status(400).json({error:"Reply target not found"});
+      replyTo=Number(parent.id);
+    }
+    const message=await insertRow("messages",{conversationId,senderId:currentId,kind:"text",body:text,mediaUrl:null,durationMs:null,deliveredAt:null,readAt:null,replyToMessageId:replyTo,forwardedFromMessageId:null,editedAt:null,deletedAt:null,createdAt:now});
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
-    return res.status(201).json({message:{id:Number(message.id),senderId:currentId,text,timestamp:dateValue(message.createdAt),read:false,reactions:[],type:"text"}});
+    await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    return res.status(201).json({message:{id:Number(message.id),senderId:currentId,text,timestamp:dateValue(message.createdAt),read:false,delivered:false,edited:false,deleted:false,replyToMessageId:replyTo,forwardedFromMessageId:null,reactions:[],type:"text"}});
+  }catch(err){return supabaseError(res,err);}
+});
+
+
+// Message actions: reactions, edit, delete-for-me/delete-for-everyone, forward and typing/presence.
+messagesRouter.post("/messages/:id/reaction",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const messageId=Number(req.params["id"]),currentId=Number(req.userId),reaction=typeof req.body?.reaction==="string"?req.body.reaction.trim():"";
+  if(!Number.isInteger(messageId)||messageId<=0) return res.status(400).json({error:"Invalid message id"});
+  if(reaction.length>32) return res.status(400).json({error:"Invalid reaction"});
+  try{
+    const [message]=await selectRows("messages",{filters:[eq("id",messageId)],limit:1});
+    if(!message) return res.status(404).json({error:"Message not found"});
+    if(!(await conversationForUser(Number(message.conversationId),currentId))) return res.status(403).json({error:"Not a conversation member"});
+    const filters=[eq("messageId",messageId),eq("userId",currentId)];
+    if(!reaction){await deleteRows("message_reactions",filters);return res.json({reaction:null});}
+    const [existing]=await selectRows("message_reactions",{filters,limit:1});
+    if(existing) await updateRows("message_reactions",{reaction,createdAt:new Date()},filters);
+    else await insertRow("message_reactions",{messageId,userId:currentId,reaction,createdAt:new Date()});
+    return res.json({reaction});
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.patch("/messages/:id",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const messageId=Number(req.params["id"]),currentId=Number(req.userId),text=typeof req.body?.text==="string"?req.body.text.trim():"";
+  if(!Number.isInteger(messageId)||messageId<=0) return res.status(400).json({error:"Invalid message id"});
+  if(!text||text.length>4000) return res.status(400).json({error:"Message must be between 1 and 4000 characters"});
+  try{
+    const [message]=await selectRows("messages",{filters:[eq("id",messageId),eq("senderId",currentId)],limit:1});
+    if(!message) return res.status(404).json({error:"Message not found"});
+    if(String(message.kind)!=="text"||message.deletedAt) return res.status(400).json({error:"Only active text messages can be edited"});
+    const editedAt=new Date();
+    await updateRows("messages",{body:text,editedAt},[eq("id",messageId),eq("senderId",currentId)]);
+    return res.json({message:{id:messageId,text,edited:true,editedAt:editedAt.toISOString()}});
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.delete("/messages/:id",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const messageId=Number(req.params["id"]),currentId=Number(req.userId),forEveryone=String(req.query.forEveryone??"false")==="true";
+  if(!Number.isInteger(messageId)||messageId<=0) return res.status(400).json({error:"Invalid message id"});
+  try{
+    const [message]=await selectRows("messages",{filters:[eq("id",messageId)],limit:1});
+    if(!message) return res.status(404).json({error:"Message not found"});
+    if(!(await conversationForUser(Number(message.conversationId),currentId))) return res.status(403).json({error:"Not a conversation member"});
+    if(forEveryone){
+      if(Number(message.senderId)!==currentId) return res.status(403).json({error:"Only the sender can delete for everyone"});
+      await updateRows("messages",{body:"",mediaUrl:null,deletedAt:new Date(),editedAt:null},[eq("id",messageId),eq("senderId",currentId)]);
+    }else{
+      await insertRow("message_deletions",{messageId,userId:currentId,deletedAt:new Date()});
+    }
+    return res.json({deleted:true,forEveryone});
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.post("/messages/:id/forward",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const messageId=Number(req.params["id"]),currentId=Number(req.userId),targetUserId=Number(req.body?.targetUserId);
+  if(!Number.isInteger(messageId)||messageId<=0||!Number.isInteger(targetUserId)||targetUserId<=0||targetUserId===currentId) return res.status(400).json({error:"Invalid forward request"});
+  if(!(await areFriends(currentId,targetUserId))) return res.status(403).json({error:"You can only forward to friends"});
+  try{
+    const [source]=await selectRows("messages",{filters:[eq("id",messageId)],limit:1});
+    if(!source) return res.status(404).json({error:"Message not found"});
+    if(!(await conversationForUser(Number(source.conversationId),currentId))) return res.status(403).json({error:"Not a conversation member"});
+    if(source.deletedAt) return res.status(400).json({error:"Deleted messages cannot be forwarded"});
+    const conversationId=await ensureFriendConversation(currentId,targetUserId),now=new Date();
+    const copy=await insertRow("messages",{conversationId,senderId:currentId,kind:source.kind,body:source.body??"",mediaUrl:source.mediaUrl??null,durationMs:source.durationMs??null,deliveredAt:null,readAt:null,replyToMessageId:null,forwardedFromMessageId:Number(source.id),editedAt:null,deletedAt:null,createdAt:now});
+    await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
+    return res.status(201).json({message:{id:Number(copy.id),senderId:currentId,text:copy.kind==="text"?String(copy.body??""):undefined,imageUrl:copy.kind==="image"?String(copy.mediaUrl??""):undefined,audioUrl:copy.kind==="audio"?String(copy.mediaUrl??""):undefined,durationMs:copy.durationMs?Number(copy.durationMs):null,timestamp:dateValue(copy.createdAt),read:false,delivered:false,edited:false,deleted:false,replyToMessageId:null,forwardedFromMessageId:Number(source.id),reactions:[],type:copy.kind==="image"?"image":copy.kind==="audio"?"audio":"text"}});
+  }catch(err){return supabaseError(res,err);}
+});
+
+messagesRouter.post("/messages/conversations/:userId/typing",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const currentId=Number(req.userId),friendId=Number(req.params["userId"]),typing=Boolean(req.body?.typing);
+  if(!Number.isInteger(friendId)||friendId<=0) return res.status(400).json({error:"Invalid user id"});
+  if(!(await areFriends(currentId,friendId))) return res.status(403).json({error:"You can only chat with friends"});
+  try{
+    const conversationId=await ensureFriendConversation(currentId,friendId),now=new Date();
+    await updateRows("conversation_members",{lastActiveAt:now,typingAt:typing?now:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    return res.json({typing});
   }catch(err){return supabaseError(res,err);}
 });
 
@@ -390,9 +510,10 @@ messagesRouter.post("/messages/conversations/:userId/media",authMiddleware,async
     const message=await insertRow("messages",{
       conversationId,senderId:currentId,kind,body:null,mediaUrl,
       durationMs:Number.isFinite(durationMs)&&durationMs>0?Math.floor(durationMs):null,
-      deliveredAt:now,readAt:null,createdAt:now,
+      deliveredAt:null,readAt:null,replyToMessageId:null,forwardedFromMessageId:null,editedAt:null,deletedAt:null,createdAt:now,
     });
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
+    await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
     return res.status(201).json({message:{
       id:Number(message.id),senderId:currentId,
       text:undefined,imageUrl:kind==="image"?mediaUrl:undefined,audioUrl:kind==="audio"?mediaUrl:undefined,
