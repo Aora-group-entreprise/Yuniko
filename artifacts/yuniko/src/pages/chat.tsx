@@ -52,17 +52,39 @@ export default function Chat(){
       .finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[userId]);
+  useEffect(()=>()=>{mediaRecorderRef.current?.stop();},[]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+
+  const prepareImage=async(blob:Blob)=>{
+    if(!blob.type.startsWith("image/")) return blob;
+    try{
+      const bitmap=await createImageBitmap(blob);
+      const maxSide=1600;
+      const scale=Math.min(1,maxSide/Math.max(bitmap.width,bitmap.height));
+      const width=Math.max(1,Math.round(bitmap.width*scale));
+      const height=Math.max(1,Math.round(bitmap.height*scale));
+      const canvas=document.createElement("canvas");
+      canvas.width=width;canvas.height=height;
+      const context=canvas.getContext("2d");
+      if(!context){bitmap.close();return blob;}
+      context.drawImage(bitmap,0,0,width,height);
+      bitmap.close();
+      return await new Promise<Blob>((resolve,reject)=>{
+        canvas.toBlob(result=>result?resolve(result):reject(new Error("Unable to prepare image")),"image/jpeg",0.82);
+      });
+    }catch{return blob;}
+  };
 
   const sendMedia=async(blob:Blob,kind:"image"|"audio",durationMs?:number)=>{
     if(!user||mediaSending) return;
     setMediaSending(true);setError(null);
     try{
+      const prepared=kind==="image"?await prepareImage(blob):blob;
       const dataUrl=await new Promise<string>((resolve,reject)=>{
         const reader=new FileReader();
         reader.onload=()=>resolve(String(reader.result));
         reader.onerror=()=>reject(new Error("Unable to read media"));
-        reader.readAsDataURL(blob);
+        reader.readAsDataURL(prepared);
       });
       const data=await apiJson<{message:Message}>(`/messages/conversations/${user.id}/media`,{
         method:"POST",
@@ -91,7 +113,9 @@ export default function Chat(){
     }
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-      const recorder=new MediaRecorder(stream);
+      const mimeTypes=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"];
+      const supported=mimeTypes.find(type=>typeof MediaRecorder.isTypeSupported==="function"&&MediaRecorder.isTypeSupported(type));
+      const recorder=supported?new MediaRecorder(stream,{mimeType:supported}):new MediaRecorder(stream);
       recordingChunksRef.current=[];
       recorder.ondataavailable=event=>{if(event.data.size) recordingChunksRef.current.push(event.data);};
       recorder.onstop=()=>{

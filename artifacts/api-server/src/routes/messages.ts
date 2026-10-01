@@ -1,8 +1,10 @@
 import { Router, type Request } from "express";
+import { env as cloudflareEnv } from "cloudflare:workers";
 import { authMiddleware } from "../middlewares/auth";
 import { deleteRows, eq, insertRow, selectRows, updateRows, supabaseError } from "../lib/supabase";
 
 const messagesRouter = Router();
+const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
 type AuthenticatedRequest = Request & { userId?: number };
 type UserRow = Record<string, unknown>;
 
@@ -118,7 +120,7 @@ messagesRouter.get("/messages/conversations",authMiddleware,async(req:Authentica
       if(friend) result.push({
         id:conversationId,
         user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified"},
-        lastMessage:latest?.kind==="image"?"Photo":String(latest?.body??""),
+        lastMessage:latest?.kind==="image"?"Photo":latest?.kind==="audio"?"Voice message":String(latest?.body??""),
         lastMessageTime:dateValue(latest?.createdAt??conversation.updatedAt),
         unread,
       });
@@ -153,7 +155,7 @@ messagesRouter.get("/messages/archived",authMiddleware,async(req:AuthenticatedRe
       result.push({
         id:conversationId,
         user:{id:otherId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified"},
-        lastMessage:latest?.kind==="image"?"Photo":String(latest?.body??""),
+        lastMessage:latest?.kind==="image"?"Photo":latest?.kind==="audio"?"Voice message":String(latest?.body??""),
         lastMessageTime:dateValue(latest?.createdAt??conversationById.get(conversationId)?.updatedAt),
         archivedAt:dateValue(row.archivedAt),
       });
@@ -213,7 +215,7 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
     return res.json({
       conversationId,
       user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified"},
-      messages:messages.map(m=>({id:Number(m.id),senderId:Number(m.senderId),text:m.kind==="text"?String(m.body??""):undefined,imageUrl:m.kind==="image"?String(m.mediaUrl??""):undefined,timestamp:dateValue(m.createdAt),read:Boolean(m.readAt),reactions:[],type:m.kind==="image"?"image":"text"})),
+      messages:messages.map(m=>({id:Number(m.id),senderId:Number(m.senderId),text:m.kind==="text"?String(m.body??""):undefined,imageUrl:m.kind==="image"?String(m.mediaUrl??""):undefined,audioUrl:m.kind==="audio"?String(m.mediaUrl??""):undefined,durationMs:m.kind==="audio"&&m.durationMs!=null?Number(m.durationMs):null,timestamp:dateValue(m.createdAt),read:Boolean(m.readAt),reactions:[],type:m.kind==="image"?"image":m.kind==="audio"?"audio":"text"})),
     });
   }catch(err){return supabaseError(res,err);}
 });
@@ -359,25 +361,29 @@ messagesRouter.post("/messages/conversations/:userId/media",authMiddleware,async
   const maxBytes=kind==="image"?8*1024*1024:10*1024*1024;
   if(binary.length>maxBytes) return res.status(413).json({error:"Media is too large"});
   try{
-    const supabaseUrl=String(process.env["SUPABASE_URL"]??"").replace(/\/+$/,"");
-    const serviceKey=process.env["SUPABASE_SERVICE_ROLE_KEY"]??"";
+    const supabaseUrl=String(runtimeEnv["SUPABASE_URL"]??process.env["SUPABASE_URL"]??"").replace(/\/+$/,"");
+    const serviceKey=runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"]??process.env["SUPABASE_SERVICE_ROLE_KEY"]??"";
     if(!supabaseUrl||!serviceKey) throw new Error("Supabase storage is not configured");
     const bucket="yuniko-chat-media";
-    const createBucket=await fetch(`${supabaseUrl}/storage/v1/bucket`,{
-      method:"POST",
-      headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":"application/json"},
-      body:JSON.stringify({id:bucket,name:bucket,public:true}),
-    });
-    if(!createBucket.ok&&createBucket.status!==409) throw new Error(`Chat media bucket creation failed: ${createBucket.status}`);
     const extension=contentType==="image/jpeg"?"jpg":contentType==="image/png"?"png":contentType==="image/webp"?"webp":contentType==="image/gif"?"gif":contentType==="audio/ogg"?"ogg":contentType==="audio/mp4"?"m4a":contentType==="audio/mpeg"?"mp3":contentType==="audio/wav"?"wav":"webm";
     const objectPath=`${currentId}/${crypto.randomUUID()}.${extension}`;
     const bytes=new Uint8Array(binary.length);
     for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
-    const upload=await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`,{
-      method:"POST",
-      headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":contentType,"x-upsert":"false","Cache-Control":"31536000"},
-      body:bytes,
+    const storageHeaders={Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":contentType,"x-upsert":"false","Cache-Control":"31536000"};
+    let upload=await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`,{
+      method:"POST",headers:storageHeaders,body:bytes,
     });
+    if(upload.status===404){
+      const createBucket=await fetch(`${supabaseUrl}/storage/v1/bucket`,{
+        method:"POST",
+        headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":"application/json"},
+        body:JSON.stringify({id:bucket,name:bucket,public:true}),
+      });
+      if(!createBucket.ok&&createBucket.status!==409) throw new Error(`Chat media bucket creation failed: ${createBucket.status}`);
+      upload=await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`,{
+        method:"POST",headers:storageHeaders,body:bytes,
+      });
+    }
     if(!upload.ok) throw new Error(`Chat media upload failed: ${upload.status}`);
     const mediaUrl=`${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
     const conversationId=await ensureFriendConversation(currentId,friendId),now=new Date();
