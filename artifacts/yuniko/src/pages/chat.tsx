@@ -49,6 +49,14 @@ export default function Chat(){
   const [otherTyping,setOtherTyping]=useState(Boolean(cached?.otherTyping));
   const [otherActiveAt,setOtherActiveAt]=useState<string|null>(cached?.otherActiveAt??null);
   const [selectedMessage,setSelectedMessage]=useState<Message|null>(null);
+  const [incomingCall,setIncomingCall]=useState<{roomId:string;callType:"voice"|"video";callerId:number;user:{id:number;displayName:string;avatarUrl:string|null}}|null>(null);
+  useEffect(()=>{
+    const scheme=window.location.protocol==="https:"?"wss":"ws";
+    const ws=new WebSocket(scheme+"://"+window.location.host+"/api/calls/ws?scope=inbox");
+    ws.onmessage=event=>{try{const data=JSON.parse(String(event.data));if(data?.type==="incoming-call")setIncomingCall({roomId:String(data.roomId),callType:data.callType,callerId:Number(data.callerId),user:data.user});}catch{}};
+    return()=>ws.close();
+  },[]);
+
   const [showChatMenu,setShowChatMenu]=useState(false);
   const [readReceiptsEnabled,setReadReceiptsEnabled]=useState(true);
   const [nickname,setNickname]=useState("");
@@ -305,6 +313,8 @@ export default function Chat(){
     </div>
 
     {selectedMediaPreview&&<ScreenPortal><div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center"><div className="w-full max-w-[430px] p-4 rounded-t-3xl bg-[#120f1e]"><img src={selectedMediaPreview} alt="Preview" className="w-full max-h-[55vh] object-contain rounded-2xl mb-3"/><div className="flex gap-2"><button onClick={()=>{setSelectedMediaFile(null);setSelectedMediaPreview(current=>{if(current)URL.revokeObjectURL(current);return null;});}} className="flex-1 py-3 rounded-xl bg-white/10 text-white/70">Cancel</button><button onClick={()=>void confirmMedia()} className="flex-1 py-3 rounded-xl text-white" style={{background:GRADIENT}}>Send</button></div></div></div></ScreenPortal>}
+
+    {incomingCall&&<ScreenPortal><div className="fixed inset-0 z-[60] bg-black/60 flex items-end justify-center"><div className="w-full max-w-[430px] rounded-t-3xl p-5" style={{background:"rgba(18,15,30,0.99)"}}><div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-4"/><div className="flex items-center gap-3 mb-5"><img src={incomingCall.user.avatarUrl??"https://api.dicebear.com/9.x/initials/svg?seed="+encodeURIComponent(incomingCall.user.displayName)} alt="" className="w-12 h-12 rounded-full object-cover"/><div><p className="text-white font-semibold">{incomingCall.user.displayName}</p><p className="text-white/45 text-sm">{incomingCall.callType==="video"?"Appel vidéo entrant":"Appel audio entrant"}</p></div></div><div className="flex gap-3"><button onClick={async()=>{await apiJson("/calls/"+encodeURIComponent(incomingCall.roomId)+"/reject",{method:"POST",body:JSON.stringify({callerId:incomingCall.callerId})}).catch(()=>{});setIncomingCall(null)}} className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-300">Refuser</button><button onClick={()=>{const call=incomingCall;setIncomingCall(null);setLocation("/"+(call.callType==="video"?"video-call/":"voice-call/")+call.callerId+"?callId="+encodeURIComponent(call.roomId)+"&incoming=1")}} className="flex-1 py-3 rounded-xl text-white" style={{background:"linear-gradient(135deg,#FF006E,#8B00FF)"}}>Répondre</button></div></div></div></ScreenPortal>}
 
     {showChatMenu&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setShowChatMenu(false)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)"}} data-testid="chat-options-panel">
       <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2"/>

@@ -55,19 +55,7 @@ export default function Messages(){
       .finally(()=>setLoading(false));
   };
   useEffect(()=>{load();},[]);
-  useEffect(()=>{
-    let cancelled=false;
-    const pollIncoming=async()=>{
-      if(cancelled||document.visibilityState==="hidden")return;
-      try{
-        const data=await apiJson<{calls:Array<{id:number;callType:"voice"|"video";callerId:number;user:{id:number;displayName:string;avatarUrl:string|null}}>}>("/calls/incoming");
-        if(!cancelled&&data.calls?.length&&!incomingCall)setIncomingCall(data.calls[0]);
-      }catch{}
-    };
-    void pollIncoming();
-    const timer=window.setInterval(()=>void pollIncoming(),2000);
-    return()=>{cancelled=true;window.clearInterval(timer);};
-  },[incomingCall]);
+  useEffect(()=>{if(!authUser?.id)return;const scheme=window.location.protocol==="https:"?"wss":"ws";const ws=new WebSocket(scheme+"://"+window.location.host+"/api/calls/ws?scope=inbox");ws.onmessage=event=>{try{const data=JSON.parse(String(event.data));if(data?.type==="incoming-call")setIncomingCall({id:String(data.roomId),callType:data.callType,callerId:Number(data.callerId),user:data.user});}catch{}};return()=>ws.close();},[authUser?.id]);
 
   const filtered=useMemo(()=>{
     const q=query.trim().toLowerCase();
@@ -218,7 +206,7 @@ export default function Messages(){
     {incomingCall&&<ScreenPortal><div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center"><div className="w-full max-w-[430px] rounded-t-3xl p-5" style={{background:"rgba(18,15,30,0.99)"}}>
       <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-4"/>
       <div className="flex items-center gap-3 mb-5"><img src={incomingCall.user.avatarUrl??"https://api.dicebear.com/9.x/initials/svg?seed="+encodeURIComponent(incomingCall.user.displayName)} alt="" className="w-12 h-12 rounded-full object-cover"/><div><p className="text-white font-semibold">{incomingCall.user.displayName}</p><p className="text-white/45 text-sm">{incomingCall.callType==="video"?"Appel vidéo entrant":"Appel audio entrant"}</p></div></div>
-      <div className="flex gap-3"><button onClick={async()=>{try{await apiJson("/calls/"+incomingCall.id+"/reject",{method:"POST"});}catch{}setIncomingCall(null);}} className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-300">Refuser</button><button onClick={()=>{const call=incomingCall;setIncomingCall(null);setLocation("/"+(call.callType==="video"?"video-call/":"voice-call/")+call.callerId+"?callId="+call.id+"&incoming=1");}} className="flex-1 py-3 rounded-xl text-white" style={{background:GRADIENT}}>Répondre</button></div>
+      <div className="flex gap-3"><button onClick={async()=>{try{await apiJson("/calls/"+incomingCall.id+"/reject",{method:"POST",body:JSON.stringify({callerId:incomingCall.callerId})});}catch{}setIncomingCall(null);}} className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-300">Refuser</button><button onClick={()=>{const call=incomingCall;setIncomingCall(null);setLocation("/"+(call.callType==="video"?"video-call/":"voice-call/")+call.callerId+"?callId="+encodeURIComponent(call.id)+"&incoming=1");}} className="flex-1 py-3 rounded-xl text-white" style={{background:GRADIENT}}>Répondre</button></div>
     </div></div></ScreenPortal>}
 
     <BottomNav/>
