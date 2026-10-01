@@ -9,6 +9,7 @@ type DurableObjectStateLike = {
   setWebSocketAutoResponse(pair:WebSocketRequestResponsePairLike):void;
 };
 type WebSocketRequestResponsePairLike = {request:string;response:string};
+declare const WebSocketRequestResponsePair:new(request:string,response:string)=>WebSocketRequestResponsePairLike;
 type WorkerWebSocketPair = {0:WebSocket;1:WebSocket};
 
 declare const WebSocketPair:new()=>WorkerWebSocketPair;
@@ -17,7 +18,7 @@ export class CallSignalRoom {
   private readonly ctx:DurableObjectStateLike;
   constructor(ctx:DurableObjectStateLike,_env:unknown){
     this.ctx=ctx;
-    this.ctx.setWebSocketAutoResponse({request:"ping",response:"pong"});
+    this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping","pong"));
   }
   async fetch(request:Request){
     if(request.headers.get("Upgrade")!=="websocket")return new Response("Expected WebSocket",{status:426});
