@@ -10,10 +10,11 @@ import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUs
 
 type Reaction={reaction:string;count:number;reacted:boolean};
 type Message={
-  id:number;senderId:number;text?:string;imageUrl?:string;audioUrl?:string;durationMs?:number|null;
+  id:number;senderId:number;text?:string;imageUrl?:string;audioUrl?:string;videoUrl?:string;fileUrl?:string;
+  fileName?:string|null;fileSize?:number|null;mediaMimeType?:string|null;durationMs?:number|null;
   timestamp:string|null;read:boolean;delivered?:boolean;edited?:boolean;deleted?:boolean;
   replyToMessageId?:number|null;forwardedFromMessageId?:number|null;reactions:Reaction[];
-  type:"text"|"image"|"audio";
+  type:"text"|"image"|"audio"|"video"|"file"|"sticker";
 };
 type ChatUser={id:number;username:string;displayName:string;avatarUrl:string|null;verified:boolean};
 const GRADIENT="linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
@@ -182,13 +183,13 @@ export default function Chat(){
     }catch{return blob;}
   };
 
-  const sendMedia=async(blob:Blob,kind:"image"|"audio",durationMs?:number)=>{
+  const sendMedia=async(blob:Blob,kind:"image"|"audio"|"video"|"file",durationMs?:number,fileName?:string)=>{
     if(!user||mediaSending)return;
     setMediaSending(true);setError(null);
     try{
       const prepared=kind==="image"?await prepareImage(blob):blob;
       const dataUrl=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error("Unable to read media"));reader.readAsDataURL(prepared);});
-      const data=await apiJson<{message:Message}>("/messages/conversations/"+user.id+"/media",{method:"POST",body:JSON.stringify({dataUrl,kind,durationMs})});
+      const data=await apiJson<{message:Message}>("/messages/conversations/"+user.id+"/media",{method:"POST",body:JSON.stringify({dataUrl,kind,durationMs,fileName:fileName??"attachment"})});
       setMessages(current=>current.concat(data.message));lastMessageIdRef.current=Math.max(lastMessageIdRef.current,data.message.id);invalidateSessionCache(cacheKey);
     }catch(err){setError(err instanceof Error?err.message:"Unable to send media");}
     finally{setMediaSending(false);}
@@ -204,7 +205,24 @@ export default function Chat(){
     if(!selectedMediaFile)return;
     const file=selectedMediaFile;
     setSelectedMediaFile(null);setSelectedMediaPreview(current=>{if(current)URL.revokeObjectURL(current);return null;});
-    await sendMedia(file,"image");
+    const kind=file.type.startsWith("video/")?"video":file.type.startsWith("image/")?"image":"file";
+    await sendMedia(file,kind,file.type==="image/gif"?"gif":file.name);
+  };
+
+  const reportMessage=async()=>{
+    if(!selectedMessage)return;
+    const reason=window.prompt("Report reason: spam, harassment, or other","spam")?.trim().toLowerCase();
+    if(!reason)return;
+    try{await apiJson("/messages/"+selectedMessage.id+"/report",{method:"POST",body:JSON.stringify({reason})});setError("Report sent");}
+    catch(err){setError(err instanceof Error?err.message:"Unable to report message");}
+    finally{setSelectedMessage(null);}
+  };
+
+  const blockUser=async()=>{
+    if(!user)return;
+    try{await apiJson("/blocked-users/"+user.id,{method:"POST"});setLocation("/messages");}
+    catch(err){setError(err instanceof Error?err.message:"Unable to block user");}
+    finally{setSelectedMessage(null);}
   };
 
   const toggleRecording=async()=>{
@@ -243,7 +261,7 @@ export default function Chat(){
           <div className={"max-w-[75%] "+(isMe?"items-end":"items-start")+" flex flex-col"}>
             <button type="button" onClick={()=>setSelectedMessage(msg)} className="text-left">
               {msg.replyToMessageId&&<div className="text-white/40 text-[10px] mb-1 px-2">Reply to message</div>}
-              {msg.deleted?<div className="px-3.5 py-2.5 rounded-2xl text-sm italic text-white/40 border border-white/10">This message was deleted</div>:msg.type==="image"&&msg.imageUrl?<img src={msg.imageUrl} alt="Photo" className="max-w-[240px] rounded-2xl max-h-[320px] object-cover"/>:msg.type==="audio"&&msg.audioUrl?<audio src={msg.audioUrl} controls className="max-w-[230px] h-10"/>:<div className={"px-3.5 py-2.5 rounded-2xl text-sm "+(isMe?"rounded-br-sm text-white":"rounded-bl-sm text-white/90")} style={{background:isMe?GRADIENT:"rgba(255,255,255,0.08)"}}>{msg.text}</div>}
+              {msg.deleted?<div className="px-3.5 py-2.5 rounded-2xl text-sm italic text-white/40 border border-white/10">This message was deleted</div>:((msg.type==="image"||msg.type==="sticker")&&msg.imageUrl)?<img src={msg.imageUrl} alt="Photo" className="max-w-[240px] rounded-2xl max-h-[320px] object-cover"/>:msg.type==="video"&&msg.videoUrl?<video src={msg.videoUrl} controls preload="metadata" className="max-w-[260px] rounded-2xl max-h-[320px]"/>:msg.type==="audio"&&msg.audioUrl?<audio src={msg.audioUrl} controls className="max-w-[230px] h-10"/>:msg.type==="file"&&msg.fileUrl?<a href={msg.fileUrl} download={msg.fileName??undefined} className="block px-3.5 py-2.5 rounded-2xl text-sm text-white underline">{msg.fileName||"Download file"}</a>:<div className={"px-3.5 py-2.5 rounded-2xl text-sm "+(isMe?"rounded-br-sm text-white":"rounded-bl-sm text-white/90")} style={{background:isMe?GRADIENT:"rgba(255,255,255,0.08)"}}>{msg.text}</div>}
             </button>
             {msg.reactions.length>0&&<div className="flex gap-1 mt-1">{msg.reactions.map(r=><span key={r.reaction} className="rounded-full px-1.5 py-0.5 text-[10px] bg-white/10 text-white/70">{r.reaction}{r.count>1?" "+r.count:""}</span>)}</div>}
             <span className="text-white/30 text-[10px] mt-1 px-1">{formatTime(msg.timestamp)} {isMe?(msg.read?"Seen":msg.delivered?"Delivered":"Sent"):""} {msg.edited?"· edited":""}</span>
@@ -254,12 +272,12 @@ export default function Chat(){
 
     {selectedMediaPreview&&<ScreenPortal><div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center"><div className="w-full max-w-[430px] p-4 rounded-t-3xl bg-[#120f1e]"><img src={selectedMediaPreview} alt="Preview" className="w-full max-h-[55vh] object-contain rounded-2xl mb-3"/><div className="flex gap-2"><button onClick={()=>{setSelectedMediaFile(null);setSelectedMediaPreview(current=>{if(current)URL.revokeObjectURL(current);return null;});}} className="flex-1 py-3 rounded-xl bg-white/10 text-white/70">Cancel</button><button onClick={()=>void confirmMedia()} className="flex-1 py-3 rounded-xl text-white" style={{background:GRADIENT}}>Send</button></div></div></div></ScreenPortal>}
 
-    {selectedMessage&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setSelectedMessage(null)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)"}}><div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2"/><div className="grid grid-cols-6 gap-1 px-4 py-3 border-b border-white/10">{["❤️","😂","😮","😢","🔥","👏"].map(r=><button key={r} onClick={()=>void react(r)} className="text-xl py-2">{r}</button>)}</div><button onClick={()=>{setReplyingTo(selectedMessage);setEditingMessage(null);setSelectedMessage(null);}} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Reply</button>{selectedMessage.senderId===Number(authUser?.id)&&selectedMessage.type==="text"&&!selectedMessage.deleted&&<button onClick={()=>{setEditingMessage(selectedMessage);setReplyingTo(null);setInputText(selectedMessage.text??"");setSelectedMessage(null);}} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Edit</button>}<button onClick={()=>void forwardMessage()} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Forward</button>{selectedMessage.senderId===Number(authUser?.id)&&<button onClick={()=>void deleteMessage(true)} className="w-full px-5 py-4 text-left text-red-300 text-sm border-b border-white/10">Delete for everyone</button>}<button onClick={()=>void deleteMessage(false)} className="w-full px-5 py-4 text-left text-red-300 text-sm">Delete for me</button><div className="h-5"/></div></></ScreenPortal>}
+    {selectedMessage&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setSelectedMessage(null)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)"}}><div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2"/><div className="grid grid-cols-6 gap-1 px-4 py-3 border-b border-white/10">{["❤️","😂","😮","😢","🔥","👏"].map(r=><button key={r} onClick={()=>void react(r)} className="text-xl py-2">{r}</button>)}</div><button onClick={()=>{setReplyingTo(selectedMessage);setEditingMessage(null);setSelectedMessage(null);}} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Reply</button>{selectedMessage.senderId===Number(authUser?.id)&&selectedMessage.type==="text"&&!selectedMessage.deleted&&<button onClick={()=>{setEditingMessage(selectedMessage);setReplyingTo(null);setInputText(selectedMessage.text??"");setSelectedMessage(null);}} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Edit</button>}<button onClick={()=>void forwardMessage()} className="w-full px-5 py-4 text-left text-white/85 text-sm border-b border-white/10">Forward</button><button onClick={()=>void reportMessage()} className="w-full px-5 py-4 text-left text-orange-300 text-sm border-b border-white/10">Report</button><button onClick={()=>void blockUser()} className="w-full px-5 py-4 text-left text-red-300 text-sm border-b border-white/10">Block user</button>{selectedMessage.senderId===Number(authUser?.id)&&<button onClick={()=>void deleteMessage(true)} className="w-full px-5 py-4 text-left text-red-300 text-sm border-b border-white/10">Delete for everyone</button>}<button onClick={()=>void deleteMessage(false)} className="w-full px-5 py-4 text-left text-red-300 text-sm">Delete for me</button><div className="h-5"/></div></></ScreenPortal>}
 
     <ScreenPortal><div className="fixed inset-x-0 mx-auto w-full max-w-[430px] px-[clamp(8px,3vw,12px)] py-3" style={{background:"rgba(13,11,20,0.95)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,0.07)",bottom:"var(--yuniko-keyboard-offset, 0px)",paddingBottom:"max(12px, env(safe-area-inset-bottom, 0px))",boxSizing:"border-box"}}>
       {(replyingTo||editingMessage)&&<div className="mb-2 rounded-xl px-3 py-2 bg-black/70 border border-white/10 flex items-center gap-2"><span className="text-white/50 text-[11px] flex-1 truncate">{editingMessage?"Editing: "+(editingMessage.text??""):"Reply: "+(replyingTo?.text??"message")}</span><button onClick={()=>{setReplyingTo(null);setEditingMessage(null);setInputText("");}} className="text-white/60 text-xs">Cancel</button></div>}
       <div className="flex items-center gap-2">
-        <input ref={mediaInputRef} type="file" accept="image/*" className="hidden" onChange={chooseMedia}/>
+        <input ref={mediaInputRef} type="file" accept="image/*,video/*,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.zip" className="hidden" onChange={chooseMedia}/>
         <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={chooseMedia}/>
         <button onClick={()=>mediaInputRef.current?.click()} disabled={mediaSending||recording}><ImageIcon size={22} style={{color:"#FF3D9A"}}/></button>
         <button onClick={()=>cameraInputRef.current?.click()} disabled={mediaSending||recording}><Camera size={22} style={{color:"#FF3D9A"}}/></button>

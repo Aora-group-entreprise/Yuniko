@@ -5,8 +5,72 @@ import { deleteRows, eq, insertRow, selectRows, updateRows, supabaseError } from
 
 const messagesRouter = Router();
 const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+const CHAT_BUCKET = "yuniko-chat-media";
+const MEDIA_MAX_BYTES = 25 * 1024 * 1024;
+const CHAT_MEDIA_TYPES = [
+  "image/jpeg","image/png","image/webp","image/gif",
+  "video/mp4","video/webm","video/quicktime",
+  "audio/webm","audio/ogg","audio/mp4","audio/mpeg","audio/wav",
+  "application/pdf","text/plain","application/zip",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
 type AuthenticatedRequest = Request & { userId?: number };
 type UserRow = Record<string, unknown>;
+
+function storageConfig(){
+  const supabaseUrl=String(runtimeEnv["SUPABASE_URL"]??process.env["SUPABASE_URL"]??"").replace(/\/+$/,"");
+  const serviceKey=runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"]??process.env["SUPABASE_SERVICE_ROLE_KEY"]??"";
+  if(!supabaseUrl||!serviceKey) throw new Error("Supabase storage is not configured");
+  return {supabaseUrl,serviceKey};
+}
+
+function mediaPathFromUrl(value:unknown){
+  const raw=typeof value==="string"?value:"";
+  const marker="/storage/v1/object/public/"+CHAT_BUCKET+"/";
+  const index=raw.indexOf(marker);
+  if(index<0) return null;
+  return decodeURIComponent(raw.slice(index+marker.length).split("?")[0]);
+}
+
+async function signedMediaUrl(path:string,download=false){
+  const {supabaseUrl,serviceKey}=storageConfig();
+  const response=await fetch(`${supabaseUrl}/storage/v1/object/sign/${CHAT_BUCKET}/${path.split("/").map(encodeURIComponent).join("/")}`,{
+    method:"POST",
+    headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":"application/json"},
+    body:JSON.stringify({expiresIn:3600}),
+  });
+  if(!response.ok) throw new Error(`Unable to sign media: ${response.status}`);
+  const payload=await response.json() as {signedURL?:string};
+  if(!payload.signedURL) throw new Error("Unable to sign media");
+  const url=payload.signedURL.startsWith("http")?payload.signedURL:`${supabaseUrl}/storage/v1${payload.signedURL}`;
+  return download ? `${url}${url.includes("?")?"&":"?"}download=1` : url;
+}
+
+async function hydrateMedia(row:Record<string,unknown>){
+  const path=typeof row.mediaPath==="string"&&row.mediaPath?row.mediaPath:mediaPathFromUrl(row.mediaUrl);
+  if(!path) return {url:row.mediaUrl??null,path};
+  try{return {url:await signedMediaUrl(path),path};}catch{return {url:row.mediaUrl??null,path};}
+}
+
+async function consumeMessageRateLimit(userId:number,kind:"message"|"request"){
+  const now=Date.now();
+  const [row]=await selectRows("message_rate_limits",{filters:[eq("userId",userId)],limit:1});
+  if(!row){
+    await insertRow("message_rate_limits",{userId,windowStartedAt:new Date(now),messageCount:kind==="message"?1:0,requestCount:kind==="request"?1:0,updatedAt:new Date(now)});
+    return true;
+  }
+  const started=new Date(String(row.windowStartedAt??0)).getTime();
+  if(!Number.isFinite(started)||now-started>=60_000){
+    await updateRows("message_rate_limits",{windowStartedAt:new Date(now),messageCount:kind==="message"?1:0,requestCount:kind==="request"?1:0,updatedAt:new Date(now)},[eq("userId",userId)]);
+    return true;
+  }
+  const count=Number(kind==="message"?row.messageCount:row.requestCount);
+  const max=kind==="message"?60:5;
+  if(count>=max) return false;
+  await updateRows("message_rate_limits",{[kind==="message"?"messageCount":"requestCount"]:count+1,updatedAt:new Date(now)},[eq("userId",userId)]);
+  return true;
+}
 
 async function getUser(id:number){
   const [user]=await selectRows<UserRow>("users",{filters:[eq("id",id)],limit:1});
@@ -243,12 +307,19 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
       replyToMessageId:m.replyToMessageId?Number(m.replyToMessageId):null,
       forwardedFromMessageId:m.forwardedFromMessageId?Number(m.forwardedFromMessageId):null,
       reactions:reactionsByMessage.get(Number(m.id))??[],
-      type:m.deletedAt?"text":m.kind==="image"?"image":m.kind==="audio"?"audio":"text",
+      mediaName:m.mediaName??null,mediaSize:m.mediaSize!=null?Number(m.mediaSize):null,mediaMimeType:m.mediaMimeType??null,
+      type:m.deletedAt?"text":m.kind==="image"?"image":m.kind==="audio"?"audio":m.kind==="video"?"video":m.kind==="file"?"file":m.kind==="sticker"?"sticker":"text",
+    }));
+    const mediaPayload=await Promise.all(payload.map(async item=>{
+      const source=visible.find(m=>Number(m.id)===item.id);
+      if(!source||item.deleted||(!source.mediaUrl&&!source.mediaPath)) return item;
+      const media=await hydrateMedia(source);
+      return {...item,imageUrl:item.type==="image"||item.type==="sticker"?media.url:undefined,audioUrl:item.type==="audio"?media.url:undefined,videoUrl:item.type==="video"?media.url:undefined,fileUrl:item.type==="file"?media.url:undefined};
     }));
     return res.json({
       conversationId,
       user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified"},
-      messages:payload,
+      messages:mediaPayload,
       otherTyping:Boolean(otherMember?.typingAt&&Date.now()-new Date(String(otherMember.typingAt)).getTime()<5000),
       otherActiveAt:dateValue(otherMember?.lastActiveAt),
     });
@@ -262,6 +333,7 @@ messagesRouter.post("/messages/conversations/:userId",authMiddleware,async(req:A
   if(!Number.isInteger(friendId)||friendId<=0) return res.status(400).json({error:"Invalid user id"});
   if(!text||text.length>4000) return res.status(400).json({error:"Message must be between 1 and 4000 characters"});
   if(!(await areFriends(currentId,friendId))) return res.status(403).json({error:"You can only message friends"});
+  if(!(await consumeMessageRateLimit(currentId,"message"))) return res.status(429).json({error:"Too many messages. Please try again shortly."});
   try{
     const conversationId=await ensureFriendConversation(currentId,friendId),now=new Date();
     let replyTo=null;
@@ -279,6 +351,23 @@ messagesRouter.post("/messages/conversations/:userId",authMiddleware,async(req:A
 
 
 // Message actions: reactions, edit, delete-for-me/delete-for-everyone, forward and typing/presence.
+messagesRouter.post("/messages/:id/report",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const messageId=Number(req.params["id"]),currentId=Number(req.userId);
+  const reason=typeof req.body?.reason==="string"?req.body.reason.trim().slice(0,100):"other";
+  const details=typeof req.body?.details==="string"?req.body.details.trim().slice(0,500):null;
+  if(!Number.isInteger(messageId)||messageId<=0)return res.status(400).json({error:"Invalid message id"});
+  if(reason.length<2)return res.status(400).json({error:"Invalid report reason"});
+  try{
+    const [message]=await selectRows("messages",{filters:[eq("id",messageId)],limit:1});
+    if(!message)return res.status(404).json({error:"Message not found"});
+    if(!(await conversationForUser(Number(message.conversationId),currentId)))return res.status(403).json({error:"Not a conversation member"});
+    const [existing]=await selectRows("reports",{filters:[eq("reporterId",currentId),eq("targetType","message"),eq("targetId",messageId),eq("status","pending")],limit:1});
+    if(existing)return res.status(409).json({error:"Message already reported"});
+    await insertRow("reports",{reporterId:currentId,targetType:"message",targetId:messageId,reason,details,status:"pending",createdAt:new Date()});
+    return res.status(201).json({reported:true});
+  }catch(err){return supabaseError(res,err);}
+});
+
 messagesRouter.post("/messages/:id/reaction",authMiddleware,async(req:AuthenticatedRequest,res)=>{
   const messageId=Number(req.params["id"]),currentId=Number(req.userId),reaction=typeof req.body?.reaction==="string"?req.body.reaction.trim():"";
   if(!Number.isInteger(messageId)||messageId<=0) return res.status(400).json({error:"Invalid message id"});
@@ -337,7 +426,7 @@ messagesRouter.post("/messages/:id/forward",authMiddleware,async(req:Authenticat
     if(!(await conversationForUser(Number(source.conversationId),currentId))) return res.status(403).json({error:"Not a conversation member"});
     if(source.deletedAt) return res.status(400).json({error:"Deleted messages cannot be forwarded"});
     const conversationId=await ensureFriendConversation(currentId,targetUserId),now=new Date();
-    const copy=await insertRow("messages",{conversationId,senderId:currentId,kind:source.kind,body:source.body??"",mediaUrl:source.mediaUrl??null,durationMs:source.durationMs??null,deliveredAt:null,readAt:null,replyToMessageId:null,forwardedFromMessageId:Number(source.id),editedAt:null,deletedAt:null,createdAt:now});
+    const copy=await insertRow("messages",{conversationId,senderId:currentId,kind:source.kind,body:source.body??"",mediaUrl:null,mediaPath:source.mediaPath??mediaPathFromUrl(source.mediaUrl),mediaName:source.mediaName??null,mediaSize:source.mediaSize??null,mediaMimeType:source.mediaMimeType??null,durationMs:source.durationMs??null,deliveredAt:null,readAt:null,replyToMessageId:null,forwardedFromMessageId:Number(source.id),editedAt:null,deletedAt:null,createdAt:now});
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
     return res.status(201).json({message:{id:Number(copy.id),senderId:currentId,text:copy.kind==="text"?String(copy.body??""):undefined,imageUrl:copy.kind==="image"?String(copy.mediaUrl??""):undefined,audioUrl:copy.kind==="audio"?String(copy.mediaUrl??""):undefined,durationMs:copy.durationMs?Number(copy.durationMs):null,timestamp:dateValue(copy.createdAt),read:false,delivered:false,edited:false,deleted:false,replyToMessageId:null,forwardedFromMessageId:Number(source.id),reactions:[],type:copy.kind==="image"?"image":copy.kind==="audio"?"audio":"text"}});
   }catch(err){return supabaseError(res,err);}
@@ -375,11 +464,14 @@ messagesRouter.post("/message-requests/:userId",authMiddleware,async(req:Authent
   if(!Number.isInteger(targetId)||targetId<=0||targetId===currentId)return res.status(400).json({error:"Invalid user id"});
   if(!message||message.length>4000)return res.status(400).json({error:"Message must be between 1 and 4000 characters"});
   try{
-    const [target,existing,blocked]=await Promise.all([getUser(targetId),selectRows("message_requests",{filters:[eq("senderId",currentId),eq("recipientId",targetId),eq("status","pending")],limit:1}),selectRows("blocked_users",{limit:5000})]);
+    if(!(await consumeMessageRateLimit(currentId,"request"))) return res.status(429).json({error:"Too many message requests. Please try again shortly."});
+    const [target,existing,blocked,targetSettings]=await Promise.all([getUser(targetId),selectRows("message_requests",{filters:[eq("senderId",currentId),eq("recipientId",targetId),eq("status","pending")],limit:1}),selectRows("blocked_users",{limit:5000}),selectRows("user_settings",{filters:[eq("userId",targetId)],limit:1})]);
     if(!target)return res.status(404).json({error:"User not found"});
     const blockedBetween=blocked.some(row=>(Number(row.blockerId)===currentId&&Number(row.blockedId)===targetId)||(Number(row.blockerId)===targetId&&Number(row.blockedId)===currentId));
     if(blockedBetween)return res.status(403).json({error:"Cannot send message request"});
     if(await areFriends(currentId,targetId))return res.status(409).json({error:"You are already friends"});
+    const permission=String(targetSettings[0]?.messagePermissions??targetSettings[0]?.messagePermission??"everyone");
+    if(permission==="onlyMe") return res.status(403).json({error:"This user does not accept message requests"});
     if(existing.length)return res.status(409).json({error:"Message request already exists"});
     const request=await insertRow("message_requests",{senderId:currentId,recipientId:targetId,message,status:"pending",createdAt:new Date(),updatedAt:new Date()});
     return res.status(201).json({request:{id:Number(request.id),status:"pending"}});
@@ -466,59 +558,49 @@ messagesRouter.get("/calls/history",authMiddleware,async(req:AuthenticatedReques
 messagesRouter.post("/messages/conversations/:userId/media",authMiddleware,async(req:AuthenticatedRequest,res)=>{
   const currentId=Number(req.userId),friendId=Number(req.params["userId"]);
   const dataUrl=typeof req.body?.dataUrl==="string"?req.body.dataUrl:"";
-  const kind=req.body?.kind==="audio"?"audio":"image";
+  const requestedKind=typeof req.body?.kind==="string"?req.body.kind:"image";
+  const kind=["image","audio","video","file","sticker"].includes(requestedKind)?requestedKind:"image";
   const durationMs=Number(req.body?.durationMs);
+  const mediaName=typeof req.body?.fileName==="string"?req.body.fileName.trim().slice(0,180):"";
   if(!Number.isInteger(friendId)||friendId<=0) return res.status(400).json({error:"Invalid user id"});
   if(!(await areFriends(currentId,friendId))) return res.status(403).json({error:"You can only message friends"});
+  if(!(await consumeMessageRateLimit(currentId,"message"))) return res.status(429).json({error:"Too many messages. Please try again shortly."});
   const match=dataUrl.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/);
   if(!match) return res.status(400).json({error:"Invalid media data"});
   const contentType=String(match[1]).toLowerCase();
-  const allowed=kind==="image"
-    ? ["image/jpeg","image/png","image/webp","image/gif"].includes(contentType)
-    : ["audio/webm","audio/ogg","audio/mp4","audio/mpeg","audio/wav"].includes(contentType);
-  if(!allowed) return res.status(400).json({error:"Unsupported media type"});
+  if(!CHAT_MEDIA_TYPES.includes(contentType)) return res.status(400).json({error:"Unsupported media type"});
   const binary=atob(match[2]);
-  const maxBytes=kind==="image"?8*1024*1024:10*1024*1024;
-  if(binary.length>maxBytes) return res.status(413).json({error:"Media is too large"});
+  if(binary.length>MEDIA_MAX_BYTES) return res.status(413).json({error:"Media is too large"});
+  const detectedKind=contentType.startsWith("image/")?"image":contentType.startsWith("video/")?"video":contentType.startsWith("audio/")?"audio":"file";
+  const finalKind=kind==="sticker"&&contentType.startsWith("image/")?"sticker":detectedKind;
   try{
-    const supabaseUrl=String(runtimeEnv["SUPABASE_URL"]??process.env["SUPABASE_URL"]??"").replace(/\/+$/,"");
-    const serviceKey=runtimeEnv["SUPABASE_SERVICE_ROLE_KEY"]??process.env["SUPABASE_SERVICE_ROLE_KEY"]??"";
-    if(!supabaseUrl||!serviceKey) throw new Error("Supabase storage is not configured");
-    const bucket="yuniko-chat-media";
-    const extension=contentType==="image/jpeg"?"jpg":contentType==="image/png"?"png":contentType==="image/webp"?"webp":contentType==="image/gif"?"gif":contentType==="audio/ogg"?"ogg":contentType==="audio/mp4"?"m4a":contentType==="audio/mpeg"?"mp3":contentType==="audio/wav"?"wav":"webm";
+    const {supabaseUrl,serviceKey}=storageConfig();
+    const extension=(mediaName.match(/\.([A-Za-z0-9]{1,8})$/)?.[1]??contentType.split("/")[1]??"bin").toLowerCase().replace(/[^a-z0-9]/g,"")||"bin";
     const objectPath=`${currentId}/${crypto.randomUUID()}.${extension}`;
     const bytes=new Uint8Array(binary.length);
     for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
     const storageHeaders={Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":contentType,"x-upsert":"false","Cache-Control":"31536000"};
-    let upload=await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`,{
-      method:"POST",headers:storageHeaders,body:bytes,
-    });
-    if(upload.status===404){
-      const createBucket=await fetch(`${supabaseUrl}/storage/v1/bucket`,{
-        method:"POST",
-        headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":"application/json"},
-        body:JSON.stringify({id:bucket,name:bucket,public:true}),
-      });
-      if(!createBucket.ok&&createBucket.status!==409) throw new Error(`Chat media bucket creation failed: ${createBucket.status}`);
-      upload=await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`,{
-        method:"POST",headers:storageHeaders,body:bytes,
-      });
+    const bucketConfig={public:false,file_size_limit:MEDIA_MAX_BYTES,allowed_mime_types:CHAT_MEDIA_TYPES};
+    const bucket=await fetch(`${supabaseUrl}/storage/v1/bucket/${CHAT_BUCKET}`,{method:"PUT",headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":"application/json"},body:JSON.stringify(bucketConfig)});
+    if(!bucket.ok){
+      const createBucket=await fetch(`${supabaseUrl}/storage/v1/bucket`,{method:"POST",headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":"application/json"},body:JSON.stringify({id:CHAT_BUCKET,name:CHAT_BUCKET,...bucketConfig})});
+      if(!createBucket.ok&&createBucket.status!==409) throw new Error(`Chat media bucket setup failed: ${createBucket.status}`);
     }
+    const upload=await fetch(`${supabaseUrl}/storage/v1/object/${CHAT_BUCKET}/${objectPath.split("/").map(encodeURIComponent).join("/")}`,{method:"POST",headers:storageHeaders,body:bytes});
     if(!upload.ok) throw new Error(`Chat media upload failed: ${upload.status}`);
-    const mediaUrl=`${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
     const conversationId=await ensureFriendConversation(currentId,friendId),now=new Date();
     const message=await insertRow("messages",{
-      conversationId,senderId:currentId,kind,body:null,mediaUrl,
+      conversationId,senderId:currentId,kind:finalKind,body:null,mediaUrl:null,mediaPath:objectPath,mediaName:mediaName||null,mediaSize:binary.length,mediaMimeType:contentType,
       durationMs:Number.isFinite(durationMs)&&durationMs>0?Math.floor(durationMs):null,
       deliveredAt:null,readAt:null,replyToMessageId:null,forwardedFromMessageId:null,editedAt:null,deletedAt:null,createdAt:now,
     });
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
     await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    const mediaUrl=await signedMediaUrl(objectPath);
     return res.status(201).json({message:{
-      id:Number(message.id),senderId:currentId,
-      text:undefined,imageUrl:kind==="image"?mediaUrl:undefined,audioUrl:kind==="audio"?mediaUrl:undefined,
-      durationMs:Number.isFinite(durationMs)&&durationMs>0?Math.floor(durationMs):null,
-      timestamp:dateValue(message.createdAt),read:false,reactions:[],type:kind,
+      id:Number(message.id),senderId:currentId,text:undefined,imageUrl:finalKind==="image"||finalKind==="sticker"?mediaUrl:undefined,audioUrl:finalKind==="audio"?mediaUrl:undefined,videoUrl:finalKind==="video"?mediaUrl:undefined,fileUrl:finalKind==="file"?mediaUrl:undefined,
+      fileName:mediaName||null,fileSize:binary.length,mediaMimeType:contentType,durationMs:Number.isFinite(durationMs)&&durationMs>0?Math.floor(durationMs):null,
+      timestamp:dateValue(message.createdAt),read:false,delivered:false,edited:false,deleted:false,reactions:[],type:finalKind,
     }});
   }catch(err){return supabaseError(res,err);}
 });
