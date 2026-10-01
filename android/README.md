@@ -1,26 +1,13 @@
-# Yuniko Android foundation
+# Yuniko Android with Capacitor
 
-This directory is the first native Android layer for Yuniko. It is intentionally isolated from the existing React/Vite web application and Cloudflare API.
+Yuniko Android is generated from the existing React/Vite application with Capacitor.
 
-## Step 1 scope
+- App ID: `com.aora.yuniko`
+- Web build: `artifacts/yuniko/dist/public`
+- Android generation and APK compilation: GitHub Actions
+- Capacitor 8.5.2
+- Android minimum supported API: 24 through the Capacitor 8 Android project
 
-- Native Android application project.
-- Package ID: com.aora.yuniko.
-- Minimum Android version: API 23 (Android 6.0).
-- Native launcher activity and basic lifecycle handling.
-- WebView foundation, ready to load the Yuniko web application when a production URL is supplied.
-- No native media picker, camera, microphone, push notifications, deep links, or JavaScript bridge yet. Those are separate later steps.
+The Android project is intentionally generated during CI instead of being maintained as a separate hand-written Android application. This keeps the native shell tied to the Yuniko web application and lets the project be built without a local PC.
 
-## Build
-
-Provide the deployed Yuniko web origin at build time. This project targets current Android Studio/Gradle 9.1:
-
-```text
-gradle assembleDebug -PyunikoWebUrl=https://your-yuniko-web-origin.example
-```
-
-If no URL is supplied, the app opens a native readiness screen instead of loading an unknown website.
-
-## Security boundary
-
-The WebView enables JavaScript for Yuniko, disables mixed HTTP/HTTPS content and local file/content access, and deliberately adds no native JavaScript bridge in this step.
+The workflow uploads the debug APK as a GitHub Actions artifact after a successful build.
