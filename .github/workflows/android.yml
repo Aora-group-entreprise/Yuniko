@@ -43,9 +43,13 @@ jobs:
       - name: Install Capacitor in isolated workspace
         run: |
           mkdir -p .capacitor
-          npm init -y --prefix .capacitor
-          npm install --prefix .capacitor --no-save @capacitor/cli@8.5.2
-          npm install --no-save --package-lock=false --ignore-scripts @capacitor/core@8.5.2 @capacitor/android@8.5.2
+          cd .capacitor
+          npm init -y --workspaces=false
+          npm install --no-save --workspaces=false --ignore-scripts @capacitor/cli@8.5.2 @capacitor/core@8.5.2 @capacitor/android@8.5.2
+          cd ..
+          mkdir -p node_modules/@capacitor
+          ln -s "$PWD/.capacitor/node_modules/@capacitor/core" node_modules/@capacitor/core
+          ln -s "$PWD/.capacitor/node_modules/@capacitor/android" node_modules/@capacitor/android
 
       - name: Generate Capacitor Android project
         run: |
