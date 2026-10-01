@@ -17,7 +17,7 @@ type WorkerWebSocketPair = {0:WebSocket;1:WebSocket};
 declare const WebSocketPair:new()=>WorkerWebSocketPair;
 
 export class CallSignalRoom extends DurableObject {
-  private readonly ctx:DurableObjectStateLike;
+  protected readonly ctx:DurableObjectStateLike;
   constructor(ctx:DurableObjectStateLike,_env:unknown){
     super(ctx as DurableObjectState,_env);
     this.ctx=ctx;
