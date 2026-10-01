@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 type Conversation = {
   kind: "direct"|"group";
   id: number;
+  memberCount?: number;
   user: { id:number; username:string; displayName:string; avatarUrl:string|null; verified:boolean };
   lastMessage: string;
   lastMessageTime: string|null;
