@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Search, UserPlus, Archive, Phone, MessageSquarePlus, MoreHorizontal, Trash2, Ban, X, ChevronRight, Users, Plus } from "lucide-react";
+import { Search, Edit, UserPlus, Archive, Phone, MessageSquarePlus, MoreHorizontal, Trash2, Ban, X, ChevronRight, Users } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
@@ -10,9 +10,7 @@ import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUs
 import { useAuth } from "@/lib/auth-context";
 
 type Conversation = {
-  kind: "direct"|"group";
   id: number;
-  memberCount?: number;
   user: { id:number; username:string; displayName:string; avatarUrl:string|null; verified:boolean };
   lastMessage: string;
   lastMessageTime: string|null;
@@ -38,10 +36,6 @@ export default function Messages(){
   setSessionUser(Number(authUser?.id));
   const [query,setQuery]=useState("");
   const [showNewMsg,setShowNewMsg]=useState(false);
-  const [showCreateGroup,setShowCreateGroup]=useState(false);
-  const [groupName,setGroupName]=useState("");
-  const [groupMembers,setGroupMembers]=useState<number[]>([]);
-  const [creatingGroup,setCreatingGroup]=useState(false);
   const cachedConversations = getSessionCache<{ conversations?: Conversation[] }>("/messages/conversations");
   const [conversations,setConversations]=useState<Conversation[]>(() => cachedConversations?.conversations ?? []);
   const [selected,setSelected]=useState<Conversation|null>(null);
@@ -68,7 +62,6 @@ export default function Messages(){
   },[conversations,query]);
 
   const totalUnread=conversations.reduce((sum,c)=>sum+c.unread,0);
-  const createGroup=async()=>{const name=groupName.trim();if(!name||creatingGroup)return;setCreatingGroup(true);try{const x=await apiJson<any>("/groups",{method:"POST",body:JSON.stringify({name})});const id=Number(x.group?.id);if(!id)throw new Error("Group creation failed");for(const userId of groupMembers)await apiJson("/groups/"+id+"/members",{method:"POST",body:JSON.stringify({userId})});setShowCreateGroup(false);setShowNewMsg(false);setGroupName("");setGroupMembers([]);setLocation("/group/"+id)}catch(e){setError(e instanceof Error?e.message:"Unable to create group")}finally{setCreatingGroup(false)}};
 
   const archive=async(conv:Conversation)=>{
     setConversations(current=>current.filter(item=>item.id!==conv.id));
@@ -106,7 +99,7 @@ export default function Messages(){
         <button onClick={()=>setLocation("/message-requests")} data-testid="btn-message-requests"><UserPlus size={20} className="text-white/70" strokeWidth={1.8}/></button>
         <button onClick={()=>setLocation("/archived-chats")} data-testid="btn-archived"><Archive size={20} className="text-white/70" strokeWidth={1.8}/></button>
         <button onClick={()=>setLocation("/groups")} data-testid="btn-groups"><Users size={20} className="text-white/70" strokeWidth={1.8}/></button><button onClick={()=>setLocation("/call-history")} data-testid="btn-call-history"><Phone size={20} className="text-white/70" strokeWidth={1.8}/></button>
-        <button onClick={()=>setShowNewMsg(true)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:GRADIENT}} data-testid="btn-new-message"><Plus size={15} className="text-white"/></button>
+        <button onClick={()=>setShowNewMsg(true)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{background:GRADIENT}} data-testid="btn-new-message"><Edit size={14} className="text-white"/></button>
       </div>
     </header>
     <div className="flex-1 min-h-0 overflow-y-auto pb-24">
@@ -191,7 +184,7 @@ export default function Messages(){
             <div ref={el=>{archiveRefs.current[conv.id]=el;}} className="absolute inset-y-0 left-0 w-24 flex items-center justify-center pointer-events-none" style={{opacity:0,transform:"translate3d(0,0,0) scale(.78) rotate(-8deg)"}}><Archive size={20} className="text-green-300"/></div>
             <button
               ref={el=>{rowRefs.current[conv.id]=el;}}
-              onClick={()=>{if(suppressClickRef.current){suppressClickRef.current=false;return;}setLocation(conv.kind==="group"?"/group/"+conv.id:"/chat/"+conv.user.id);}}
+              onClick={()=>{if(suppressClickRef.current){suppressClickRef.current=false;return;}setLocation(`/chat/${conv.user.id}`);}}
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
@@ -201,7 +194,7 @@ export default function Messages(){
             >
               <div className="relative flex-shrink-0"><img src={conv.user.avatarUrl??`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(conv.user.displayName)}`} alt={conv.user.displayName} className="w-12 h-12 rounded-full object-cover"/></div>
               <div className="flex-1 min-w-0"><div className="flex items-center justify-between"><span className={`font-semibold text-sm ${conv.unread>0?"text-white":"text-white/80"}`}>{conv.user.displayName}</span><span className="text-xs flex-shrink-0 ml-2" style={{color:conv.unread>0?"#FF3D9A":"rgba(255,255,255,0.35)"}}>{formatTime(conv.lastMessageTime)}</span></div>
-                <div className="flex items-center justify-between mt-0.5"><p className={`text-sm truncate ${conv.unread>0?"text-white/80 font-medium":"text-white/40"}`}>{conv.kind==="group"&&conv.memberCount?conv.memberCount+" members • ":""}{conv.lastMessage||"No messages yet"}</p>{conv.unread>0&&<span className="ml-2 min-w-[20px] h-5 px-1 rounded-full text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0" style={{background:GRADIENT}}>{conv.unread}</span>}</div>
+                <div className="flex items-center justify-between mt-0.5"><p className={`text-sm truncate ${conv.unread>0?"text-white/80 font-medium":"text-white/40"}`}>{conv.lastMessage||"No messages yet"}</p>{conv.unread>0&&<span className="ml-2 min-w-[20px] h-5 px-1 rounded-full text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0" style={{background:GRADIENT}}>{conv.unread}</span>}</div>
               </div>
             </button>
           </div>;
@@ -211,15 +204,12 @@ export default function Messages(){
     <BottomNav/>
     {showNewMsg&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setShowNewMsg(false)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden" style={{background:"rgba(18,15,30,0.98)",border:"1px solid rgba(255,0,110,0.15)"}}>
       <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-1"/><p className="text-white font-semibold text-sm px-5 py-3">Friends</p>
-      <button onClick={()=>{setShowNewMsg(false);setShowCreateGroup(true)}} className="w-full flex items-center gap-3 px-5 py-4 text-left" style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}><span className="w-10 h-10 rounded-full flex items-center justify-center" style={{background:GRADIENT}}><Users size={18} className="text-white"/></span><span className="text-white font-medium text-sm">Create group</span></button>
-      {conversations.filter(conv=>conv.kind==="direct").map(conv=><button key={conv.id} onClick={()=>{setShowNewMsg(false);setLocation(`/chat/${conv.user.id}`);}} className="w-full flex items-center gap-3 px-5 py-3.5" style={{borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+      {conversations.map(conv=><button key={conv.id} onClick={()=>{setShowNewMsg(false);setLocation(`/chat/${conv.user.id}`);}} className="w-full flex items-center gap-3 px-5 py-3.5" style={{borderTop:"1px solid rgba(255,255,255,0.06)"}}>
         <img src={conv.user.avatarUrl??`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(conv.user.displayName)}`} alt={conv.user.displayName} className="w-10 h-10 rounded-full object-cover"/>
         <div className="text-left"><p className="text-white font-medium text-sm">{conv.user.displayName}</p><p className="text-white/40 text-xs">@{conv.user.username}</p></div>
       </button>)}
       <div className="h-6"/>
     </div></></ScreenPortal>}
-
-    {showCreateGroup&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>!creatingGroup&&setShowCreateGroup(false)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)"}}><div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2"/><div className="px-5 py-3 flex justify-between"><p className="text-white font-semibold">Create group</p><button onClick={()=>setShowCreateGroup(false)} className="text-white/50 text-sm">Cancel</button></div><div className="px-5 pb-3"><input autoFocus value={groupName} onChange={e=>setGroupName(e.target.value)} placeholder="Group name" className="w-full p-3 rounded-xl bg-white/10 text-white outline-none"/></div><p className="px-5 py-2 text-white/40 text-xs">Choose friends</p><div className="max-h-52 overflow-y-auto">{conversations.filter(c=>c.kind==="direct").map(c=>{const checked=groupMembers.includes(c.user.id);return <button key={c.user.id} onClick={()=>setGroupMembers(v=>checked?v.filter(id=>id!==c.user.id):v.concat(c.user.id))} className="w-full flex items-center gap-3 px-5 py-3 text-left border-t border-white/5"><img src={c.user.avatarUrl??"https://api.dicebear.com/9.x/initials/svg?seed="+encodeURIComponent(c.user.displayName)} alt={c.user.displayName} className="w-10 h-10 rounded-full object-cover"/><span className="text-white text-sm flex-1">{c.user.displayName}</span><span className={"w-5 h-5 rounded-full border flex items-center justify-center "+(checked?"bg-pink-500 border-pink-500":"border-white/30")}>{checked&&<span className="text-white text-xs">✓</span>}</span></button>})}</div><button disabled={!groupName.trim()||creatingGroup} onClick={()=>void createGroup()} className="w-[calc(100%-40px)] mx-5 my-4 p-3 rounded-xl text-white disabled:opacity-40" style={{background:GRADIENT}}>{creatingGroup?"Creating…":"Create group"}</button></div></></ScreenPortal>}
 
     {selected&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setSelected(null)}/>
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)",border:"1px solid rgba(255,255,255,0.08)"}} data-testid="conversation-actions-panel">
@@ -229,10 +219,10 @@ export default function Messages(){
           <div className="flex-1 min-w-0"><p className="text-white font-semibold text-sm truncate">{selected.user.displayName}</p><p className="text-white/40 text-xs">@{selected.user.username}</p></div>
           <button onClick={()=>setSelected(null)} className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5"><X size={18} className="text-white/60"/></button>
         </div>
-        <button onClick={()=>{setSelected(null);setLocation(selected.kind==="group"?"/group/"+selected.id:"/chat/"+selected.user.id);}} className="w-full flex items-center gap-3 px-5 py-4 text-left" style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}><MoreHorizontal size={20} className="text-white/70"/><span className="text-white/85 text-sm flex-1">Open conversation</span><ChevronRight size={17} className="text-white/30"/></button>
+        <button onClick={()=>{setSelected(null);setLocation(`/chat/${selected.user.id}`);}} className="w-full flex items-center gap-3 px-5 py-4 text-left" style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}><MoreHorizontal size={20} className="text-white/70"/><span className="text-white/85 text-sm flex-1">Open conversation</span><ChevronRight size={17} className="text-white/30"/></button>
         <button onClick={()=>{setSelected(null);void archive(selected);}} className="w-full flex items-center gap-3 px-5 py-4 text-left" style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}><Archive size={20} className="text-white/70"/><span className="text-white/85 text-sm flex-1">{t("archiveChat")}</span></button>
         <button onClick={()=>void deleteConversation()} className="w-full flex items-center gap-3 px-5 py-4 text-left" style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}><Trash2 size={20} className="text-red-300"/><span className="text-red-300 text-sm flex-1">{t("deleteChat")}</span></button>
-        {selected.kind==="direct"&&<button onClick={()=>void blockUser()} className="w-full flex items-center gap-3 px-5 py-4 text-left"><Ban size={20} className="text-red-300"/><span className="text-red-300 text-sm flex-1">{t("block")}</span></button>}
+        <button onClick={()=>void blockUser()} className="w-full flex items-center gap-3 px-5 py-4 text-left"><Ban size={20} className="text-red-300"/><span className="text-red-300 text-sm flex-1">{t("block")}</span></button>
         <div className="h-5"/>
       </div>
     </></ScreenPortal>}
