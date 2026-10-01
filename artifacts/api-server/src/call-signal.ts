@@ -28,7 +28,8 @@ export class CallSignalRoom {
     const [client,server]=Object.values(new WebSocketPair()) as [WebSocket,HibernatableWebSocket];
     this.ctx.acceptWebSocket(server,[scope]);
     server.serializeAttachment({scope,userId});
-    return new Response(null,{status:101,webSocket:client});
+    const responseInit={status:101,webSocket:client} as ResponseInit;
+    return new Response(null,responseInit);
   }
   async sendInvite(payload:unknown){
     const message=JSON.stringify(payload);
