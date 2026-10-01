@@ -1,0 +1,8 @@
+{
+  "appId": "com.aora.yuniko",
+  "appName": "Yuniko",
+  "webDir": "artifacts/yuniko/dist/public",
+  "server": {
+    "androidScheme": "https"
+  }
+}
