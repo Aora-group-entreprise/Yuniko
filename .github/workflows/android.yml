@@ -41,7 +41,9 @@ jobs:
           npm install --prefix .capacitor --no-save @capacitor/cli@8.5.2 @capacitor/core@8.5.2 @capacitor/android@8.5.2
 
       - name: Generate Capacitor Android project
-        run: ./.capacitor/node_modules/.bin/cap add android
+        run: |
+          rm -rf android
+          ./.capacitor/node_modules/.bin/cap add android
 
       - name: Sync web assets into Android
         run: ./.capacitor/node_modules/.bin/cap sync android
