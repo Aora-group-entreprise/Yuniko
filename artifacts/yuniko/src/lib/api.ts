@@ -4,11 +4,9 @@
  * Pages never read, store, or send authentication tokens.
  */
 const API_BASE_URL = (() => {
-  const configured = String(import.meta.env.VITE_YUNIKO_API_URL || "").trim();
-  if (configured) return configured.replace(/\/+$/, "");
-  // The frontend and API are deployed separately. Never silently fall back to
-  // the frontend origin, otherwise /api requests can hit the web app instead
-  // of the Cloudflare API when VITE_YUNIKO_API_URL is not configured.
+  // Yuniko API is a separate Cloudflare Worker. Keep API traffic pinned to it
+  // so a misconfigured frontend build variable cannot turn JSON API requests
+  // into HTML page requests from the frontend origin.
   return "https://yuniko-api.lafatriniainaallane.workers.dev";
 })();
 
