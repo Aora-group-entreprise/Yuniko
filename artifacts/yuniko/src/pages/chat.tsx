@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
 import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUser } from "@/lib/session-cache";
 
-type Message={id:number;senderId:number;text?:string;imageUrl?:string;timestamp:string|null;read:boolean;reactions:string[];type:"text"|"image"};
+type Message={id:number;senderId:number;text?:string;imageUrl?:string;audioUrl?:string;durationMs?:number|null;timestamp:string|null;read:boolean;reactions:string[];type:"text"|"image"|"audio"};
 
 type ChatUser={id:number;username:string;displayName:string;avatarUrl:string|null;verified:boolean};
 
@@ -35,6 +35,13 @@ export default function Chat(){
   const [sending,setSending]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const bottomRef=useRef<HTMLDivElement>(null);
+  const mediaInputRef=useRef<HTMLInputElement>(null);
+  const cameraInputRef=useRef<HTMLInputElement>(null);
+  const mediaRecorderRef=useRef<MediaRecorder|null>(null);
+  const recordingChunksRef=useRef<Blob[]>([]);
+  const recordingStartedAtRef=useRef<number>(0);
+  const [recording,setRecording]=useState(false);
+  const [mediaSending,setMediaSending]=useState(false);
 
   const load=()=>{
     if(!Number.isInteger(userId)||userId<=0) return;
@@ -46,6 +53,60 @@ export default function Chat(){
   };
   useEffect(()=>{load();},[userId]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+
+  const sendMedia=async(blob:Blob,kind:"image"|"audio",durationMs?:number)=>{
+    if(!user||mediaSending) return;
+    setMediaSending(true);setError(null);
+    try{
+      const dataUrl=await new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(String(reader.result));
+        reader.onerror=()=>reject(new Error("Unable to read media"));
+        reader.readAsDataURL(blob);
+      });
+      const data=await apiJson<{message:Message}>(`/messages/conversations/${user.id}/media`,{
+        method:"POST",
+        body:JSON.stringify({dataUrl,kind,durationMs}),
+      });
+      setMessages(prev=>[...prev,data.message]);
+      invalidateSessionCache(cacheKey);
+    }catch(err){setError(err instanceof Error?err.message:"Unable to send media");}
+    finally{setMediaSending(false);}
+  };
+
+  const handleMediaFile=(event:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=event.target.files?.[0];
+    event.target.value="";
+    if(file) void sendMedia(file,"image");
+  };
+
+  const toggleRecording=async()=>{
+    if(recording){
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){
+      setError("Voice recording is not supported by this browser");
+      return;
+    }
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const recorder=new MediaRecorder(stream);
+      recordingChunksRef.current=[];
+      recorder.ondataavailable=event=>{if(event.data.size) recordingChunksRef.current.push(event.data);};
+      recorder.onstop=()=>{
+        stream.getTracks().forEach(track=>track.stop());
+        const blob=new Blob(recordingChunksRef.current,{type:recorder.mimeType||"audio/webm"});
+        mediaRecorderRef.current=null;
+        setRecording(false);
+        if(blob.size) void sendMedia(blob,"audio",Math.max(0,Date.now()-recordingStartedAtRef.current));
+      };
+      mediaRecorderRef.current=recorder;
+      recorder.start();
+      recordingStartedAtRef.current=Date.now();
+      setRecording(true);
+    }catch(err){setError(err instanceof Error?err.message:"Microphone permission was denied");setRecording(false);}
+  };
 
   const sendMessage=async()=>{
     const text=inputText.trim();
@@ -83,7 +144,7 @@ export default function Chat(){
         return <div key={msg.id} className={`flex mb-2 ${isMe?"justify-end":"justify-start"}`} data-testid={`message-${msg.id}`}>
           {!isMe&&<img src={user.avatarUrl??`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(user.displayName)}`} alt="" className="w-7 h-7 rounded-full object-cover mr-2 mt-auto flex-shrink-0"/>}
           <div className={`max-w-[75%] ${isMe?"items-end":"items-start"} flex flex-col`}>
-            {msg.type==="image"&&msg.imageUrl?<img src={msg.imageUrl} alt="Photo" className="max-w-[200px] rounded-2xl"/>:<div className={`px-3.5 py-2.5 rounded-2xl text-sm ${isMe?"rounded-br-sm text-white":"rounded-bl-sm text-white/90"}`} style={{background:isMe?GRADIENT:"rgba(255,255,255,0.08)"}}>{msg.text}</div>}
+            {msg.type==="image"&&msg.imageUrl?<img src={msg.imageUrl} alt="Photo" className="max-w-[240px] rounded-2xl max-h-[320px] object-cover"/>:msg.type==="audio"&&msg.audioUrl?<audio src={msg.audioUrl} controls className="max-w-[230px] h-10"/>:<div className={`px-3.5 py-2.5 rounded-2xl text-sm ${isMe?"rounded-br-sm text-white":"rounded-bl-sm text-white/90"}`} style={{background:isMe?GRADIENT:"rgba(255,255,255,0.08)"}}>{msg.text}</div>}
             <span className="text-white/30 text-[10px] mt-1 px-1">{formatTime(msg.timestamp)}</span>
           </div>
         </div>;
@@ -91,13 +152,16 @@ export default function Chat(){
     </div>
     <ScreenPortal><div className="fixed inset-x-0 mx-auto w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,12px)] py-3" style={{background:"rgba(13,11,20,0.95)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(255,255,255,0.07)",left:0,right:0,marginLeft:"auto",marginRight:"auto",transform:"none",boxSizing:"border-box",bottom:"var(--yuniko-keyboard-offset, 0px)",paddingBottom:"max(12px, env(safe-area-inset-bottom, 0px))"}} data-testid="chat-input-bar">
       <div className="flex items-center gap-2">
-        <button className="flex-shrink-0" data-testid="btn-attach-media"><Image size={22} style={{color:"#FF3D9A"}} strokeWidth={1.8}/></button>
-        <button className="flex-shrink-0" data-testid="btn-camera-msg"><Camera size={22} style={{color:"#FF3D9A"}} strokeWidth={1.8}/></button>
+        {recording&&<span className="text-red-400 text-[11px] whitespace-nowrap">Enregistrement…</span>}
+        <input ref={mediaInputRef} type="file" accept="image/*" className="hidden" onChange={handleMediaFile}/>
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleMediaFile}/>
+        <button onClick={()=>mediaInputRef.current?.click()} disabled={mediaSending||recording} className="flex-shrink-0 disabled:opacity-40" data-testid="btn-attach-media"><Image size={22} style={{color:"#FF3D9A"}} strokeWidth={1.8}/></button>
+        <button onClick={()=>cameraInputRef.current?.click()} disabled={mediaSending||recording} className="flex-shrink-0 disabled:opacity-40" data-testid="btn-camera-msg"><Camera size={22} style={{color:"#FF3D9A"}} strokeWidth={1.8}/></button>
         <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-full" style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)"}}>
           <input value={inputText} onChange={e=>setInputText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&void sendMessage()} placeholder={t("typeMessage")} className="flex-1 bg-transparent text-white/85 text-sm outline-none placeholder:text-white/30" data-testid="input-message"/>
           <button className="flex-shrink-0" data-testid="btn-emoji"><Smile size={18} className="text-white/40"/></button>
         </div>
-        {inputText.trim()?<button onClick={()=>void sendMessage()} disabled={sending} className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-50" style={{background:GRADIENT,boxShadow:"0 2px 12px rgba(255,0,110,0.4)"}} data-testid="btn-send"><Send size={16} className="text-white ml-0.5"/></button>:<button className="flex-shrink-0" data-testid="btn-voice-msg"><Mic size={22} style={{color:"#FF3D9A"}} strokeWidth={1.8}/></button>}
+        {inputText.trim()?<button onClick={()=>void sendMessage()} disabled={sending||mediaSending} className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-50" style={{background:GRADIENT,boxShadow:"0 2px 12px rgba(255,0,110,0.4)"}} data-testid="btn-send"><Send size={16} className="text-white ml-0.5"/></button>:<button onClick={()=>void toggleRecording()} disabled={mediaSending} className="flex-shrink-0 disabled:opacity-50" data-testid="btn-voice-msg"><Mic size={22} style={{color:recording?"#ff4d4d":"#FF3D9A"}} strokeWidth={1.8}/></button>}
       </div>
     </div></ScreenPortal>
   </div>;

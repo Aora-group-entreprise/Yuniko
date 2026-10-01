@@ -340,4 +340,60 @@ messagesRouter.get("/calls/history",authMiddleware,async(req:AuthenticatedReques
   }catch(err){return supabaseError(res,err);}
 });
 
+
+messagesRouter.post("/messages/conversations/:userId/media",authMiddleware,async(req:AuthenticatedRequest,res)=>{
+  const currentId=Number(req.userId),friendId=Number(req.params["userId"]);
+  const dataUrl=typeof req.body?.dataUrl==="string"?req.body.dataUrl:"";
+  const kind=req.body?.kind==="audio"?"audio":"image";
+  const durationMs=Number(req.body?.durationMs);
+  if(!Number.isInteger(friendId)||friendId<=0) return res.status(400).json({error:"Invalid user id"});
+  if(!(await areFriends(currentId,friendId))) return res.status(403).json({error:"You can only message friends"});
+  const match=dataUrl.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/);
+  if(!match) return res.status(400).json({error:"Invalid media data"});
+  const contentType=String(match[1]).toLowerCase();
+  const allowed=kind==="image"
+    ? ["image/jpeg","image/png","image/webp","image/gif"].includes(contentType)
+    : ["audio/webm","audio/ogg","audio/mp4","audio/mpeg","audio/wav"].includes(contentType);
+  if(!allowed) return res.status(400).json({error:"Unsupported media type"});
+  const binary=atob(match[2]);
+  const maxBytes=kind==="image"?8*1024*1024:10*1024*1024;
+  if(binary.length>maxBytes) return res.status(413).json({error:"Media is too large"});
+  try{
+    const supabaseUrl=String(process.env["SUPABASE_URL"]??"").replace(/\/+$/,"");
+    const serviceKey=process.env["SUPABASE_SERVICE_ROLE_KEY"]??"";
+    if(!supabaseUrl||!serviceKey) throw new Error("Supabase storage is not configured");
+    const bucket="yuniko-chat-media";
+    const createBucket=await fetch(`${supabaseUrl}/storage/v1/bucket`,{
+      method:"POST",
+      headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":"application/json"},
+      body:JSON.stringify({id:bucket,name:bucket,public:true}),
+    });
+    if(!createBucket.ok&&createBucket.status!==409) throw new Error(`Chat media bucket creation failed: ${createBucket.status}`);
+    const extension=contentType==="image/jpeg"?"jpg":contentType==="image/png"?"png":contentType==="image/webp"?"webp":contentType==="image/gif"?"gif":contentType==="audio/ogg"?"ogg":contentType==="audio/mp4"?"m4a":contentType==="audio/mpeg"?"mp3":contentType==="audio/wav"?"wav":"webm";
+    const objectPath=`${currentId}/${crypto.randomUUID()}.${extension}`;
+    const bytes=new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+    const upload=await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${objectPath}`,{
+      method:"POST",
+      headers:{Authorization:`Bearer ${serviceKey}`,apikey:serviceKey,"Content-Type":contentType,"x-upsert":"false","Cache-Control":"31536000"},
+      body:bytes,
+    });
+    if(!upload.ok) throw new Error(`Chat media upload failed: ${upload.status}`);
+    const mediaUrl=`${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
+    const conversationId=await ensureFriendConversation(currentId,friendId),now=new Date();
+    const message=await insertRow("messages",{
+      conversationId,senderId:currentId,kind,body:null,mediaUrl,
+      durationMs:Number.isFinite(durationMs)&&durationMs>0?Math.floor(durationMs):null,
+      deliveredAt:now,readAt:null,createdAt:now,
+    });
+    await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
+    return res.status(201).json({message:{
+      id:Number(message.id),senderId:currentId,
+      text:undefined,imageUrl:kind==="image"?mediaUrl:undefined,audioUrl:kind==="audio"?mediaUrl:undefined,
+      durationMs:Number.isFinite(durationMs)&&durationMs>0?Math.floor(durationMs):null,
+      timestamp:dateValue(message.createdAt),read:false,reactions:[],type:kind,
+    }});
+  }catch(err){return supabaseError(res,err);}
+});
+
 export default messagesRouter;
