@@ -54,7 +54,8 @@ async function feedRows(viewerId: number) {
     if (blockedUser===viewerId) blockedIds.add(blocker);
   }
   const statsByPost = new Map(stats.map((row) => [Number(row.postId), row]));
-  const seenByPost = new Set(engagements.filter((row) => row.lastViewedAt && Date.now()-new Date(String(row.lastViewedAt)).getTime()<7*24*60*60*1000).map((row) => Number(row.postId)));
+  const engagementRows = engagements as Array<{ postId: number; lastViewedAt?: string | Date | null }>;
+  const seenByPost = new Set(engagementRows.filter((row) => row.lastViewedAt && Date.now()-new Date(row.lastViewedAt).getTime()<7*24*60*60*1000).map((row) => Number(row.postId)));
   const affinityByUser = new Map(affinities.map((row) => [Number(row.targetUserId), Math.max(0, Math.min(1, Number(row.score)||0))]));
   const topicByName = new Map(topics.map((row) => [String(row.topic??"").toLowerCase(), Math.max(0, Math.min(1, Number(row.score)||0))]));
   const distributionByPost = new Map(distributions.map((row) => [Number(row.postId), row]));
@@ -81,7 +82,7 @@ async function feedRows(viewerId: number) {
     const affinity=affinityByUser.get(Number(post.userId))??0;
     const stat=statsByPost.get(Number(post.id));
     const candidate: FeedRankingCandidate={
-      id:Number(post.id),userId:Number(post.userId),createdAt:post.createdAt,
+      id:Number(post.id),userId:Number(post.userId),createdAt:(post.createdAt as string | Date | null),
       likes:Number(stat?.likes??post.likes??0),comments:Number(stat?.comments??post.comments??0),
       saves:Number(stat?.saves??post.saves??0),shares:Number(stat?.shares??post.shares??0),
       impressions:Number(stat?.impressions??0),completionRate:Number(stat?.completionRate??0),
