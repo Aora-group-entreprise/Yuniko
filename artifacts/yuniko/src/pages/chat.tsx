@@ -42,6 +42,8 @@ export default function Chat(){
   const recordingStartedAtRef=useRef<number>(0);
   const [recording,setRecording]=useState(false);
   const [mediaSending,setMediaSending]=useState(false);
+  const [selectedMediaFile,setSelectedMediaFile]=useState<File|null>(null);
+  const [selectedMediaPreview,setSelectedMediaPreview]=useState<string|null>(null);
 
   const load=()=>{
     if(!Number.isInteger(userId)||userId<=0) return;
@@ -53,6 +55,7 @@ export default function Chat(){
   };
   useEffect(()=>{load();},[userId]);
   useEffect(()=>()=>{mediaRecorderRef.current?.stop();},[]);
+  useEffect(()=>()=>{if(selectedMediaPreview) URL.revokeObjectURL(selectedMediaPreview);},[selectedMediaPreview]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
 
   const prepareImage=async(blob:Blob)=>{
@@ -99,7 +102,24 @@ export default function Chat(){
   const handleMediaFile=(event:React.ChangeEvent<HTMLInputElement>)=>{
     const file=event.target.files?.[0];
     event.target.value="";
-    if(file) void sendMedia(file,"image");
+    if(!file||!file.type.startsWith("image/")) return;
+    setSelectedMediaFile(file);
+    setSelectedMediaPreview(URL.createObjectURL(file));
+  };
+
+  const cancelSelectedMedia=()=>{
+    setSelectedMediaFile(null);
+    setSelectedMediaPreview(current=>{
+      if(current) URL.revokeObjectURL(current);
+      return null;
+    });
+  };
+
+  const confirmSelectedMedia=async()=>{
+    if(!selectedMediaFile||mediaSending) return;
+    const file=selectedMediaFile;
+    cancelSelectedMedia();
+    await sendMedia(file,"image");
   };
 
   const toggleRecording=async()=>{
