@@ -316,7 +316,7 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
       const media=await hydrateMedia(source);
       return {...item,imageUrl:item.type==="image"||item.type==="sticker"?media.url:undefined,audioUrl:item.type==="audio"?media.url:undefined,videoUrl:item.type==="video"?media.url:undefined,fileUrl:item.type==="file"?media.url:undefined};
     }));
-    const friendDevices=await selectRows("message_devices",{filters:[eq("userId",friendId)],limit:20]);
+    const friendDevices=await selectRows("message_devices",{filters:[eq("userId",friendId)],limit:20});
     const friendKey=friendDevices.find(r=>!r.revokedAt)?.publicKey??null;
     return res.json({
       conversationId,
