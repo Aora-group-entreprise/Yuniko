@@ -285,109 +285,70 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
   }, []);
 
   return (
-    <div className="relative w-full h-full" data-testid={`post-card-${post.id}`}>
-      {/* Background image */}
-      <img
-        src={post.imageUrl}
-        alt={post.caption}
-        className="absolute inset-0 block w-full h-full min-w-0 min-h-0 max-w-full max-h-full object-cover bg-black"
-        onClick={handleImageTap}
-        loading="eager"
-        decoding="auto"
-      />
-
-      {/* Gradient overlays */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: "linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.25) 45%, transparent 70%)",
-        }}
-      />
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, transparent 18%)",
-        }}
-      />
-
-      {/* Sponsored badge */}
+    <div className="relative w-full overflow-visible" data-testid={`post-card-${post.id}`}>
       {post.isSponsored && (
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.18)" }}>
-          <Sparkles size={11} style={{ color: "#FF3D9A" }} />
-          <span className="text-white/90 text-[11px] font-semibold tracking-wide">Sponsored</span>
+        <div className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ background: "rgba(0,0,0,.55)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,.18)" }}>
+          <Sparkles size={11} style={{ color: "#FF2FA4" }} />
+          <span className="text-[11px] font-semibold tracking-wide text-white/90">Sponsored</span>
         </div>
       )}
 
-      {/* More options button */}
-      {onOptions && !post.isSponsored && (
-        <motion.button
-          whileTap={{ scale: 0.88 }}
-          className="absolute top-3 right-3 p-2 rounded-full"
-          style={{ background: "rgba(0,0,0,0.38)", backdropFilter: "blur(6px)" }}
-          onClick={onOptions}
-          data-testid="post-options-btn"
-        >
-          <MoreHorizontal size={18} className="text-white" />
-        </motion.button>
-      )}
-
-      {/* Double-tap heart burst */}
-      <AnimatePresence>
-        {heartBurst && (
-          <motion.div
-            key="heart-burst"
-            initial={{ scale: 0.5, opacity: 1 }}
-            animate={{ scale: 1.6, opacity: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-            className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
-          >
-            <Heart size={100} className="fill-red-500 text-red-500" />
-          </motion.div>
+      <div className="flex items-center gap-2.5 px-0.5 pb-2.5">
+        <button onClick={() => setLocation(`/user/${post.userId}`)} className="shrink-0" aria-label={author.displayName}>
+          <img src={avatarSrc} alt={author.displayName} className="h-11 w-11 rounded-full object-cover" style={{ boxShadow: "0 0 0 2px #FF1493, 0 0 0 3px rgba(0,140,255,.65)" }} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setLocation(`/user/${post.userId}`)} className="truncate text-[16px] font-bold leading-tight text-white">{author.displayName}</button>
+            {author.verified && <BadgeCheck size={14} className="shrink-0 text-blue-400" />}
+            {author.userId && !isOwnPost && !post.isSponsored && (
+              <motion.button whileTap={{ scale: 0.93 }} onClick={() => void handleFollow()} disabled={followLoading} className="shrink-0 rounded-full px-3 py-1 text-[11px] font-bold text-white disabled:opacity-60" style={{ background: following ? "rgba(255,255,255,.11)" : "linear-gradient(135deg,#FF1493,#008CFF)", border: following ? "1px solid rgba(255,255,255,.16)" : "none", boxShadow: following ? "none" : "0 3px 12px rgba(255,20,147,.24)" }}>
+                {following ? t("following") : t("follow")}
+              </motion.button>
+            )}
+            {post.isSponsored && post.sponsorCta && (
+              <motion.button whileTap={{ scale: 0.93 }} className="shrink-0 rounded-full px-3 py-1 text-[11px] font-bold text-white" style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 3px 12px rgba(255,20,147,.24)" }}>
+                {post.sponsorCta}
+              </motion.button>
+            )}
+          </div>
+          {post.location && <div className="mt-1 truncate text-[12px] text-white/48">{post.location}</div>}
+        </div>
+        {onOptions && !post.isSponsored && (
+          <motion.button whileTap={{ scale: 0.88 }} className="shrink-0 rounded-full p-1.5" onClick={onOptions} aria-label={t("moreOptions")} data-testid="post-options-btn">
+            <MoreHorizontal size={23} className="text-white/60" strokeWidth={2.2} />
+          </motion.button>
         )}
-      </AnimatePresence>
+      </div>
 
-      {/* Right action buttons */}
-      <div className="absolute right-2.5 bottom-[5.5rem] flex flex-col items-center gap-2.5 z-10">
-        <ActionBtn
-          icon={
-            <Heart
-              size={23}
-              className={liked ? "fill-red-500 text-red-500" : "text-white"}
-              strokeWidth={1.8}
-            />
-          }
-          label={formatCount(likeCount)}
-          onClick={handleLike}
-          testId="btn-like"
-          active={liked}
-        />
-        <ActionBtn
-          icon={<MessageCircle size={25} className="text-white" strokeWidth={1.8} />}
-          label={formatCount(post.comments)}
-          onClick={() => void openComments(false)}
-          testId="btn-comment"
-        />
-        <ActionBtn
-          icon={<Share2 size={25} className="text-white" strokeWidth={1.8} />}
-          label={formatCount(post.shares)}
-          onClick={() => {}}
-          testId="btn-share"
-        />
-        <ActionBtn
-          icon={
-            <Bookmark
-              size={25}
-              className={saved ? "fill-yellow-400 text-yellow-400" : "text-white"}
-              strokeWidth={1.8}
-            />
-          }
-          label={formatCount(post.saves)}
-          onClick={handleSave}
-          testId="btn-save"
-          active={saved}
-        />
+      <div className="relative w-full overflow-hidden rounded-[20px] bg-black" style={{ aspectRatio: "1.48 / 1", boxShadow: post.isSponsored ? "0 8px 30px rgba(255,20,147,.15)" : "0 5px 24px rgba(0,0,0,.34)" }}>
+        <img src={post.imageUrl} alt={post.caption} className="absolute inset-0 block h-full w-full object-cover" onClick={handleImageTap} loading="eager" decoding="auto" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(to top,rgba(0,0,0,.22),transparent)" }} />
+        <AnimatePresence>
+          {heartBurst && (
+            <motion.div key="heart-burst" initial={{ scale: 0.5, opacity: 1 }} animate={{ scale: 1.6, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.7, ease: "easeOut" }} className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+              <Heart size={100} className="fill-red-500 text-red-500" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="flex items-center justify-between px-0.5 pt-3 pb-2">
+        <div className="flex items-center gap-6">
+          <ActionBtn icon={<Heart size={25} className={liked ? "fill-[#FF2FA4] text-[#FF2FA4]" : "text-white/90"} strokeWidth={1.8} />} label={formatCount(likeCount)} onClick={handleLike} testId="btn-like" active={liked} />
+          <ActionBtn icon={<MessageCircle size={25} className="text-white/90" strokeWidth={1.8} />} label={formatCount(post.comments)} onClick={() => void openComments(false)} testId="btn-comment" />
+          <ActionBtn icon={<Share2 size={25} className="text-white/90" strokeWidth={1.8} />} label={formatCount(post.shares)} onClick={() => {}} testId="btn-share" />
+        </div>
+        <ActionBtn icon={<Bookmark size={25} className={saved ? "fill-[#FF2FA4] text-[#FF2FA4]" : "text-white/90"} strokeWidth={1.8} />} label={formatCount(post.saves)} onClick={handleSave} testId="btn-save" active={saved} />
+      </div>
+
+      <div className="px-0.5 pb-1">
+        <p className="text-[14px] font-bold leading-tight text-white">{author.displayName}</p>
+        {post.caption && <p className="mt-1 line-clamp-3 text-[13px] leading-[1.35] text-white/80">{post.caption}</p>}
+        {post.hashtags.length > 0 && <p className="mt-1 text-[13px] font-medium" style={{ color: "#FF2FA4" }}>{post.hashtags.slice(0, 3).join(" ")}</p>}
+        <button type="button" onClick={() => void openComments(false)} className="mt-2 block text-left text-[12px] text-white/42">
+          View all {formatCount(post.comments)} comments · {post.timestamp}
+        </button>
       </div>
 
       {(viewerOpen || commentsOpen) && (
@@ -422,80 +383,6 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
           onCloseComments={() => setCommentsOpen(false)}
         />
       )}
-
-      {/* Bottom user info */}
-      <div className="absolute bottom-4 left-3 right-20 z-10">
-        <div className="flex items-center gap-2.5 mb-1.5">
-          <button
-            onClick={() => setLocation(`/user/${post.userId}`)}
-            className="flex-shrink-0"
-          >
-            <img
-              src={avatarSrc}
-              alt={author.displayName}
-              className="w-9 h-9 rounded-full object-cover"
-              style={{ boxShadow: "0 0 0 2px rgba(255,61,154,0.7)" }}
-            />
-          </button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 flex-wrap">
-              <button
-                onClick={() => setLocation(`/user/${post.userId}`)}
-                className="font-semibold text-white text-sm"
-              >
-                {author.displayName}
-              </button>
-              {author.verified && (
-                <BadgeCheck size={13} className="text-blue-400 fill-blue-400 flex-shrink-0" />
-              )}
-              {post.location && (
-                <span className="text-white/55 text-xs">· {post.location}</span>
-              )}
-            </div>
-          </div>
-          {author.userId && !isOwnPost && !post.isSponsored && (
-            <motion.button
-              whileTap={{ scale: 0.93 }}
-              onClick={() => void handleFollow()}
-              disabled={followLoading}
-              className="px-3.5 py-1 rounded-full text-xs font-semibold text-white flex-shrink-0 disabled:opacity-60"
-              style={{
-                background: following
-                  ? "rgba(255,255,255,0.14)"
-                  : "linear-gradient(135deg, #FF006E, #8B00FF)",
-                boxShadow: following ? "none" : "0 2px 12px rgba(255,0,110,0.35)",
-                border: following ? "1px solid rgba(255,255,255,0.18)" : "none",
-              }}
-            >
-              {following ? t("following") : t("follow")}
-            </motion.button>
-          )}
-          {post.isSponsored && post.sponsorCta && (
-            <motion.button
-              whileTap={{ scale: 0.93 }}
-              className="px-3 py-1 rounded-full text-xs font-semibold text-white flex-shrink-0 flex items-center gap-1"
-              style={{
-                background: "linear-gradient(135deg, #FF006E, #8B00FF)",
-                boxShadow: "0 2px 12px rgba(255,0,110,0.35)",
-              }}
-            >
-              <ExternalLink size={10} />
-              {post.sponsorCta}
-            </motion.button>
-          )}
-        </div>
-        <p className="text-white text-sm font-medium leading-snug line-clamp-2">
-          {post.caption}
-        </p>
-        {post.hashtags.length > 0 && (
-          <p className="text-sm mt-0.5" style={{ color: "#FF3D9A" }}>
-            {post.hashtags.slice(0, 3).join(" ")}
-          </p>
-        )}
-        {!post.isSponsored && (
-          <p className="text-white/40 text-xs mt-0.5">{post.timestamp}</p>
-        )}
-      </div>
     </div>
   );
 }
@@ -523,18 +410,13 @@ function ActionBtn({
   return (
     <motion.button
       onClick={onClick}
-      className="flex flex-col items-center gap-0.5"
+      className="flex items-center gap-2 text-left touch-manipulation"
       data-testid={testId}
-      whileTap={{ scale: 0.85 }}
+      whileTap={{ scale: 0.9 }}
+      animate={active ? { scale: [1, 1.03, 1] } : { scale: 1 }}
     >
-      <motion.div
-        className="w-10 h-10 rounded-full flex items-center justify-center"
-        style={{ background: "rgba(0,0,0,0.42)", backdropFilter: "blur(8px)" }}
-        animate={active ? { boxShadow: "0 0 14px rgba(255,61,154,0.4)" } : { boxShadow: "none" }}
-      >
-        {icon}
-      </motion.div>
-      <span className="text-white text-[11px] font-medium">{label}</span>
+      <span className="flex items-center justify-center">{icon}</span>
+      <span className="text-[13px] font-medium text-white/72">{label}</span>
     </motion.button>
   );
 }
@@ -792,7 +674,7 @@ function PostViewer({
                 <button
                   onClick={onSubmitComment}
                   className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: commentText.trim() ? "linear-gradient(135deg,#FF006E,#8B00FF)" : "rgba(255,255,255,0.08)" }}
+                  style={{ background: commentText.trim() ? "linear-gradient(135deg,#FF1493,#008CFF)" : "rgba(255,255,255,0.08)" }}
                 >
                   <Send size={14} className={commentText.trim() ? "text-white" : "text-white/30"} />
                 </button>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Search, UserPlus, Globe, ChevronDown, Bookmark, Share2, Flag, EyeOff, WifiOff, Radio } from "lucide-react";
+import { Bell, Send, Globe, Bookmark, Share2, Flag, EyeOff, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Post } from "@/data/mockData";
 import StoryAvatar from "@/components/StoryAvatar";
@@ -59,7 +59,6 @@ export default function Home() {
   const { user } = useAuth();
   setSessionUser(Number(user?.id));
   const [optionsPostId, setOptionsPostId] = useState<string | null>(null);
-  const [worldFeedOpen, setWorldFeedOpen] = useState(false);
   const isOnline = useOnlineStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -120,25 +119,25 @@ export default function Home() {
 
   return (
     <div
-      className="home-screen relative grid w-full min-w-0"
-      style={{ height: "var(--yuniko-vh)", gridTemplateRows: "56px 78px minmax(0, 1fr)", overflow: "hidden" }}
+      className="home-screen relative min-h-full w-full min-w-0 overflow-hidden"
+      style={{ minHeight: "var(--yuniko-vh)", background: "#050509", backgroundImage: "radial-gradient(ellipse 48% 30% at -2% 34%, rgba(0,140,255,.16), transparent 68%), radial-gradient(ellipse 48% 34% at 102% 56%, rgba(255,20,147,.14), transparent 68%)" }}
     >
       <header
         className="fixed inset-x-0 top-0 z-50 flex w-full min-w-0 items-center justify-between px-4"
         style={{
-          height: "56px",
-          background: "rgba(10,8,18,0.88)",
+          height: "72px",
+          background: "rgba(5,5,9,0.92)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,61,154,0.1)",
+          borderBottom: "1px solid rgba(255,255,255,0.035)",
         }}
         data-testid="home-header"
       >
-        <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}>
+        <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })} className="shrink-0" aria-label="Yuniko home">
           <span
-            className="text-2xl font-black tracking-tight"
+            className="text-[clamp(31px,8vw,39px)] font-black tracking-[-0.055em] leading-none"
             style={{
-              background: "linear-gradient(90deg, #FF3D9A 0%, #C026D3 50%, #8B00FF 100%)",
+              background: "linear-gradient(90deg, #FF1493 0%, #FF2FA4 42%, #008CFF 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -147,92 +146,35 @@ export default function Home() {
             Yuniko
           </span>
         </button>
-
-        <button
-          onClick={() => setWorldFeedOpen((p) => !p)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-          style={{
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,61,154,0.3)",
-            boxShadow: "0 0 10px rgba(255,0,110,0.1)",
-          }}
-          data-testid="btn-world-feed"
-        >
-          <Globe size={13} style={{ color: "#FF3D9A" }} />
-          <span className="text-white/90 text-sm font-medium">{t("worldFeed")}</span>
-          <ChevronDown size={12} className="text-white/55" />
-        </button>
-
-        <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.85 }} onClick={() => setLocation("/search")}>
-            <Search size={21} className="text-white/75" strokeWidth={1.8} />
+        <div className="flex items-center gap-5">
+          <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/notifications")} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("notifications")}>
+            <Bell size={25} strokeWidth={1.7} style={{ color: "rgba(255,210,235,0.88)" }} />
+            <span className="absolute -right-0.5 top-0.5 h-2 w-2 rounded-full" style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.7)" }} />
           </motion.button>
-          <motion.button whileTap={{ scale: 0.85 }} onClick={() => setLocation("/add-friends")}>
-            <UserPlus size={21} className="text-white/75" strokeWidth={1.8} />
+          <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/messages")} className="flex h-9 w-9 items-center justify-center" aria-label={t("messages")}>
+            <Send size={25} strokeWidth={1.7} style={{ color: "rgba(255,210,235,0.88)" }} />
           </motion.button>
         </div>
       </header>
 
-      <AnimatePresence>
-        {worldFeedOpen && (
-          <ScreenPortal>
-            <motion.div key="wf-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40" onClick={() => setWorldFeedOpen(false)} />
-            <motion.div
-              key="wf-menu"
-              initial={{ opacity: 0, y: -8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              transition={{ duration: 0.18 }}
-              className="absolute top-[60px] left-1/2 -translate-x-1/2 w-44 rounded-2xl z-50 overflow-hidden"
-              style={{ background: "rgba(18,14,30,0.98)", border: "1px solid rgba(255,61,154,0.25)", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}
-            >
-              {["World Feed", "Friends Feed", "Following"].map((item) => (
-                <button key={item} onClick={() => setWorldFeedOpen(false)} className="w-full px-4 py-3 text-left text-white/85 text-sm hover:bg-pink-500/15 flex items-center gap-2">
-                  <Globe size={13} style={{ color: "#FF3D9A" }} />
-                  {item}
-                </button>
-              ))}
-            </motion.div>
-          </ScreenPortal>
-        )}
-      </AnimatePresence>
-
-      <div
-        className="fixed inset-x-0 top-[56px] z-40 min-w-0 w-full"
-        style={{
-          height: "78px",
-          background: "rgba(10,8,18,0.82)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
-        }}
-        data-testid="stories-row"
-      >
-        <div className="flex items-center gap-3 h-full px-4 overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
-          <>
+      <section className="relative z-20 px-4 pt-[88px] pb-3" data-testid="stories-section">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[18px] font-bold tracking-[-0.02em] text-white">Stories</h2>
+        </div>
+        <div className="flex items-start gap-[clamp(10px,2.6vw,16px)] overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }} data-testid="stories-row">
           <StoryAvatar userId="me" isOwn />
-
-          <button onClick={() => setLocation("/live")} className="flex-shrink-0 flex flex-col items-center gap-1.5" data-testid="btn-go-live-stories">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center relative" style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 0 16px rgba(255,0,110,0.45)" }}>
-              <Radio size={22} className="text-white" />
-              <div className="absolute -top-0.5 -right-0.5 px-1 py-0.5 rounded-full text-[8px] font-bold text-white leading-none" style={{ background: "#FF006E" }}>LIVE</div>
-            </div>
-            <span className="text-white/60 text-[10px] font-medium">Go Live</span>
-          </button>
-
           {liveStories.map((story) => (
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
           ))}
-          </>
         </div>
-      </div>
+      </section>
 
       <AnimatePresence>
         {!isOnline && (
           <motion.div
             key="offline-banner"
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="absolute inset-x-0 z-30 flex items-center justify-center gap-1.5 py-1.5"
+            className="relative z-30 mx-4 flex items-center justify-center gap-1.5 rounded-xl py-1.5"
             style={{ background: "rgba(239,68,68,0.88)", backdropFilter: "blur(8px)" }}
           >
             <WifiOff size={12} className="text-white" />
@@ -241,17 +183,11 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <div
+      <main
         ref={scrollRef}
-        className="absolute inset-x-0 min-w-0 overflow-y-auto overflow-x-hidden"
+        className="relative z-10 min-w-0 overflow-y-auto overflow-x-hidden px-[clamp(10px,3.5vw,22px)] pb-[calc(92px+env(safe-area-inset-bottom,0px))]"
         style={{
-          top: "134px",
-          bottom: NAV_H,
-          height: `calc(var(--yuniko-vh) - 134px - ${NAV_H})`,
-          minHeight: 0,
-          boxSizing: "border-box",
-          scrollSnapType: "y mandatory",
-          scrollSnapStop: "always",
+          minHeight: "calc(var(--yuniko-vh) - 72px)",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorY: "contain",
           touchAction: "pan-y",
@@ -259,50 +195,30 @@ export default function Home() {
         data-testid="posts-feed"
       >
         {feedLoading ? <LoadingSkeleton variant="feed" /> : allFeedItems.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center px-8 text-center">
-            <Globe size={34} className="text-pink-400/70 mb-3" />
-            <p className="text-white font-semibold">Your feed is empty</p>
-            <p className="text-white/45 text-sm mt-1">
-              Be the first to share something with the Yuniko community.
-            </p>
+          <div className="flex min-h-[55vh] flex-col items-center justify-center px-8 text-center">
+            <Globe size={34} style={{ color: "#FF2FA4" }} className="mb-3" />
+            <p className="font-semibold text-white">Your feed is empty</p>
+            <p className="mt-1 text-sm text-white/45">Be the first to share something with the Yuniko community.</p>
             <button
               onClick={() => setLocation("/create")}
-              className="mt-5 px-5 py-2.5 rounded-full text-white text-sm font-semibold"
-              style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)" }}
+              className="mt-5 rounded-full px-5 py-2.5 text-sm font-semibold text-white"
+              style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 6px 22px rgba(255,20,147,.22)" }}
             >
               Create a post
             </button>
           </div>
-        ) : allFeedItems.map(({ post, author }) => (
-          <div
-            key={post.id}
-            className="relative px-2.5"
-            style={{
-              height: "100%",
-              minHeight: 0,
-              boxSizing: "border-box",
-              scrollSnapAlign: "start",
-              scrollSnapStop: "always",
-              paddingBottom: 0,
-            }}
-          >
-            <div
-              className="yuniko-responsive-post relative w-full h-full min-h-0 rounded-[20px] overflow-hidden"
-              style={{
-                boxShadow: post.isSponsored ? "0 4px 24px rgba(255,0,110,0.18)" : "0 2px 16px rgba(0,0,0,0.4)",
-              }}
-            >
-              <PostCard
-                post={post}
-                liveAuthor={author}
-                onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)}
-              />
-            </div>
+        ) : (
+          <div className="mx-auto w-full max-w-[680px]">
+            {allFeedItems.map(({ post, author }) => (
+              <article key={post.id} className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
+                <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
+              </article>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+      </main>
 
-      <BottomNav />
+      <BottomNav feedStyle />
 
       <AnimatePresence>
         {optionsPostId && (
@@ -313,7 +229,7 @@ export default function Home() {
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 340 }}
               className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden"
-              style={{ background: "rgba(16,12,28,0.98)", border: "1px solid rgba(255,255,255,0.08)" }}
+              style={{ background: "rgba(8,8,13,0.98)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <div className="w-10 h-1 rounded-full bg-white/18 mx-auto mt-3 mb-4" />
               {[
@@ -351,7 +267,7 @@ function LiveStoryAvatar({ story }: { story: LiveStory }) {
       <div className="relative">
         <div
           className="w-[54px] h-[54px] rounded-full p-[2px]"
-          style={{ background: "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}
+          style={{ background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}
         >
           <img
             src={avatarSrc}

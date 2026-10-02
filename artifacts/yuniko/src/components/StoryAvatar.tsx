@@ -39,20 +39,20 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
       data-testid={`story-avatar-${userId}`}
       onClick={handleClick}
       className="flex flex-col items-center gap-1 flex-shrink-0"
-      style={{ minWidth: 64 }}
+      style={{ minWidth: 68 }}
       whileTap={{ scale: 0.9 }}
     >
       <div className="relative">
         <div
-          className="w-[54px] h-[54px] rounded-full p-[2px]"
+          className="w-[58px] h-[58px] rounded-full p-[2px]"
           style={
             isOwn
               ? { background: "rgba(255,61,154,0.2)", border: "2px dashed rgba(255,61,154,0.5)" }
               : viewed
               ? { background: "rgba(255,255,255,0.15)" }
               : {
-                  background: "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)",
-                  boxShadow: "0 0 10px rgba(255,0,110,0.35)",
+                  background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)",
+                  boxShadow: "0 0 10px rgba(255,20,147,0.35), 0 0 14px rgba(0,140,255,0.18)",
                 }
           }
         >
@@ -67,7 +67,7 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
         {isOwn && (
           <div
             className="absolute bottom-0 right-0 w-[18px] h-[18px] rounded-full flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", border: "2px solid #0D0B14" }}
+            style={{ background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)", border: "2px solid #0D0B14" }}
           >
             <Plus size={9} className="text-white" strokeWidth={3} />
           </div>
@@ -79,7 +79,7 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
           />
         )}
       </div>
-      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">
+      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[64px]">
         {displayName}
       </span>
     </motion.button>
