@@ -19,7 +19,6 @@ type Conversation = {
 
 const GRADIENT="linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
 const MESSAGE_LONG_PRESS_MS=800;
-const MESSAGE_TAP_MAX_MS=250;
 
 function formatTime(value:string|null){
   if(!value) return "";
@@ -166,8 +165,10 @@ export default function Messages(){
             const row=rowRefs.current[conv.id];
             const archiveIcon=archiveRefs.current[conv.id];
             if(state.longPressed){
+              // The action panel owns its own lifecycle. Releasing the finger must not close it.
               if(row){row.style.transition="transform 180ms ease-out";row.style.transform="translate3d(0,0,0)";}
               if(archiveIcon){archiveIcon.style.transition="opacity 150ms ease-out, transform 180ms cubic-bezier(.2,.8,.2,1)";archiveIcon.style.opacity="0";archiveIcon.style.transform="translate3d(0,0,0) scale(.78) rotate(-8deg)";}
+              suppressClickRef.current=true;
               return;
             }
             if(state.swiping){
@@ -184,13 +185,8 @@ export default function Messages(){
               if(shouldArchive){window.setTimeout(()=>{void archive(conv);},220);}
               return;
             }
-            const elapsed=Date.now()-state.startedAt;
-            if(elapsed<=MESSAGE_TAP_MAX_MS){
-              suppressClickRef.current=false;
-              setLocation(`/chat/${conv.user.id}`);
-            }else{
-              suppressClickRef.current=true;
-            }
+            suppressClickRef.current=false;
+            setLocation(`/chat/${conv.user.id}`);
           };
           return <div key={conv.id} className="relative w-full overflow-hidden" style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
             <div ref={el=>{archiveRefs.current[conv.id]=el;}} className="absolute inset-y-0 left-0 w-24 flex items-center justify-center pointer-events-none" style={{opacity:0,transform:"translate3d(0,0,0) scale(.78) rotate(-8deg)"}}><Archive size={20} className="text-green-300"/></div>
