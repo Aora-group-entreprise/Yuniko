@@ -27,7 +27,7 @@ function authUserToDisplay(u: AuthUser) {
 
 interface ProfilePageProps { userId?: string; }
 interface RemoteProfile {
-  user: { id:number; username:string; displayName:string; avatarUrl:string|null; bio:string; country:string|null; countryFlag:string|null; website:string|null };
+  user: { id:number; username:string; displayName:string; avatarUrl:string|null; bio:string; country:string|null; countryFlag:string|null; website:string|null; coverPhoto?:string|null };
   posts: Array<{ id:number; caption:string; mediaUrl:string|null }>;
   stats: { posts:number; followers:number; following:number };
   following:boolean;
@@ -74,6 +74,7 @@ export default function Profile({ userId }: ProfilePageProps) {
     bio: remoteProfile.user.bio,
     location: [remoteProfile.user.countryFlag, remoteProfile.user.country].filter(Boolean).join(" "),
     flag: remoteProfile.user.countryFlag ?? "", verified:false,
+    coverPhoto: remoteProfile.user.coverPhoto ?? "",
     followers:remoteProfile.stats.followers, following:remoteProfile.stats.following, posts:remoteProfile.stats.posts,
     isOnline:true, isFollowing:remoteProfile.following, isFriend:false, website:remoteProfile.user.website ?? undefined,
   } : null;
@@ -242,89 +243,97 @@ export default function Profile({ userId }: ProfilePageProps) {
   };
 
   return (
-    <div className="w-full max-w-[430px] mx-auto min-h-screen bg-[#050509] pb-24 text-white">
-      <header className="sticky top-0 z-40 h-14 px-4 flex items-center justify-between" style={{background:"rgba(5,5,9,0.92)",backdropFilter:"blur(22px)",borderBottom:"1px solid rgba(255,255,255,0.05)"}} data-testid="profile-header">
-        {!isOwn?<button onClick={goBack} className="w-10 h-10 rounded-full flex items-center justify-center" data-testid="btn-back-profile"><ArrowLeft size={21} className="text-white/85"/></button>:<div className="w-10"/>}
-        <span className="font-bold text-white text-[18px] tracking-tight">{user.username}{user.verified&&<BadgeCheck size={14} className="inline ml-1 text-blue-400 fill-blue-400"/>}</span>
-        {isOwn?<button onClick={()=>setLocation("/settings")} className="w-10 h-10 rounded-full flex items-center justify-center" data-testid="btn-settings"><Settings size={21} className="text-white/80" strokeWidth={1.8}/></button>:<button onClick={()=>setShowOptions(true)} className="w-10 h-10 rounded-full flex items-center justify-center" data-testid="btn-more-profile"><MoreHorizontal size={22} className="text-white/80"/></button>}
-      </header>
-
-      <section>
-        <div className="relative h-[154px] overflow-hidden">
-          <div className="absolute inset-0" style={{background:"linear-gradient(135deg,#180a20 0%,#071b32 52%,#120817 100%)"}}/>
-          <div className="absolute inset-0" style={{background:"linear-gradient(180deg,rgba(5,5,9,0.05),rgba(5,5,9,0.78) 100%)"}}/>
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-[106px] h-[106px] rounded-full p-[3px]" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)",boxShadow:"0 0 28px rgba(255,20,147,.34)"}}>
-            <button onClick={()=>setShowPhotoViewer(true)} className="w-full h-full rounded-full overflow-hidden bg-[#050509]" data-testid="btn-profile-photo">
-              <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover"/>
-            </button>
-          </div>
+    <div className="relative w-full max-w-[430px] mx-auto min-h-screen overflow-x-hidden bg-[#050509] pb-24 text-white">
+      <section className="relative">
+        <div className="relative h-[210px] overflow-hidden">
+          {user.coverPhoto ? (
+            <img src={user.coverPhoto} alt="" className="absolute inset-0 h-full w-full object-cover"/>
+          ) : (
+            <div className="absolute inset-0" style={{background:"linear-gradient(135deg,#17081d 0%,#071a30 55%,#09050f 100%)"}}/>
+          )}
+          <div className="absolute inset-0" style={{background:"linear-gradient(180deg,rgba(0,0,0,.04) 20%,rgba(5,5,9,.18) 55%,rgba(5,5,9,.96) 100%)"}}/>
         </div>
 
-        <div className="px-4 pt-14 text-center">
-          <div className="flex items-center justify-center gap-1.5">
-            <h1 className="font-extrabold text-[24px] leading-tight tracking-[-0.03em]">{user.displayName}</h1>
-            {user.verified&&<BadgeCheck size={17} className="text-blue-400 fill-blue-400"/>}
-          </div>
-          <p className="text-[#FF65B5] text-[15px] mt-0.5">@{user.username}</p>
-          {user.bio&&<p className="text-white/68 text-[14px] leading-5 max-w-[350px] mx-auto mt-2">{user.bio}</p>}
-          {user.location&&<div className="mt-2 flex items-center justify-center gap-1.5 text-white/48 text-[13px]"><MapPin size={14} className="text-[#FF3D9A]"/><span>{user.location}</span></div>}
-          {user.website&&<div className="mt-1 flex items-center justify-center gap-1 text-[#72A8FF] text-[12px]"><Link2 size={13}/><span>{user.website}</span></div>}
-
-          <div className="grid grid-cols-3 mt-6 py-3 border-y border-white/[0.07]">
-            {statItems.map((stat)=><button key={stat.label} onClick={stat.onClick} className="flex flex-col items-center gap-0.5 active:opacity-70" data-testid={`stat-${stat.label.toLowerCase()}`}><span className="font-extrabold text-[20px]">{stat.value}</span><span className="text-white/45 text-[12px]">{stat.label}</span></button>)}
+        <div className="relative -mt-[57px] px-4">
+          <div className="flex justify-center">
+            <button onClick={()=>setShowPhotoViewer(true)} className="h-[114px] w-[114px] rounded-full p-[3px]" style={{background:"linear-gradient(135deg,#FF1493 0%,#C13CFF 48%,#008CFF 100%)",boxShadow:"0 0 26px rgba(255,20,147,.38),0 0 34px rgba(0,140,255,.22)"}} data-testid="btn-profile-photo">
+              <span className="block h-full w-full rounded-full bg-[#050509] p-[3px]">
+                <img src={user.avatar} alt={user.displayName} className="h-full w-full rounded-full object-cover"/>
+              </span>
+            </button>
           </div>
 
-          {!isOwn&&<div className="grid grid-cols-2 gap-3 mt-4">
-            <button onClick={()=>void toggleFollowing()} disabled={followLoading} className="h-11 rounded-full text-[15px] font-bold text-white disabled:opacity-60" style={{background:following?"rgba(255,255,255,.08)":"linear-gradient(135deg,#FF1493,#008CFF)",border:following?"1px solid rgba(255,255,255,.18)":"none"}} data-testid="btn-follow-profile">{following?t("following"):t("follow")}</button>
-            <button onClick={()=>setLocation(`/chat/${user.id}`)} className="h-11 rounded-full text-[15px] font-bold" style={{border:"2px solid transparent",background:"linear-gradient(#050509,#050509) padding-box,linear-gradient(135deg,#FF1493,#008CFF) border-box"}} data-testid="btn-message-user">Message</button>
+          <div className="pt-5 text-center">
+            <div className="flex items-center justify-center gap-1.5">
+              <h1 className="text-[25px] font-extrabold leading-none tracking-[-0.035em]">{user.displayName}</h1>
+              {user.verified&&<BadgeCheck size={17} className="text-blue-400 fill-blue-400"/>}
+            </div>
+            <p className="mt-2 text-[16px] font-semibold" style={{color:"#B77BFF"}}>@{user.username}</p>
+            {user.bio&&<p className="mx-auto mt-3 max-w-[350px] text-[14px] leading-5 text-white/55">{user.bio}</p>}
+            {user.location&&<div className="mt-2.5 flex items-center justify-center gap-1.5 text-[14px] text-white/65"><MapPin size={15} className="text-[#C14BFF]"/><span>{user.location}</span></div>}
+            {user.website&&<div className="mt-1 flex items-center justify-center gap-1 text-[12px] text-blue-300/80"><Link2 size={13}/><span>{user.website}</span></div>}
+          </div>
+
+          <div className="mt-7 grid grid-cols-3">
+            {statItems.map(stat=><button key={stat.label} onClick={stat.onClick} className="flex flex-col items-center active:opacity-70" data-testid={`stat-${stat.label.toLowerCase()}`}>
+              <span className="text-[22px] font-extrabold leading-none">{stat.value}</span>
+              <span className="mt-2 text-[12px] font-medium text-white/55">{stat.label}</span>
+            </button>)}
+          </div>
+
+          {!isOwn&&<div className="mt-7 grid grid-cols-2 gap-3 px-1">
+            <button onClick={()=>void toggleFollowing()} disabled={followLoading} className="h-[52px] rounded-full text-[16px] font-extrabold text-white disabled:opacity-60" style={{background:following?"rgba(255,255,255,.08)":"linear-gradient(100deg,#FF1493,#C13CFF 52%,#008CFF)",border:following?"1px solid rgba(255,255,255,.18)":"none",boxShadow:following?"none":"0 8px 22px rgba(255,20,147,.18)"}} data-testid="btn-follow-profile">{following?t("following"):t("follow")}</button>
+            <button onClick={()=>setLocation(`/chat/${user.id}`)} className="h-[52px] rounded-full text-[16px] font-extrabold text-[#D75CFF]" style={{border:"2px solid transparent",background:"linear-gradient(#050509,#050509) padding-box,linear-gradient(100deg,#FF4AAA,#B64BFF 50%,#008CFF) border-box"}} data-testid="btn-message-user">Message</button>
           </div>}
         </div>
       </section>
 
-      <div className="mt-5 px-3 grid grid-cols-3 border-b border-white/[0.07]">
-        {[{id:"grid",label:"Post",icon:Grid3X3},...(isOwn?[{id:"saved",label:"Saved",icon:BookmarkIcon},{id:"analytics",label:"Statistique",icon:BarChart2}]:[])].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as typeof tab)} className="relative py-3.5 flex items-center justify-center gap-1.5 text-[15px] font-semibold" style={{color:tab===tabItem.id?"white":"rgba(255,255,255,.42)"}} data-testid={`tab-${tabItem.id}`}>{tab===tabItem.id&&<span className="absolute inset-x-4 bottom-0 h-[3px] rounded-full" style={{background:"linear-gradient(90deg,#FF1493,#008CFF)",boxShadow:"0 0 10px rgba(255,20,147,.4)"}}/>}<tabItem.icon size={16} className="opacity-70" />{tabItem.label}</button>)}
+      <div className="mt-7 grid grid-cols-3 border-b border-white/[0.08]">
+        {[{id:"grid",label:"Post"},...(isOwn?[{id:"saved",label:"Saved"},{id:"analytics",label:"Statistique"}]:[])].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as typeof tab)} className="relative h-[60px] flex items-center justify-center bg-[#07070b] text-[15px] font-bold" style={{color:tab===tabItem.id?"#fff":"rgba(255,255,255,.43)"}} data-testid={`tab-${tabItem.id}`}>
+          {tab===tabItem.id&&<span className="absolute inset-x-3 bottom-0 h-[3px] rounded-full" style={{background:"linear-gradient(90deg,#FF1493,#008CFF)",boxShadow:"0 0 11px rgba(255,20,147,.55)"}}/>}
+          {tabItem.label}
+        </button>)}
       </div>
 
-      {tab==="grid"&&<div className="grid grid-cols-3 gap-2 px-3 pt-3">
-        {userPosts.length>0?userPosts.map(post=><div key={post.id} className="relative aspect-square overflow-hidden rounded-[18px] p-[2px]" style={{background:"linear-gradient(135deg,rgba(255,20,147,.9),rgba(0,140,255,.85))"}}>
-          <button onClick={()=>setLocation(post.url)} className="w-full h-full overflow-hidden rounded-[16px] bg-[#09090e]" data-testid={`grid-post-${post.id}`}><img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover"/></button>
-          {isOwn&&<button onClick={event=>{event.stopPropagation();setDeletePostId(post.id)}} className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/65 backdrop-blur-sm flex items-center justify-center" aria-label="Delete post" data-testid={`btn-delete-post-${post.id}`}><Trash2 size={15} className="text-white"/></button>}
-        </div>):<div className="col-span-3 py-16 text-center text-white/35 text-sm">{isOwn?"No posts yet":"No posts"}</div>}
+      {tab==="grid"&&<div className="grid grid-cols-3 gap-[7px] px-3 pt-3">
+        {userPosts.length>0?userPosts.map(post=><div key={post.id} className="relative aspect-square overflow-hidden rounded-[17px] p-[2px]" style={{background:"linear-gradient(135deg,rgba(255,20,147,.95),rgba(0,140,255,.9))"}}>
+          <button onClick={()=>setLocation(post.url)} className="h-full w-full overflow-hidden rounded-[15px] bg-[#09090e]" data-testid={`grid-post-${post.id}`}><img src={post.imageUrl} alt={post.caption} className="h-full w-full object-cover"/></button>
+          {isOwn&&<button onClick={event=>{event.stopPropagation();setDeletePostId(post.id)}} className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/65 backdrop-blur-sm" aria-label="Delete post" data-testid={`btn-delete-post-${post.id}`}><Trash2 size={15} className="text-white"/></button>}
+        </div>):<div className="col-span-3 py-16 text-center text-sm text-white/35">{isOwn?"No posts yet":"No posts"}</div>}
       </div>}
 
-      {tab==="saved"&&<div className="grid grid-cols-3 gap-2 px-3 pt-3">
-        {isOwn&&savedPostsError?<div className="col-span-3 py-16 px-4 text-center"><p className="text-white/60 text-sm">Unable to load saved posts</p><p className="text-white/30 text-xs mt-1">{savedPostsError}</p></div>:isOwn&&savedPosts.length>0?savedPosts.map(post=><button key={post.id} onClick={()=>setLocation(post.url)} className="aspect-square overflow-hidden rounded-[18px] p-[2px]" style={{background:"linear-gradient(135deg,rgba(255,20,147,.9),rgba(0,140,255,.85))"}} data-testid={`profile-saved-post-${post.id}`}>{post.mediaUrl?<img src={post.mediaUrl} alt={post.caption} className="w-full h-full rounded-[16px] object-cover"/>:<div className="w-full h-full rounded-[16px] p-3 flex items-center justify-center bg-[#101018]"><p className="text-white/75 text-xs leading-snug line-clamp-6 text-left">{post.caption||"Saved post"}</p></div>}</button>):<div className="col-span-3 py-16 text-center text-white/35 text-sm">No saved posts yet</div>}
+      {tab==="saved"&&<div className="grid grid-cols-3 gap-[7px] px-3 pt-3">
+        {isOwn&&savedPostsError?<div className="col-span-3 px-4 py-16 text-center"><p className="text-sm text-white/60">Unable to load saved posts</p><p className="mt-1 text-xs text-white/30">{savedPostsError}</p></div>:isOwn&&savedPosts.length>0?savedPosts.map(post=><button key={post.id} onClick={()=>setLocation(post.url)} className="aspect-square overflow-hidden rounded-[17px] p-[2px]" style={{background:"linear-gradient(135deg,rgba(255,20,147,.95),rgba(0,140,255,.9))"}} data-testid={`profile-saved-post-${post.id}`}>{post.mediaUrl?<img src={post.mediaUrl} alt={post.caption} className="h-full w-full rounded-[15px] object-cover"/>:<div className="flex h-full w-full items-center justify-center rounded-[15px] bg-[#101018] p-3"><p className="line-clamp-6 text-left text-xs leading-snug text-white/75">{post.caption||"Saved post"}</p></div>}</button>):<div className="col-span-3 py-16 text-center text-sm text-white/35">No saved posts yet</div>}
       </div>}
 
-      {tab==="analytics"&&<div className="px-4 py-4 flex flex-col gap-3">
-        {[{label:"Profile Views",value:analytics.profileViews},{label:"Post Impressions",value:analytics.postImpressions},{label:"Reach",value:analytics.reach}].map(stat=><div key={stat.label} className="p-4 rounded-2xl flex items-center justify-between" style={{background:"rgba(255,255,255,.045)",border:"1px solid rgba(255,255,255,.08)"}}><div><p className="text-white/50 text-xs mb-1">{stat.label}</p><p className="font-extrabold text-2xl">{analyticsLoading?"…":formatCount(stat.value)}</p></div><span className="text-xs px-2.5 py-1 rounded-full text-white/45 bg-white/5">All time</span></div>)}
-        {analyticsError&&<p className="text-red-300/80 text-xs px-1">{analyticsError}</p>}
+      {tab==="analytics"&&<div className="flex flex-col gap-3 px-4 py-4">
+        {[{label:"Profile Views",value:analytics.profileViews},{label:"Post Impressions",value:analytics.postImpressions},{label:"Reach",value:analytics.reach}].map(stat=><div key={stat.label} className="flex items-center justify-between rounded-2xl p-4" style={{background:"rgba(255,255,255,.045)",border:"1px solid rgba(255,255,255,.08)"}}><div><p className="mb-1 text-xs text-white/50">{stat.label}</p><p className="text-2xl font-extrabold">{analyticsLoading?"…":formatCount(stat.value)}</p></div><span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-white/45">All time</span></div>)}
+        {analyticsError&&<p className="px-1 text-xs text-red-300/80">{analyticsError}</p>}
       </div>}
 
       <BottomNav />
-      {showPhotoViewer&&<ScreenPortal><div className="fixed inset-0 z-50 bg-black/92 flex items-center justify-center" onClick={()=>setShowPhotoViewer(false)}>
-        <div className="w-72 h-72 rounded-full p-1" style={{background:GRADIENT,boxShadow:"0 0 80px rgba(255,0,110,0.5)"}}><img src={user.avatar} alt={user.displayName} className="w-full h-full rounded-full object-cover" style={{border:"3px solid #0D0B14"}}/></div>
-        <button onClick={()=>setShowPhotoViewer(false)} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center" data-testid="btn-close-photo-viewer"><ArrowLeft size={18} className="text-white"/></button>
+      {showPhotoViewer&&<ScreenPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/92" onClick={()=>setShowPhotoViewer(false)}>
+        <div className="h-72 w-72 rounded-full p-1" style={{background:GRADIENT,boxShadow:"0 0 80px rgba(255,0,110,0.5)"}}><img src={user.avatar} alt={user.displayName} className="h-full w-full rounded-full object-cover" style={{border:"3px solid #0D0B14"}}/></div>
+        <button onClick={()=>setShowPhotoViewer(false)} className="absolute right-6 top-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/10" data-testid="btn-close-photo-viewer"><ArrowLeft size={18} className="text-white"/></button>
       </div></ScreenPortal>}
 
       {deletePostId && <ScreenPortal>
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-5" onClick={() => !deletingPost && setDeletePostId(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5" onClick={() => !deletingPost && setDeletePostId(null)}>
           <div className="w-full max-w-sm rounded-2xl p-5" style={{background:"rgba(18,15,30,0.98)",border:"1px solid rgba(255,255,255,0.1)"}} onClick={(event) => event.stopPropagation()}>
-            <h3 className="text-white font-semibold text-base">Delete this post?</h3>
-            <p className="text-white/45 text-sm mt-1">This post will be permanently removed from your profile and feed.</p>
-            <div className="flex gap-2 mt-5">
-              <button disabled={deletingPost} onClick={() => setDeletePostId(null)} className="flex-1 py-2.5 rounded-xl bg-white/5 text-white/65 text-sm">Cancel</button>
-              <button disabled={deletingPost} onClick={() => void deleteOwnPost()} className="flex-1 py-2.5 rounded-xl bg-red-500/15 text-red-400 text-sm font-semibold">{deletingPost ? "Deleting..." : "Delete"}</button>
+            <h3 className="text-base font-semibold text-white">Delete this post?</h3>
+            <p className="mt-1 text-sm text-white/45">This post will be permanently removed from your profile and feed.</p>
+            <div className="mt-5 flex gap-2">
+              <button disabled={deletingPost} onClick={() => setDeletePostId(null)} className="flex-1 rounded-xl bg-white/5 py-2.5 text-sm text-white/65">Cancel</button>
+              <button disabled={deletingPost} onClick={() => void deleteOwnPost()} className="flex-1 rounded-xl bg-red-500/15 py-2.5 text-sm font-semibold text-red-400">{deletingPost ? "Deleting..." : "Delete"}</button>
             </div>
           </div>
         </div>
       </ScreenPortal>}
       
-      {showOptions&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setShowOptions(false)}/><div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden" style={{background:"rgba(18,15,30,0.98)",border:"1px solid rgba(255,0,110,0.15)"}}>
-        <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-1"/>
-        {[{icon:<Share2 size={18}/>,label:t("shareProfile")},{icon:<Link2 size={18}/>,label:t("copyProfileLink")},{icon:<span className="text-red-400"><MoreHorizontal size={18}/></span>,label:<span className="text-red-400">{t("report")}</span>}].map((item,i)=><button key={i} onClick={()=>setShowOptions(false)} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{borderTop:"1px solid rgba(255,255,255,0.06)"}}>{item.icon}{item.label}</button>)}
-        <button onClick={()=>setShowOptions(false)} className="w-full py-4 text-white/50 text-sm">{t("cancel")}</button>
+      {showOptions&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setShowOptions(false)}/><div className="fixed bottom-0 left-1/2 z-50 w-full max-w-[430px] -translate-x-1/2 overflow-hidden rounded-t-2xl" style={{background:"rgba(18,15,30,0.98)",border:"1px solid rgba(255,0,110,0.15)"}}>
+        <div className="mx-auto mb-1 mt-3 h-1 w-10 rounded-full bg-white/20"/>
+        {[{icon:<Share2 size={18}/>,label:t("shareProfile")},{icon:<Link2 size={18}/>,label:t("copyProfileLink")},{icon:<span className="text-red-400"><MoreHorizontal size={18}/></span>,label:<span className="text-red-400">{t("report")}</span>}].map((item,i)=><button key={i} onClick={()=>setShowOptions(false)} className="w-full flex items-center gap-3 px-5 py-4 text-sm font-medium text-white/85" style={{borderTop:"1px solid rgba(255,255,255,0.06)"}}>{item.icon}{item.label}</button>)}
+        <button onClick={()=>setShowOptions(false)} className="w-full py-4 text-sm text-white/50">{t("cancel")}</button>
       </div></></ScreenPortal>}
     </div>
-  );
-}
+  );}
