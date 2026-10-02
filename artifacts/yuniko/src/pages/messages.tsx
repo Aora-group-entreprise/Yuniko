@@ -18,6 +18,8 @@ type Conversation = {
 };
 
 const GRADIENT="linear-gradient(135deg,#FF006E 0%,#8B00FF 100%)";
+const MESSAGE_LONG_PRESS_MS=800;
+const MESSAGE_TAP_MAX_MS=250;
 
 function formatTime(value:string|null){
   if(!value) return "";
@@ -118,12 +120,13 @@ export default function Messages(){
             if(row){row.style.transition="none";row.style.transform="translate3d(0,0,0)";}
             if(archiveIcon){archiveIcon.style.transition="none";archiveIcon.style.opacity="0";archiveIcon.style.transform="translate3d(0,0,0) scale(.78) rotate(-8deg)";}
             const state={id:conv.id,x:touch.clientX,y:touch.clientY,startedAt:Date.now(),longPressTimer:null as number|null,longPressed:false,swiping:false,offset:0};
+            suppressClickRef.current=true;
             state.longPressTimer=window.setTimeout(()=>{
               state.longPressed=true;
               if(navigator.vibrate)navigator.vibrate(25);
               suppressClickRef.current=true;
               setSelected(conv);
-            },500);
+            },MESSAGE_LONG_PRESS_MS);
             gestureRef.current=state;
           };
           const onTouchMove=(e:React.TouchEvent)=>{
@@ -180,6 +183,13 @@ export default function Messages(){
               }
               if(shouldArchive){window.setTimeout(()=>{void archive(conv);},220);}
               return;
+            }
+            const elapsed=Date.now()-state.startedAt;
+            if(elapsed<=MESSAGE_TAP_MAX_MS){
+              suppressClickRef.current=false;
+              setLocation(`/chat/${conv.user.id}`);
+            }else{
+              suppressClickRef.current=true;
             }
           };
           return <div key={conv.id} className="relative w-full overflow-hidden" style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
