@@ -46,7 +46,7 @@ export default function Messages(){
   const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean;swiping:boolean;offset:number}|null>(null);
   const rowRefs=useRef<Record<number,HTMLButtonElement|null>>({});
   const archiveRefs=useRef<Record<number,HTMLDivElement|null>>({});
-  const suppressClickRef=useRef(false); const longPressOpenedRef=useRef(false);
+  const suppressClickRef=useRef(false); const longPressOpenedRef=useRef(false); const panelTouchLockRef=useRef(false);
 
   const load=()=>{
     setLoading(true);setError(null);
@@ -126,6 +126,7 @@ export default function Messages(){
               if(navigator.vibrate)navigator.vibrate(25);
               suppressClickRef.current=true;
               longPressOpenedRef.current=true;
+              panelTouchLockRef.current=true;
               setSelected(conv);
             },MESSAGE_LONG_PRESS_MS);
             gestureRef.current=state;
@@ -168,6 +169,7 @@ export default function Messages(){
             const archiveIcon=archiveRefs.current[conv.id];
             if(state.longPressed||longPressOpenedRef.current){
               // The action panel owns its own lifecycle. Releasing the finger must not close it.
+              panelTouchLockRef.current=false;
               if(row){row.style.transition="transform 180ms ease-out";row.style.transform="translate3d(0,0,0)";}
               if(archiveIcon){archiveIcon.style.transition="opacity 150ms ease-out, transform 180ms cubic-bezier(.2,.8,.2,1)";archiveIcon.style.opacity="0";archiveIcon.style.transform="translate3d(0,0,0) scale(.78) rotate(-8deg)";}
               suppressClickRef.current=true;
@@ -227,8 +229,8 @@ export default function Messages(){
       <div className="h-6"/>
     </div></></ScreenPortal>}
 
-    {selected&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setSelected(null)}/>
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)",border:"1px solid rgba(255,255,255,0.08)"}} data-testid="conversation-actions-panel">
+    {selected&&<ScreenPortal><><div className="fixed inset-0 z-50 bg-black/60" style={{pointerEvents:panelTouchLockRef.current?"none":"auto"}} onClick={()=>{if(panelTouchLockRef.current)return;setSelected(null)}}/>
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden" style={{background:"rgba(18,15,30,0.99)",border:"1px solid rgba(255,255,255,0.08)",pointerEvents:panelTouchLockRef.current?"none":"auto"}} data-testid="conversation-actions-panel">
         <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2"/>
         <div className="px-5 py-4 flex items-center gap-3" style={{borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
           <img src={selected.user.avatarUrl??`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(selected.user.displayName)}`} alt={selected.user.displayName} className="w-11 h-11 rounded-full object-cover"/>
