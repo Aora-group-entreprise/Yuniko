@@ -104,7 +104,7 @@ export default function StoryViewer() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [replyText, setReplyText] = useState("");
   const [liked, setLiked] = useState(false);
   const [reactionShown, setReactionShown] = useState(false);
@@ -180,28 +180,30 @@ export default function StoryViewer() {
       data-testid="story-viewer"
     >
       <div
-        className="relative mx-auto min-h-screen w-full max-w-[752px] overflow-hidden bg-[#08070d] shadow-[0_0_70px_rgba(0,0,0,.65)] md:my-4 md:min-h-[calc(100vh-32px)] md:rounded-[28px]"
+        className="relative mx-auto h-[calc(100vh-48px)] min-h-[720px] w-full max-w-[752px] overflow-hidden bg-[#08070d] shadow-[0_0_70px_rgba(0,0,0,.65)] md:my-6 md:rounded-[28px]"
       >
-        <img
-          src={currentStory.imageUrl}
-          alt="Story"
-          className="absolute inset-0 z-0 h-full w-full object-cover"
-          onPointerDown={() => setPaused(true)}
-          onPointerUp={() => setPaused(false)}
-          onPointerCancel={() => setPaused(false)}
+        <div
+          className="absolute left-0 right-0 top-[238px] bottom-[220px] z-0 overflow-hidden bg-black"
+          data-testid="story-media"
+        >
+          <img
+            src={currentStory.imageUrl}
+            alt="Story"
+            className="h-full w-full object-cover"
+          />
+        </div>
+
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[280px]"
+          style={{ background: "linear-gradient(to bottom, rgba(4,3,9,.98) 0%, rgba(4,3,9,.92) 55%, rgba(4,3,9,.20) 88%, transparent 100%)" }}
         />
 
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-48"
-          style={{ background: "linear-gradient(to bottom, rgba(4,3,9,.84) 0%, rgba(4,3,9,.40) 45%, transparent 100%)" }}
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[280px]"
+          style={{ background: "linear-gradient(to top, rgba(4,3,9,.98) 0%, rgba(4,3,9,.94) 42%, rgba(4,3,9,.28) 78%, transparent 100%)" }}
         />
 
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-64"
-          style={{ background: "linear-gradient(to top, rgba(4,3,9,.94) 0%, rgba(4,3,9,.48) 46%, transparent 100%)" }}
-        />
-
-        <div className="absolute left-8 right-8 top-5 z-40 flex gap-3" data-testid="story-progress">
+        <div className="absolute left-8 right-8 top-10 z-40 flex gap-4" data-testid="story-progress">
           {Array.from({ length: segmentCount }).map((_, i) => {
             const isRealSegment = i < userStories.length;
             const width = !isRealSegment
@@ -232,14 +234,14 @@ export default function StoryViewer() {
           })}
         </div>
 
-        <div className="absolute left-8 right-8 top-[54px] z-40 flex items-center justify-between gap-4">
+        <div className="absolute left-8 right-8 top-[124px] z-40 flex items-center justify-between gap-4">
           <button
             onClick={() => setLocation(`/user/${storyUser.id}`)}
             className="flex min-w-0 items-center gap-3 text-left"
             data-testid="btn-story-user"
           >
             <div
-              className="h-[58px] w-[58px] shrink-0 rounded-full p-[3px]"
+              className="h-[74px] w-[74px] shrink-0 rounded-full p-[3px]"
               style={{
                 background: "linear-gradient(135deg,#FF1493 0%,#8B5CF6 52%,#008CFF 100%)",
                 boxShadow: "0 0 16px rgba(255,20,147,.28)",
@@ -248,22 +250,22 @@ export default function StoryViewer() {
               <img
                 src={storyUser.avatar}
                 alt={storyUser.displayName}
-                className="h-full w-full rounded-full border-[3px] border-[#090810] object-cover"
+                className="h-full w-full rounded-full border-[4px] border-[#090810] object-cover"
               />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="truncate text-[19px] font-bold tracking-[-.02em] text-white">{storyUser.displayName}</span>
+                <span className="truncate text-[25px] font-bold tracking-[-.025em] text-white">{storyUser.displayName}</span>
                 {storyUser.verified && <BadgeCheck size={15} className="fill-blue-300 text-blue-300" />}
               </div>
-              <span className="text-[16px] font-medium text-white/75">{currentStory.timestamp} {t("ago")}</span>
+              <span className="text-[19px] font-medium text-white/75">{currentStory.timestamp} {t("ago")}</span>
             </div>
           </button>
 
           <div className="flex shrink-0 items-center gap-3">
             <button
               onClick={() => setPaused((value) => !value)}
-              className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
+              className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
               aria-label={paused ? "Resume story" : "Pause story"}
               data-testid="btn-story-pause"
             >
@@ -288,7 +290,7 @@ export default function StoryViewer() {
           </div>
         </div>
 
-        <div className="absolute inset-0 z-20 flex">
+        <div className="absolute inset-x-0 top-[238px] bottom-[220px] z-20 flex">
           <button aria-label="Previous story" className="h-full w-1/2 cursor-default" onClick={goPrev} />
           <button aria-label="Next story" className="h-full w-1/2 cursor-default" onClick={goNext} />
         </div>
@@ -308,9 +310,9 @@ export default function StoryViewer() {
           </div>
         )}
 
-        <div className="absolute bottom-[96px] left-8 right-8 z-40 flex items-center gap-3">
+        <div className="absolute bottom-[106px] left-8 right-8 z-40 flex items-center gap-3">
           <div
-            className="flex min-w-0 flex-1 items-center rounded-full px-7 py-[17px]"
+            className="flex min-w-0 flex-1 items-center rounded-full px-7 py-[15px]"
             style={{
               background: "rgba(20,18,31,.90)",
               border: "2px solid transparent",
@@ -325,7 +327,7 @@ export default function StoryViewer() {
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder={`Reply to ${storyUser.displayName}...`}
-              className="min-w-0 flex-1 bg-transparent text-[17px] font-medium text-white outline-none placeholder:text-white/55"
+              className="min-w-0 flex-1 bg-transparent text-[18px] font-medium text-white outline-none placeholder:text-white/55"
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               data-testid="input-story-reply"
@@ -335,7 +337,7 @@ export default function StoryViewer() {
                 e.stopPropagation();
                 toggleReaction();
               }}
-              className="ml-3 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
+              className="ml-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
               aria-label={liked ? "Unlike story" : "Like story"}
               data-testid="btn-story-heart"
             >
@@ -361,7 +363,7 @@ export default function StoryViewer() {
                 e.stopPropagation();
                 setReplyText("");
               }}
-              className="ml-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
+              className="ml-2 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
               aria-label="Send reply"
               data-testid="btn-send-reply"
             >
@@ -372,7 +374,7 @@ export default function StoryViewer() {
 
         {currentStory.location && (
           <div
-            className="absolute bottom-8 left-8 z-40 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[16px] font-semibold text-white"
+            className="absolute bottom-8 left-8 z-40 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[17px] font-semibold text-white"
             style={{
               border: "2px solid transparent",
               backgroundImage: "linear-gradient(rgba(20,18,31,.86),rgba(20,18,31,.86)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)",
