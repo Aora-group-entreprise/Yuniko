@@ -286,13 +286,26 @@ export default function Chat(){
   if(!user)return null;
 
   return <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 flex flex-col overflow-hidden" style={{background:"#050509"}}>
-    <header className="relative z-40 shrink-0 px-3 pt-5 pb-4 flex items-center gap-3" style={{background:"rgba(13,11,20,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-      <button onClick={()=>setLocation("/messages")} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full" style={{background:"rgba(255,255,255,.045)",border:"1px solid rgba(255,255,255,.08)"}} aria-label="Back to messages"><ArrowLeft size={25} className="text-white/85" strokeWidth={1.8}/></button>
-      <button onClick={()=>setLocation("/user/"+user.id)} className="flex items-center gap-3 flex-1 text-left">
-        <img src={avatar(user)} alt={user.displayName} className="w-[62px] h-[62px] rounded-full object-cover border-[3px] border-[#050509]"/>
-        <div><div className="flex items-center gap-1"><span className="text-white font-extrabold text-[27px] leading-none tracking-[-0.03em]">{nickname||user.displayName}</span>{user.verified&&<BadgeCheck size={13} className="text-blue-400 fill-blue-400"/>}</div><span className="text-white/52 text-[14px]">{otherTyping?"typing…":otherActiveAt?"active recently":"@"+user.username}</span></div>
+    <header className="relative z-40 shrink-0 px-3 pt-[max(10px,env(safe-area-inset-top,0px))] pb-3 flex items-center gap-2.5" style={{background:"rgba(5,5,9,0.96)",backdropFilter:"blur(22px)",borderBottom:"1px solid rgba(255,255,255,0.055)"}}>
+      <button onClick={()=>setLocation("/messages")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" aria-label="Back to messages"><ArrowLeft size={23} className="text-white/90" strokeWidth={2}/></button>
+      <button onClick={()=>setLocation("/user/"+user.id)} className="min-w-0 flex-1 flex items-center gap-2.5 text-left">
+        <div className="relative shrink-0">
+          <img src={avatar(user)} alt={user.displayName} className="w-11 h-11 rounded-full object-cover"/>
+          <span className="absolute right-0 bottom-0 w-3 h-3 rounded-full border-2 border-[#050509] bg-[#35d16f]"/>
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-white font-semibold text-[16px] leading-tight truncate">{nickname||user.displayName}</span>
+            {user.verified&&<BadgeCheck size={13} className="shrink-0 text-blue-400 fill-blue-400"/>}
+          </div>
+          <span className="block text-white/45 text-[12px] leading-tight mt-0.5 truncate">{otherTyping?"typing…":otherActiveAt?"active recently":"@"+user.username}</span>
+        </div>
       </button>
-      <div className="flex items-center gap-3"><button onClick={()=>setLocation("/voice-call/"+user.id)}><Phone size={25} className="text-white/72" strokeWidth={1.7}/></button><button onClick={()=>setLocation("/video-call/"+user.id)}><Video size={25} className="text-white/72" strokeWidth={1.7}/></button><button onClick={()=>setShowChatMenu(true)} aria-label="Chat options"><MoreHorizontal size={26} className="text-white/72" strokeWidth={1.7}/></button></div>
+      <div className="shrink-0 flex items-center gap-1">
+        <button onClick={()=>setLocation("/voice-call/"+user.id)} className="flex h-10 w-10 items-center justify-center rounded-full" aria-label="Voice call"><Phone size={22} className="text-white/80" strokeWidth={1.8}/></button>
+        <button onClick={()=>setLocation("/video-call/"+user.id)} className="flex h-10 w-10 items-center justify-center rounded-full" aria-label="Video call"><Video size={22} className="text-white/80" strokeWidth={1.8}/></button>
+        <button onClick={()=>setShowChatMenu(true)} className="flex h-10 w-10 items-center justify-center rounded-full" aria-label="Chat options"><MoreHorizontal size={23} className="text-white/80" strokeWidth={1.8}/></button>
+      </div>
     </header>
     {error&&<div className="shrink-0 px-3 py-2 text-xs text-red-300/80 bg-red-500/5">{error}</div>}
     <div className="flex-1 min-h-0 overflow-y-auto px-4 py-5 pb-28" data-testid="messages-container">
