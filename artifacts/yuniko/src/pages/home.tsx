@@ -218,7 +218,7 @@ export default function Home() {
         )}
       </main>
 
-      <BottomNav feedStyle />
+      <BottomNav />
 
       <AnimatePresence>
         {optionsPostId && (
