@@ -46,7 +46,7 @@ export default function Messages(){
   const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean;swiping:boolean;offset:number}|null>(null);
   const rowRefs=useRef<Record<number,HTMLButtonElement|null>>({});
   const archiveRefs=useRef<Record<number,HTMLDivElement|null>>({});
-  const suppressClickRef=useRef(false);\n  const longPressOpenedRef=useRef(false);
+  const suppressClickRef=useRef(false); const longPressOpenedRef=useRef(false);
 
   const load=()=>{
     setLoading(true);setError(null);
