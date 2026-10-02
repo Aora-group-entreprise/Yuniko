@@ -180,10 +180,10 @@ export default function StoryViewer() {
       data-testid="story-viewer"
     >
       <div
-        className="relative mx-auto h-[calc(100vh-48px)] min-h-[720px] w-full max-w-[752px] overflow-hidden bg-[#08070d] shadow-[0_0_70px_rgba(0,0,0,.65)] md:my-6 md:rounded-[28px]"
+        className="relative mx-auto h-[calc(100vh-64px)] min-h-[680px] w-full max-w-[752px] overflow-hidden bg-[#08070d] shadow-[0_0_70px_rgba(0,0,0,.65)] md:my-8 md:rounded-[28px]"
       >
         <div
-          className="absolute left-0 right-0 top-[238px] bottom-[220px] z-0 overflow-hidden bg-black"
+          className="absolute left-0 right-0 top-[222px] bottom-[228px] z-0 overflow-hidden bg-black"
           data-testid="story-media"
         >
           <img
@@ -194,7 +194,7 @@ export default function StoryViewer() {
         </div>
 
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[280px]"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[250px]"
           style={{ background: "linear-gradient(to bottom, rgba(4,3,9,.98) 0%, rgba(4,3,9,.92) 55%, rgba(4,3,9,.20) 88%, transparent 100%)" }}
         />
 
@@ -234,14 +234,14 @@ export default function StoryViewer() {
           })}
         </div>
 
-        <div className="absolute left-8 right-8 top-[124px] z-40 flex items-center justify-between gap-4">
+        <div className="absolute left-8 right-8 top-[104px] z-40 flex items-center justify-between gap-4">
           <button
             onClick={() => setLocation(`/user/${storyUser.id}`)}
             className="flex min-w-0 items-center gap-3 text-left"
             data-testid="btn-story-user"
           >
             <div
-              className="h-[74px] w-[74px] shrink-0 rounded-full p-[3px]"
+              className="h-[108px] w-[108px] shrink-0 rounded-full p-[4px]"
               style={{
                 background: "linear-gradient(135deg,#FF1493 0%,#8B5CF6 52%,#008CFF 100%)",
                 boxShadow: "0 0 16px rgba(255,20,147,.28)",
@@ -250,15 +250,15 @@ export default function StoryViewer() {
               <img
                 src={storyUser.avatar}
                 alt={storyUser.displayName}
-                className="h-full w-full rounded-full border-[4px] border-[#090810] object-cover"
+                className="h-full w-full rounded-full border-[5px] border-[#090810] object-cover"
               />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="truncate text-[25px] font-bold tracking-[-.025em] text-white">{storyUser.displayName}</span>
+                <span className="truncate text-[34px] font-bold tracking-[-.03em] text-white">{storyUser.displayName}</span>
                 {storyUser.verified && <BadgeCheck size={15} className="fill-blue-300 text-blue-300" />}
               </div>
-              <span className="text-[19px] font-medium text-white/75">{currentStory.timestamp} {t("ago")}</span>
+              <span className="text-[23px] font-medium text-white/75">{currentStory.timestamp} {t("ago")}</span>
             </div>
           </button>
 
@@ -310,9 +310,9 @@ export default function StoryViewer() {
           </div>
         )}
 
-        <div className="absolute bottom-[106px] left-8 right-8 z-40 flex items-center gap-3">
+        <div className="absolute bottom-[112px] left-8 right-8 z-40 flex items-center gap-3">
           <div
-            className="flex min-w-0 flex-1 items-center rounded-full px-7 py-[15px]"
+            className="flex min-w-0 flex-1 items-center rounded-full px-7 py-[20px]"
             style={{
               background: "rgba(20,18,31,.90)",
               border: "2px solid transparent",
@@ -327,7 +327,7 @@ export default function StoryViewer() {
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder={`Reply to ${storyUser.displayName}...`}
-              className="min-w-0 flex-1 bg-transparent text-[18px] font-medium text-white outline-none placeholder:text-white/55"
+              className="min-w-0 flex-1 bg-transparent text-[20px] font-medium text-white outline-none placeholder:text-white/55"
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               data-testid="input-story-reply"
@@ -337,7 +337,7 @@ export default function StoryViewer() {
                 e.stopPropagation();
                 toggleReaction();
               }}
-              className="ml-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
+              className="ml-4 flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
               aria-label={liked ? "Unlike story" : "Like story"}
               data-testid="btn-story-heart"
             >
@@ -363,7 +363,7 @@ export default function StoryViewer() {
                 e.stopPropagation();
                 setReplyText("");
               }}
-              className="ml-2 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
+              className="ml-2 flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
               aria-label="Send reply"
               data-testid="btn-send-reply"
             >
@@ -374,7 +374,7 @@ export default function StoryViewer() {
 
         {currentStory.location && (
           <div
-            className="absolute bottom-8 left-8 z-40 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[17px] font-semibold text-white"
+            className="absolute bottom-8 left-8 z-40 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[18px] font-semibold text-white"
             style={{
               border: "2px solid transparent",
               backgroundImage: "linear-gradient(rgba(20,18,31,.86),rgba(20,18,31,.86)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)",
