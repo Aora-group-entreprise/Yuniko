@@ -120,10 +120,12 @@ export default function Messages(){
             if(archiveIcon){archiveIcon.style.transition="none";archiveIcon.style.opacity="0";archiveIcon.style.transform="translate3d(0,0,0) scale(.78) rotate(-8deg)";}
             const state={id:conv.id,x:touch.clientX,y:touch.clientY,startedAt:Date.now(),longPressTimer:null as number|null,longPressed:false,swiping:false,offset:0};
             suppressClickRef.current=true;
+            longPressOpenedRef.current=false;
             state.longPressTimer=window.setTimeout(()=>{
               state.longPressed=true;
               if(navigator.vibrate)navigator.vibrate(25);
               suppressClickRef.current=true;
+              longPressOpenedRef.current=true;
               setSelected(conv);
             },MESSAGE_LONG_PRESS_MS);
             gestureRef.current=state;
@@ -164,7 +166,7 @@ export default function Messages(){
             if(state.longPressTimer!==null){window.clearTimeout(state.longPressTimer);state.longPressTimer=null;}
             const row=rowRefs.current[conv.id];
             const archiveIcon=archiveRefs.current[conv.id];
-            if(state.longPressed){
+            if(state.longPressed||longPressOpenedRef.current){
               // The action panel owns its own lifecycle. Releasing the finger must not close it.
               if(row){row.style.transition="transform 180ms ease-out";row.style.transform="translate3d(0,0,0)";}
               if(archiveIcon){archiveIcon.style.transition="opacity 150ms ease-out, transform 180ms cubic-bezier(.2,.8,.2,1)";archiveIcon.style.opacity="0";archiveIcon.style.transform="translate3d(0,0,0) scale(.78) rotate(-8deg)";}
