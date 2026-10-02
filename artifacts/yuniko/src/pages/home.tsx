@@ -183,26 +183,27 @@ export default function Home() {
         }}
         data-testid="posts-feed"
       >
-        {feedLoading ? <LoadingSkeleton variant="feed" /> : allFeedItems.length === 0 ? (
-          <div className="flex min-h-[55vh] flex-col items-center justify-center px-8 text-center">
-            <Globe size={34} style={{ color: "#FF2FA4" }} className="mb-3" />
-            <p className="font-semibold text-white">Your feed is empty</p>
-            <p className="mt-1 text-sm text-white/45">Be the first to share something with the Yuniko community.</p>
-            <button
-              onClick={() => setLocation("/create")}
-              className="mt-5 rounded-full px-5 py-2.5 text-sm font-semibold text-white"
-              style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 6px 22px rgba(255,20,147,.22)" }}
-            >
-              Create a post
-            </button>
-          </div>
-        ) : (
+        {feedLoading ? <LoadingSkeleton variant="feed" /> : (
           <div className="mx-auto w-full max-w-[680px]">
             <StoryRail
-  stories={liveStories.filter((story) => Number(story.userId) !== Number(user?.id))}
-  ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id}
-/>
-            {allFeedItems.map(({ post, author }, index) => (
+              stories={liveStories.filter((story) => Number(story.userId) !== Number(user?.id))}
+              ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id}
+            />
+            {allFeedItems.length === 0 ? (
+              <div className="flex min-h-[55vh] flex-col items-center justify-center px-8 text-center">
+                <Globe size={34} style={{ color: "#FF2FA4" }} className="mb-3" />
+                <p className="font-semibold text-white">Your feed is empty</p>
+                <p className="mt-1 text-sm text-white/45">Be the first to share something with the Yuniko community.</p>
+                <button
+                  onClick={() => setLocation("/create")}
+                  className="mt-5 rounded-full px-5 py-2.5 text-sm font-semibold text-white"
+                  style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 6px 22px rgba(255,20,147,.22)" }}
+                >
+                  Create a post
+                </button>
+              </div>
+            ) : (
+              allFeedItems.map(({ post, author }, index) => (
               <ReactFragment key={post.id}>
                 <article className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
                   <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
@@ -212,7 +213,8 @@ export default function Home() {
   ownStory={liveStories.find((story) => Number(story.userId) === Number(user?.id))}
  />}
               </ReactFragment>
-            ))}
+              ))}
+            )}
           </div>
         )}
       </main>
