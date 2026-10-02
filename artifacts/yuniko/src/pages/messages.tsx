@@ -46,7 +46,7 @@ export default function Messages(){
   const gestureRef=useRef<{id:number;x:number;y:number;startedAt:number;longPressTimer:number|null;longPressed:boolean;swiping:boolean;offset:number}|null>(null);
   const rowRefs=useRef<Record<number,HTMLButtonElement|null>>({});
   const archiveRefs=useRef<Record<number,HTMLDivElement|null>>({});
-  const suppressClickRef=useRef(false);
+  const suppressClickRef=useRef(false);\n  const longPressOpenedRef=useRef(false);
 
   const load=()=>{
     setLoading(true);setError(null);
@@ -192,7 +192,7 @@ export default function Messages(){
             <div ref={el=>{archiveRefs.current[conv.id]=el;}} className="absolute inset-y-0 left-0 w-24 flex items-center justify-center pointer-events-none" style={{opacity:0,transform:"translate3d(0,0,0) scale(.78) rotate(-8deg)"}}><Archive size={20} className="text-green-300"/></div>
             <button
               ref={el=>{rowRefs.current[conv.id]=el;}}
-              onClick={()=>{if(suppressClickRef.current){suppressClickRef.current=false;return;}setLocation(`/chat/${conv.user.id}`);}}
+              onClick={e=>{if(suppressClickRef.current||longPressOpenedRef.current){e.preventDefault();e.stopPropagation();suppressClickRef.current=false;return;}setLocation(`/chat/${conv.user.id}`);}}
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
