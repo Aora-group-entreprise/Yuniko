@@ -184,10 +184,6 @@ export default function Home() {
       >
         {feedLoading ? <LoadingSkeleton variant="feed" /> : (
           <div className="mx-auto w-full max-w-[680px]">
-            <StoryRail
-              stories={liveStories}
-              ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id}
-            />
             {allFeedItems.length === 0 ? (
               <div className="flex min-h-[55vh] flex-col items-center justify-center px-8 text-center">
                 <Globe size={34} style={{ color: "#FF2FA4" }} className="mb-3" />
@@ -202,7 +198,12 @@ export default function Home() {
                 </button>
               </div>
             ) : (
-              allFeedItems.map(({ post, author }, index) => (
+              <>
+                <StoryRail
+                  stories={liveStories}
+                  ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id}
+                />
+                {allFeedItems.map(({ post, author }, index) => (
               <ReactFragment key={post.id}>
                 <article className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
                   <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
@@ -212,7 +213,8 @@ export default function Home() {
   ownStory={liveStories.find((story) => Number(story.userId) === Number(user?.id))}
  />}
               </ReactFragment>
-              ))}
+                ))}
+              </>
             )}
           </div>
         )}
