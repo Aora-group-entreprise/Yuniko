@@ -279,14 +279,51 @@ function StoryRail({ stories, ownStoryId }: { stories: LiveStory[]; ownStoryId?:
 }
 
 function StoryCardRail({ stories, ownStory }: { stories: LiveStory[]; ownStory?: LiveStory }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const touchRef = useRef({ x: 0, y: 0, active: false });
+
+  const onTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    touchRef.current = { x: touch.clientX, y: touch.clientY, active: true };
+  };
+
+  const onTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchRef.current.active || !rowRef.current) return;
+
+    const touch = event.touches[0];
+    const dx = touch.clientX - touchRef.current.x;
+    const dy = touch.clientY - touchRef.current.y;
+
+    if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 4) return;
+
+    event.preventDefault();
+    rowRef.current.scrollLeft -= dx;
+    touchRef.current.x = touch.clientX;
+    touchRef.current.y = touch.clientY;
+  };
+
+  const onTouchEnd = () => {
+    touchRef.current.active = false;
+  };
+
   return (
     <section
       className="relative mb-7 w-full"
       data-testid="stories-card-section"
     >
       <div
+        ref={rowRef}
         className="flex items-start gap-2.5 overflow-x-auto no-scrollbar px-0.5"
-        style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
+        style={{
+          WebkitOverflowScrolling: "touch",
+          overscrollBehaviorX: "contain",
+          overscrollBehaviorY: "auto",
+          touchAction: "pan-y",
+        }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
         data-testid="stories-card-row"
       >
         <StoryCard
