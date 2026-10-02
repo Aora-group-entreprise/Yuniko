@@ -318,17 +318,10 @@ function StoryCard({
   label?: string;
 }) {
   const [, setLocation] = useLocation();
-  const { user: authUser } = useAuth();
 
   const displayName = isOwn
     ? label ?? "Your story"
     : story?.authorDisplayName ?? "Story";
-
-  const avatarSrc = isOwn
-    ? authUser?.avatarUrl ??
-      `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "U")}&backgroundColor=FF006E`
-    : story?.authorAvatarUrl ??
-      `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=FF006E`;
 
   const openStory = () => {
     if (isOwn) {
@@ -339,52 +332,53 @@ function StoryCard({
   };
 
   return (
-    <motion.button
-      onClick={openStory}
-      whileTap={{ scale: 0.97 }}
-      className="relative shrink-0 overflow-hidden rounded-[14px] text-left"
+    <div
+      className="relative shrink-0 overflow-hidden rounded-[15px] p-[1.5px]"
       style={{
         width: "clamp(108px, 28vw, 140px)",
         aspectRatio: "9 / 16",
-        background: "#16161d",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 8px 22px rgba(0,0,0,.28)",
+        background: "linear-gradient(135deg,#FF1493 0%,#FF2B9A 38%,#008CFF 100%)",
+        boxShadow: "0 8px 22px rgba(0,0,0,.28), 0 0 14px rgba(255,20,147,.12)",
       }}
-      aria-label={`Open ${displayName}`}
-      data-testid={`story-card-${userId ?? story?.id ?? "story"}`}
+      data-testid={`story-card-frame-${userId ?? story?.id ?? "story"}`}
     >
-      <img
-        src={story?.mediaUrl ?? avatarSrc}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover"
-        loading="lazy"
-      />
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "linear-gradient(180deg, rgba(0,0,0,.04) 35%, rgba(0,0,0,.82) 100%)",
-        }}
-      />
-      <div
-        className="absolute left-2.5 top-2.5 h-9 w-9 overflow-hidden rounded-full p-[2px]"
-        style={{
-          background: "linear-gradient(135deg,#FF1493 0%,#008CFF 100%)",
-          boxShadow: "0 0 10px rgba(255,20,147,.28)",
-        }}
+      <motion.button
+        onClick={openStory}
+        whileTap={{ scale: 0.97 }}
+        className="relative h-full w-full overflow-hidden rounded-[13.5px] text-left"
+        style={{ background: "#16161d" }}
+        aria-label={`Open ${displayName}`}
+        data-testid={`story-card-${userId ?? story?.id ?? "story"}`}
       >
-        <img
-          src={avatarSrc}
-          alt=""
-          className="h-full w-full rounded-full object-cover"
-          style={{ border: "2px solid #111118" }}
+        {story?.mediaUrl ? (
+          <img
+            src={story.mediaUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "linear-gradient(145deg,#171722 0%,#202034 55%,#11111a 100%)",
+            }}
+          />
+        )}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: "linear-gradient(180deg, rgba(0,0,0,.03) 35%, rgba(0,0,0,.84) 100%)",
+          }}
         />
-      </div>
-      <span className="absolute bottom-2.5 left-2.5 right-2.5 truncate text-[12px] font-bold leading-tight text-white">
-        {displayName}
-      </span>
-    </motion.button>
+        <span className="absolute bottom-2.5 left-2.5 right-2.5 truncate text-[12px] font-bold leading-tight text-white">
+          {displayName}
+        </span>
+      </motion.button>
+    </div>
   );
 }
+
 
 function LiveStoryAvatar({ story }: { story: LiveStory }) {
   const [, setLocation] = useLocation();
