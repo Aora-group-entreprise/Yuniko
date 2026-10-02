@@ -10,16 +10,17 @@ interface StoryAvatarProps {
   isOwn?: boolean;
   viewed?: boolean;
   label?: string;
+  storyId?: number;
 }
 
-export default function StoryAvatar({ userId, isOwn = false, viewed = false, label }: StoryAvatarProps) {
+export default function StoryAvatar({ userId, isOwn = false, viewed = false, label, storyId }: StoryAvatarProps) {
   const [, setLocation] = useLocation();
   const { user: authUser } = useAuth();
   const mockUser = isOwn ? null : getUserById(userId);
 
   const handleClick = () => {
     if (isOwn) {
-      setLocation("/create?mode=story");
+      setLocation(storyId ? `/story/live_${storyId}` : "/create?mode=story");
     } else {
       setLocation(`/story/${userId}`);
     }
@@ -47,7 +48,7 @@ export default function StoryAvatar({ userId, isOwn = false, viewed = false, lab
           className="w-[58px] h-[58px] rounded-full p-[2px]"
           style={
             isOwn
-              ? { background: "rgba(255,61,154,0.2)", border: "2px dashed rgba(255,61,154,0.5)" }
+              ? { background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)", boxShadow: "0 0 10px rgba(255,20,147,.35)" }
               : viewed
               ? { background: "rgba(255,255,255,0.15)" }
               : {

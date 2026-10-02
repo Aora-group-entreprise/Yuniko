@@ -198,7 +198,7 @@ export default function Home() {
           </div>
         ) : (
           <div className="mx-auto w-full max-w-[680px]">
-            <StoryRail stories={liveStories} />
+            <StoryRail stories={liveStories} ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id} />
             {allFeedItems.map(({ post, author }, index) => (
               <ReactFragment key={post.id}>
                 <article className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
@@ -244,7 +244,7 @@ export default function Home() {
   );
 }
 
-function StoryRail({ stories }: { stories: LiveStory[] }) {
+function StoryRail({ stories, ownStoryId }: { stories: LiveStory[]; ownStoryId?: number }) {
   return (
     <section
       className="relative mb-6 w-full rounded-[18px] px-3 py-2.5"
@@ -263,7 +263,7 @@ function StoryRail({ stories }: { stories: LiveStory[] }) {
         style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
         data-testid="stories-row"
       >
-        <StoryAvatar userId="me" isOwn />
+        <StoryAvatar userId="me" isOwn storyId={ownStoryId} />
         {stories.map((story) => (
           <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
         ))}

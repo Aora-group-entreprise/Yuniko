@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
-import { X, Send, Pause, Volume2, VolumeX, Heart, MapPin, BadgeCheck } from "lucide-react";
+import { X, Send, Pause, Volume2, VolumeX, Heart, MapPin, BadgeCheck, Eye } from "lucide-react";
 import { stories, getUserById } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import { apiFetch } from "@/lib/api";
@@ -122,9 +122,27 @@ export default function StoryViewer() {
   const [replyText, setReplyText] = useState("");
   const [liked, setLiked] = useState(false);
   const [reactionShown, setReactionShown] = useState(false);
+  const [selectedReaction, setSelectedReaction] = useState<string | null>(null);
+  const [showReactions, setShowReactions] = useState(false);
+  const [viewers, setViewers] = useState<Array<{ userId:number; displayName:string; username:string; avatarUrl:string|null; reaction:string|null }>>([]);
+  const [viewCount, setViewCount] = useState(0);
+  const [showViewers, setShowViewers] = useState(false);
+  const [replySending, setReplySending] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const STORY_DURATION = 5000;
   const segmentCount = Math.max(5, userStories.length);
+  const isOwnStory = Boolean(authUser && liveStory && Number(liveStory.userId) === Number(authUser.id));
+  const reactionOptions = ["❤️","😂","😢","😡","😮"];
+
+  useEffect(() => {
+    if (!isOwnStory || !liveStory) return;
+    void apiFetch(`/stories/${liveStory.id}/views`).then(r=>r.json()).then((data:{viewCount?:number})=>setViewCount(Number(data.viewCount??0))).catch(()=>{});
+  }, [isOwnStory, liveStory?.id]);
+
+  useEffect(() => {
+    const imageUrl=userStories[currentIndex]?.imageUrl;
+    if(imageUrl){const image=new Image(); image.decoding="async"; image.src=imageUrl;}
+  }, [currentIndex, userStories]);
 
   useEffect(() => {
     if (paused || userStories.length === 0) return;
@@ -164,10 +182,21 @@ export default function StoryViewer() {
     }
   };
 
-  const toggleReaction = () => {
-    setLiked((value) => !value);
-    setReactionShown(true);
-    window.setTimeout(() => setReactionShown(false), 900);
+  const chooseReaction = (reaction:string) => {
+    setSelectedReaction(reaction); setLiked(true); setShowReactions(false); setReactionShown(true);
+    window.setTimeout(() => setReactionShown(false), 700);
+    if (isLiveStory && liveStory) void apiFetch(`/stories/${liveStory.id}/reaction`, { method:"POST", body:JSON.stringify({reaction}) }).catch(()=>{});
+  };
+  const openViewers = async () => {
+    if (!isOwnStory || !liveStory) return;
+    try { const response=await apiFetch(`/stories/${liveStory.id}/views`); const data=await response.json() as {viewCount?:number;viewers?:typeof viewers}; setViewCount(Number(data.viewCount??0)); setViewers(data.viewers??[]); } catch {}
+    setShowViewers(true);
+  };
+  const sendStoryReply = async () => {
+    const text=replyText.trim();
+    if(!text||!isLiveStory||!liveStory||isOwnStory||replySending)return;
+    setReplySending(true);
+    try { const response=await apiFetch(`/stories/${liveStory.id}/reply`,{method:"POST",body:JSON.stringify({text})}); if(response.ok)setReplyText(""); } finally { setReplySending(false); }
   };
 
   if (liveStoryLoading) return <LoadingSkeleton variant="story" />;
@@ -184,13 +213,6 @@ export default function StoryViewer() {
   }
 
   const currentStory = userStories[currentIndex];
-
-  useEffect(() => {
-    if (!currentStory?.imageUrl) return;
-    const image = new Image();
-    image.decoding = "async";
-    image.src = currentStory.imageUrl;
-  }, [currentStory?.imageUrl]);
 
   return (
     <div
@@ -268,9 +290,9 @@ export default function StoryViewer() {
           </div>
         )}
 
-        <div className="absolute inset-x-0 bottom-0 z-30 px-[clamp(1rem,4vw,2rem)] pb-[clamp(1rem,3vw,1.5rem)]">
+        {!isOwnStory && <div className="absolute inset-x-0 bottom-0 z-30 px-[clamp(1rem,4vw,2rem)] pb-[clamp(1rem,3vw,1.5rem)]">
           <div
-            className="mx-auto flex min-w-0 w-full max-w-[690px] items-center gap-2 rounded-full px-[clamp(.75rem,3vw,1.25rem)] py-2.5"
+            className="mx-auto flex min-w-0 w-full max-w-[690px] items-center gap-2 rounded-full px-[clamp(.75rem,3vw,1.25rem)] py-1.5"
             style={{
               background: "rgba(20,18,31,.90)",
               border: "2px solid transparent",
@@ -282,14 +304,15 @@ export default function StoryViewer() {
             }}
           >
             <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder={`Reply to ${storyUser.displayName}...`} className="min-w-0 flex-1 bg-transparent text-[clamp(.9rem,2.7vw,1.05rem)] font-medium text-white outline-none placeholder:text-white/55" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} data-testid="input-story-reply" />
-            <button onClick={(e) => { e.stopPropagation(); toggleReaction(); }} className="flex size-[clamp(2.7rem,7vw,3.25rem)] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90" aria-label={liked ? "Unlike story" : "Like story"} data-testid="btn-story-heart">
-              <Heart size={24} strokeWidth={2} style={{ color: "#BFA8FF", fill: liked ? "url(#yunikoHeartGradient)" : "transparent" }} />
-              <svg width="0" height="0" aria-hidden="true"><defs><linearGradient id="yunikoHeartGradient" x1="0" x2="1"><stop offset="0%" stopColor="#FF4CB4" /><stop offset="100%" stopColor="#7DB8FF" /></linearGradient></defs></svg>
+            <button onClick={(e) => { e.stopPropagation(); setShowReactions(v => !v); }} className="flex size-[clamp(2.7rem,7vw,3.25rem)] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90" aria-label="Story reaction" data-testid="btn-story-heart">
+              {selectedReaction ? <span className="text-[23px]">{selectedReaction}</span> : <Heart size={24} strokeWidth={2} style={{ color: "#BFA8FF" }} />}
             </button>
-            <button onClick={(e) => { e.stopPropagation(); setReplyText(""); }} className="flex size-[clamp(2.7rem,7vw,3.25rem)] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90" aria-label="Send reply" data-testid="btn-send-reply">
+            <button onClick={(e) => { e.stopPropagation(); void sendStoryReply(); }} className="flex size-[clamp(2.7rem,7vw,3.25rem)] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90" aria-label="Send reply" data-testid="btn-send-reply">
               <Send size={24} strokeWidth={2.2} style={{ color: "#B26CFF", filter: "drop-shadow(0 0 6px rgba(0,140,255,.45))" }} />
             </button>
           </div>
+
+          {showReactions && !isOwnStory && <div className="absolute bottom-[calc(100%+10px)] left-1/2 flex -translate-x-1/2 gap-1 rounded-full border border-white/10 bg-[#171522]/95 px-2 py-2 shadow-2xl backdrop-blur-xl">{reactionOptions.map(reaction=><button key={reaction} onClick={()=>chooseReaction(reaction)} className="flex size-10 items-center justify-center rounded-full text-[22px]">{reaction}</button>)}</div>}
 
           {currentStory.location && (
             <div className="mx-[clamp(0rem,4vw,.5rem)] mt-3 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[clamp(.85rem,2.5vw,1rem)] font-semibold text-white" style={{ border: "2px solid transparent", backgroundImage: "linear-gradient(rgba(20,18,31,.86),rgba(20,18,31,.86)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)", backgroundOrigin: "border-box", backgroundClip: "padding-box,border-box", boxShadow: "0 0 16px rgba(255,20,147,.14)", backdropFilter: "blur(12px)" }}>
@@ -297,7 +320,9 @@ export default function StoryViewer() {
               <span>{currentStory.location}</span>
             </div>
           )}
-        </div>
+        </div>}
+        {isOwnStory && <button onClick={()=>void openViewers()} className="absolute bottom-[clamp(5.5rem,14vw,7rem)] left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-white backdrop-blur-md"><Eye size={19}/><span className="text-sm font-semibold">{viewCount} views</span></button>}
+        {showViewers && isOwnStory && <div className="absolute inset-0 z-[60] flex items-end justify-center bg-black/55 backdrop-blur-sm" onClick={()=>setShowViewers(false)}><div className="max-h-[72%] w-full max-w-[430px] overflow-hidden rounded-t-[28px] bg-[#0d0c14] p-5" onClick={e=>e.stopPropagation()}><div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20"/><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-white">{viewCount} views</h2><button onClick={()=>setShowViewers(false)} className="p-2 text-white/60"><X size={20}/></button></div><div className="max-h-[52vh] space-y-2 overflow-y-auto">{viewers.length===0?<p className="py-8 text-center text-white/45">No viewers yet.</p>:viewers.map(v=><div key={v.userId} className="flex items-center gap-3 rounded-2xl px-2 py-2.5"><img src={v.avatarUrl??`https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(v.displayName)}&backgroundColor=FF006E`} alt="" className="size-11 rounded-full object-cover ring-2 ring-fuchsia-500/70"/><div className="min-w-0 flex-1"><p className="truncate font-semibold text-white">{v.displayName}</p><p className="truncate text-xs text-white/45">@{v.username}</p></div><span className="text-2xl">{v.reaction??""}</span></div>)}</div></div></div>}
       </div>
     </div>
   );
