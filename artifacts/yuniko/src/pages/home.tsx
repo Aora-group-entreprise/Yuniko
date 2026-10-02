@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import { Bell, UserPlus, Globe, Bookmark, Share2, Flag, EyeOff, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Post } from "@/data/mockData";
-import StoryAvatar from "@/components/StoryAvatar";
 import PostCard, { type LiveAuthor } from "@/components/PostCard";
 import BottomNav from "@/components/BottomNav";
 import { t } from "@/lib/i18n";
@@ -253,6 +252,10 @@ export default function Home() {
 }
 
 function StoryRail({ stories, ownStoryId }: { stories: LiveStory[]; ownStoryId?: number }) {
+  const ownStory = ownStoryId
+    ? stories.find((story) => Number(story.id) === Number(ownStoryId))
+    : undefined;
+
   return (
     <section
       className="relative mb-6 w-full rounded-[18px] px-3 py-2.5"
@@ -271,12 +274,42 @@ function StoryRail({ stories, ownStoryId }: { stories: LiveStory[]; ownStoryId?:
         style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", overscrollBehaviorY: "auto", touchAction: "pan-x pan-y" }}
         data-testid="stories-row"
       >
-        <StoryAvatar userId="me" isOwn storyId={ownStoryId} />
-        {stories.map((story) => (
+        <CreateStoryAvatar />
+        {ownStory && <LiveStoryAvatar story={ownStory} isOwn />}
+        {stories.filter((story) => Number(story.id) !== Number(ownStoryId)).map((story) => (
           <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
         ))}
       </div>
     </section>
+  );
+}
+
+function CreateStoryAvatar() {
+  const [, setLocation] = useLocation();
+
+  return (
+    <motion.button
+      onClick={() => setLocation("/create?mode=story")}
+      className="flex flex-col items-center gap-1 flex-shrink-0"
+      style={{ minWidth: 64 }}
+      whileTap={{ scale: 0.9 }}
+      aria-label="Create story"
+      data-testid="create-story-avatar"
+    >
+      <div className="relative">
+        <div
+          className="w-[54px] h-[54px] rounded-full p-[2px]"
+          style={{ background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}
+        >
+          <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0D0B14] text-white">
+            <span className="text-[27px] font-light leading-none">+</span>
+          </div>
+        </div>
+      </div>
+      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">
+        Create
+      </span>
+    </motion.button>
   );
 }
 
@@ -328,18 +361,45 @@ function StoryCardRail({ stories, ownStory }: { stories: LiveStory[]; ownStory?:
         onTouchCancel={onTouchEnd}
         data-testid="stories-card-row"
       >
-        <StoryCard
-          isOwn
-          story={ownStory}
-          storyId={ownStory?.id}
-          userId="me"
-          label="Your story"
-        />
-        {stories.map((story) => (
+        <CreateStoryCard />
+        {ownStory && <StoryCard key={`own_${ownStory.id}`} story={ownStory} label="Your story" />}
+        {stories.filter((story) => Number(story.id) !== Number(ownStory?.id)).map((story) => (
           <StoryCard key={`sc_${story.id}`} story={story} />
         ))}
       </div>
     </section>
+  );
+}
+
+function CreateStoryCard() {
+  const [, setLocation] = useLocation();
+
+  return (
+    <div
+      className="relative shrink-0 overflow-hidden rounded-[15px] p-[1.5px]"
+      style={{
+        width: "clamp(108px, 28vw, 140px)",
+        aspectRatio: "9 / 16",
+        background: "linear-gradient(135deg,#FF1493 0%,#FF2B9A 38%,#008CFF 100%)",
+        boxShadow: "0 8px 22px rgba(0,0,0,.28), 0 0 14px rgba(255,20,147,.12)",
+      }}
+      data-testid="create-story-card"
+    >
+      <motion.button
+        onClick={() => setLocation("/create?mode=story")}
+        whileTap={{ scale: 0.97 }}
+        className="relative h-full w-full overflow-hidden rounded-[13.5px] text-left"
+        style={{ background: "linear-gradient(145deg,#171722 0%,#202034 55%,#11111a 100%)" }}
+        aria-label="Create story"
+      >
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 text-white">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10">
+            <span className="text-[30px] font-light leading-none">+</span>
+          </div>
+          <span className="text-[12px] font-bold">Create story</span>
+        </div>
+      </motion.button>
+    </div>
   );
 }
 
@@ -419,7 +479,7 @@ function StoryCard({
 }
 
 
-function LiveStoryAvatar({ story }: { story: LiveStory }) {
+function LiveStoryAvatar({ story, isOwn = false }: { story: LiveStory; isOwn?: boolean }) {
   const [, setLocation] = useLocation();
   const avatarSrc =
     story.authorAvatarUrl ??
