@@ -266,7 +266,7 @@ function StoryRail({ stories, ownStoryId }: { stories: LiveStory[]; ownStoryId?:
       </div>
       <div
         className="flex items-start gap-[clamp(10px,2.6vw,16px)] overflow-x-auto no-scrollbar"
-        style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
+        style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", overscrollBehaviorY: "auto", touchAction: "pan-x pan-y" }}
         data-testid="stories-row"
       >
         <StoryAvatar userId="me" isOwn storyId={ownStoryId} />
