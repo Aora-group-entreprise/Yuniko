@@ -21,7 +21,7 @@ function authUserToDisplay(u: AuthUser) {
     avatar: u.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(u.displayName)}&backgroundColor=FF006E`,
     bio: u.bio ?? "", location: [u.countryFlag, u.country].filter(Boolean).join(" ") || "",
     flag: u.countryFlag ?? "", verified: false, followers: 0, following: 0, posts: 0,
-    isOnline: true, isFollowing: false, isFriend: false, website: u.website ?? undefined,
+    isOnline: true, coverPhoto: "", isFollowing: false, isFriend: false, website: u.website ?? undefined,
   };
 }
 
