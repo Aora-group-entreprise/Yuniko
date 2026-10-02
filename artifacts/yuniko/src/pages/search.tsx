@@ -82,231 +82,65 @@ export default function SearchPage() {
       })
       .finally(() => setIsSearching(false));
 
-    return () => controller.abort();
-  }, [query, user]);
-
-  const filteredUsers = query ? apiUsers : [];
-
-  const filteredHashtags = query
-    ? TRENDING_HASHTAGS.filter((h) => h.tag.toLowerCase().includes(query.toLowerCase()))
-    : [];
-
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "forYou", label: t("forYou") },
-    { id: "people", label: t("people") },
-    { id: "hashtags", label: t("hashtag") },
-  ];
-
-  return (
-    <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background pb-20">
-      {/* Header */}
-      <header
-        className="sticky top-0 z-40 px-4 py-3"
-        style={{
-          background: "rgba(13,11,20,0.96)",
-          backdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-        }}
-        data-testid="search-header"
-      >
-        <div
-          className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl"
-          style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <Search size={16} className="text-white/40 flex-shrink-0" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("searchUsers")}
-            className="flex-1 bg-transparent text-white/85 text-sm outline-none placeholder:text-white/30"
-            data-testid="input-search"
-          />
-          {query && (
-            <button onClick={() => setQuery("")} data-testid="btn-clear-search">
-              <X size={14} className="text-white/40" />
-            </button>
-          )}
+    return (
+    <div className="w-full max-w-[430px] mx-auto min-h-screen bg-[#050509] pb-24 text-white">
+      <header className="px-4 pt-5 pb-4">
+        <div className="flex items-center gap-2 mb-5">
+          <span className="text-[25px] font-extrabold tracking-[-0.04em]" style={{background:"linear-gradient(135deg,#FF3D9A,#008CFF)",WebkitBackgroundClip:"text",color:"transparent"}}>✦</span>
+          <h1 className="text-[30px] font-extrabold tracking-[-0.04em]">Yuniko</h1>
         </div>
-
-        {/* Tabs */}
-        <div className="flex mt-3 gap-2">
-          {tabs.map((tabItem) => (
-            <button
-              key={tabItem.id}
-              onClick={() => setTab(tabItem.id)}
-              className="flex-1 py-2 rounded-xl text-sm font-medium transition-all"
-              style={{
-                background: tab === tabItem.id ? GRADIENT : "rgba(255,255,255,0.06)",
-                color: tab === tabItem.id ? "white" : "rgba(255,255,255,0.5)",
-                boxShadow: tab === tabItem.id ? "0 2px 10px rgba(255,0,110,0.25)" : "none",
-              }}
-              data-testid={`search-tab-${tabItem.id}`}
-            >
-              {tabItem.label}
-            </button>
-          ))}
+        <div className="relative p-[2px] rounded-full" style={{background:"linear-gradient(90deg,#FF1493,#008CFF)",boxShadow:"0 0 20px rgba(255,20,147,.16)"}}>
+          <div className="h-12 rounded-full bg-[#09090e] flex items-center gap-3 px-4">
+            <Search size={22} className="text-[#C34BFF] shrink-0"/>
+            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search Madagascar, creators, spots..." className="min-w-0 flex-1 bg-transparent text-white text-[14px] outline-none placeholder:text-white/38" data-testid="input-search"/>
+            {query&&<button onClick={()=>setQuery("")} data-testid="btn-clear-search"><X size={17} className="text-white/45"/></button>}
+          </div>
         </div>
       </header>
 
-      {/* Search results */}
-      {query ? (
-        <div>
-          {(tab === "forYou" || tab === "people") && filteredUsers.length > 0 && (
-            <div>
-              <p className="px-4 pt-4 pb-2 text-white/50 text-xs font-semibold uppercase tracking-wider">{t("people")}</p>
-              {filteredUsers.map((user) => {
-                const isFollowing = followStates[user.id] ?? user.isFollowing;
-                return (
-                  <button
-                    key={user.id}
-                    onClick={() => setLocation(`/user/${user.id}`)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-white/5"
-                    style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                    data-testid={`search-user-${user.id}`}
-                  >
-                    <img src={user.avatar} alt={user.displayName} className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-semibold text-sm">{user.displayName}</p>
-                      <p className="text-white/50 text-xs">@{user.username} · {formatCount(user.followers)} {t("followers")}</p>
-                    </div>
-                    <button
-                      onClick={(e) => toggleFollow(user.id, e)}
-                      className="px-4 py-1.5 rounded-full text-xs font-semibold text-white flex-shrink-0"
-                      style={{
-                        background: isFollowing ? "rgba(255,255,255,0.1)" : GRADIENT,
-                        border: isFollowing ? "1px solid rgba(255,255,255,0.15)" : "none",
-                        boxShadow: isFollowing ? "none" : "0 2px 8px rgba(255,0,110,0.3)",
-                      }}
-                    >
-                      {isFollowing ? t("following") : t("follow")}
-                    </button>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {(tab === "forYou" || tab === "people") && query.length >= 2 && !isSearching && filteredUsers.length === 0 && (
-            <p className="px-4 pt-6 text-center text-white/45 text-sm">No registered users found.</p>
-          )}
+      {!query&&<section className="px-4">
+        <h2 className="text-[16px] font-bold mb-3">Categories</h2>
+        <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
+          {["Baobabs","All","Beaches","Nature","Towns","Adventure"].map((category,i)=><button key={category} onClick={()=>category!=="All"&&setQuery(category)} className="shrink-0 h-11 px-4 rounded-2xl text-[13px] font-semibold" style={{background:i===0?"linear-gradient(135deg,#FF1493,#008CFF)":"rgba(255,255,255,.045)",border:i===0?"none":"1px solid rgba(255,255,255,.18)",color:i===0?"white":"rgba(255,255,255,.65)",boxShadow:i===0?"0 4px 14px rgba(255,20,147,.2)":"none"}}>{category}</button>)}
+        </div>
 
-          {(tab === "forYou" || tab === "hashtags") && filteredHashtags.length > 0 && (
-            <div>
-              <p className="px-4 pt-4 pb-2 text-white/50 text-xs font-semibold uppercase tracking-wider">{t("hashtag")}</p>
-              {filteredHashtags.map((h) => (
-                <button
-                  key={h.tag}
-                  onClick={() => setLocation(`/hashtag/${h.tag}`)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-white/5"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                  data-testid={`search-hashtag-${h.tag}`}
-                >
-                  <div
-                    className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(255,0,110,0.12)", border: "1px solid rgba(255,0,110,0.25)" }}
-                  >
-                    <Hash size={18} style={{ color: "#FF3D9A" }} />
-                  </div>
-                  <div>
-                    <p className="text-white font-semibold text-sm">#{h.tag}</p>
-                    <p className="text-white/50 text-xs">{formatCount(h.posts)} posts</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="flex items-end justify-between mt-7 mb-3">
+          <h2 className="text-[21px] font-extrabold tracking-tight">Trending in Madagascar</h2>
+          <span className="text-[12px] font-bold" style={{color:"#C14BFF"}}>12.3k trending 🔥</span>
+        </div>
 
-          {filteredUsers.length === 0 && filteredHashtags.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(255,0,110,0.1)", border: "1px solid rgba(255,0,110,0.2)" }}
-              >
-                <Search size={28} style={{ color: "#FF3D9A" }} />
+        <div className="grid grid-cols-2 gap-3 pb-5">
+          {posts.slice(0,8).map(post=><button key={post.id} onClick={()=>setLocation(`/post/${post.id}`)} className="text-left overflow-hidden rounded-[20px] bg-[#101016] border border-white/[0.08] shadow-[0_8px_25px_rgba(0,0,0,.28)]" data-testid={`discover-post-${post.id}`}>
+            <div className="relative p-[2px] rounded-[18px]" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)"}}>
+              <img src={post.imageUrl} alt={post.caption} className="w-full aspect-[1.42] object-cover rounded-[16px]"/>
+            </div>
+            <div className="px-3 py-3">
+              <p className="text-[13px] font-bold leading-snug line-clamp-2">{post.caption||"Madagascar discovery"}</p>
+              <div className="flex items-center justify-between mt-2 text-[11px] text-white/48">
+                <span className="truncate pr-2">📍 {post.location||"Madagascar"}</span>
+                <span className="shrink-0">♥ {formatCount(post.likes)}</span>
               </div>
-              <p className="text-white/40 text-sm">{t("noResults")}</p>
             </div>
-          )}
+          </button>)}
         </div>
-      ) : (
-        <div>
-          {/* Trending hashtags */}
-          <div className="px-4 pt-5 pb-2">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp size={16} style={{ color: "#FF3D9A" }} />
-              <h2 className="text-white font-semibold text-sm">{t("trending")}</h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {TRENDING_HASHTAGS.map((h) => (
-                <button
-                  key={h.tag}
-                  onClick={() => setLocation(`/hashtag/${h.tag}`)}
-                  className="px-3 py-1.5 rounded-full text-sm font-medium"
-                  style={{
-                    background: "rgba(255,0,110,0.1)",
-                    border: "1px solid rgba(255,0,110,0.2)",
-                    color: "#FF3D9A",
-                  }}
-                  data-testid={`trending-${h.tag}`}
-                >
-                  #{h.tag}
-                </button>
-              ))}
-            </div>
-          </div>
+      </section>}
 
-          {/* Suggested creators */}
-          <div className="px-4 mt-5 mb-3">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles size={16} style={{ color: "#FF3D9A" }} />
-              <h2 className="text-white font-semibold text-sm">Suggested Creators</h2>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
-              {users.slice(0, 8).map((user) => (
-                <button
-                  key={user.id}
-                  onClick={() => setLocation(`/user/${user.id}`)}
-                  className="flex flex-col items-center gap-2 flex-shrink-0"
-                  style={{ minWidth: 68 }}
-                  data-testid={`trending-creator-${user.id}`}
-                >
-                  <div className="w-[62px] h-[62px] rounded-full p-[2px]" style={{ background: GRADIENT }}>
-                    <img
-                      src={user.avatar}
-                      alt={user.displayName}
-                      className="w-full h-full rounded-full object-cover"
-                      style={{ border: "2px solid #0D0B14" }}
-                    />
-                  </div>
-                  <span className="text-white/70 text-[11px] text-center truncate w-full">{user.displayName}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Discover grid */}
-          <div className="px-0.5">
-            <p className="px-4 py-2 text-white font-semibold text-sm">{t("discover")}</p>
-            <div className="grid grid-cols-3 gap-0.5">
-              {posts.slice(0, 12).map((post, i) => (
-                <button
-                  key={post.id}
-                  onClick={() => setLocation(`/post/${post.id}`)}
-                  className={`overflow-hidden ${i % 7 === 0 ? "col-span-2 row-span-2" : ""}`}
-                  style={{
-                    aspectRatio: i % 7 === 0 ? undefined : "1",
-                    height: i % 7 === 0 ? 200 : undefined,
-                  }}
-                  data-testid={`discover-post-${post.id}`}
-                >
-                  <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
-          </div>
+      {query&&<div className="px-4 pb-6">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3">
+          {[{id:"forYou",label:t("forYou")},{id:"people",label:t("people")},{id:"hashtags",label:t("hashtag")}].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as Tab)} className="shrink-0 px-4 py-2 rounded-full text-xs font-semibold" style={{background:tab===tabItem.id?"linear-gradient(135deg,#FF1493,#008CFF)":"rgba(255,255,255,.05)",color:tab===tabItem.id?"white":"rgba(255,255,255,.55)",border:tab===tabItem.id?"none":"1px solid rgba(255,255,255,.1)"}}>{tabItem.label}</button>)}
         </div>
-      )}
+        {(tab==="forYou"||tab==="people")&&filteredUsers.length>0&&<div>
+          <p className="text-white/45 text-xs font-bold uppercase tracking-wider mb-2">{t("people")}</p>
+          {filteredUsers.map(u=>{const isFollowing=followStates[u.id]??u.isFollowing;return <div key={u.id} className="flex items-center gap-3 py-3 border-b border-white/[0.06]">
+            <button onClick={()=>setLocation(`/user/${u.id}`)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><img src={u.avatar} alt={u.displayName} className="w-12 h-12 rounded-full object-cover border-2 border-pink-400/50"/><div className="min-w-0"><p className="font-bold text-sm truncate">{u.displayName}</p><p className="text-white/45 text-xs truncate">@{u.username}</p></div></button>
+            <button onClick={()=>{setFollowStates(prev=>({...prev,[u.id]:!isFollowing}))}} className="px-4 py-2 rounded-full text-xs font-bold" style={{background:isFollowing?"rgba(255,255,255,.08)":"linear-gradient(135deg,#FF1493,#008CFF)",border:isFollowing?"1px solid rgba(255,255,255,.15)":"none"}}>{isFollowing?t("following"):t("follow")}</button>
+          </div>})}
+        </div>}
+        {(tab==="forYou"||tab==="people")&&query.length>=2&&!isSearching&&filteredUsers.length===0&&<p className="py-10 text-center text-white/40 text-sm">No registered users found.</p>}
+        {(tab==="forYou"||tab==="hashtags")&&filteredHashtags.length>0&&<div className="mt-3">{filteredHashtags.map(h=><button key={h.tag} onClick={()=>setLocation(`/hashtag/${h.tag}`)} className="w-full flex items-center gap-3 py-3 border-b border-white/[0.06] text-left"><div className="w-11 h-11 rounded-full flex items-center justify-center" style={{background:"rgba(255,20,147,.1)",border:"1px solid rgba(255,20,147,.25)"}}><Hash size={18} className="text-[#FF3D9A]"/></div><div><p className="font-bold text-sm">#{h.tag}</p><p className="text-white/45 text-xs">{formatCount(h.posts)} posts</p></div></button>)}</div>}
+        {filteredUsers.length===0&&filteredHashtags.length===0&&!isSearching&&<div className="py-16 text-center"><div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center" style={{background:"rgba(255,20,147,.08)",border:"1px solid rgba(255,20,147,.22)"}}><Search size={27} className="text-[#FF3D9A]"/></div><p className="text-white/40 text-sm mt-4">{t("noResults")}</p></div>}
+      </div>}
 
       <BottomNav />
     </div>
   );
-}
