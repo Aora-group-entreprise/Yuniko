@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
+import { getSessionCache } from "@/lib/session-cache";
 
 function relativeTime(iso: string): string {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -43,8 +44,12 @@ export default function StoryViewer() {
   const { user: authUser } = useAuth();
   const isLiveStory = userId.startsWith("live_");
   const mockUser = getUserById(userId);
-  const [liveStory, setLiveStory] = useState<LiveStory | null>(null);
-  const [liveStoryLoading, setLiveStoryLoading] = useState(isLiveStory);
+  const cachedStories = getSessionCache<{ stories?: LiveStory[] }>("/stories");
+  const cachedLiveStory = isLiveStory
+    ? cachedStories?.stories?.find((story) => story.id === Number(userId.slice("live_".length))) ?? null
+    : null;
+  const [liveStory, setLiveStory] = useState<LiveStory | null>(cachedLiveStory);
+  const [liveStoryLoading, setLiveStoryLoading] = useState(isLiveStory && !cachedLiveStory);
 
   useEffect(() => {
     if (!isLiveStory || !authUser) return;
@@ -54,19 +59,28 @@ export default function StoryViewer() {
       return;
     }
 
+    const cached = getSessionCache<{ stories?: LiveStory[] }>("/stories");
+    const cachedStory = cached?.stories?.find((story) => story.id === storyId);
+    if (cachedStory) {
+      setLiveStory(cachedStory);
+      setLiveStoryLoading(false);
+    }
+
     fetch(`/api/stories/${storyId}`)
       .then(async (response) => {
         if (!response.ok) throw new Error("Story unavailable");
         const data = (await response.json()) as { story?: LiveStory };
-        setLiveStory(data.story ?? null);
         if (data.story) {
+          setLiveStory(data.story);
           apiFetch(`/stories/${storyId}/view`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
           }).catch(() => {});
         }
       })
-      .catch(() => setLiveStory(null))
+      .catch(() => {
+        if (!cachedStory) setLiveStory(null);
+      })
       .finally(() => setLiveStoryLoading(false));
   }, [isLiveStory, authUser, userId]);
 
@@ -170,6 +184,13 @@ export default function StoryViewer() {
   }
 
   const currentStory = userStories[currentIndex];
+
+  useEffect(() => {
+    if (!currentStory?.imageUrl) return;
+    const image = new Image();
+    image.decoding = "async";
+    image.src = currentStory.imageUrl;
+  }, [currentStory?.imageUrl]);
 
   return (
     <div
