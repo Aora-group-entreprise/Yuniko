@@ -142,9 +142,10 @@ async function feedRows(viewerId: number) {
   const ranked=rankFeedCandidates(mixed.map(row=>row.candidate),viewerId%2===0?"B":"A");
   const rankedById=new Map(ranked.map(row=>[row.id,row]));
   const authorCounts=new Map<number,number>();
+  const maxPostsPerAuthor=coldStart?Number.POSITIVE_INFINITY:2;
   return mixed.sort((a,b)=>(rankedById.get(b.id)?.score??0)-(rankedById.get(a.id)?.score??0)).filter(row=>{
     const count=authorCounts.get(Number(row.userId))??0;
-    if(count>=2)return false;
+    if(count>=maxPostsPerAuthor)return false;
     authorCounts.set(Number(row.userId),count+1);
     return true;
   }).slice(0,FEED_LIMIT);
