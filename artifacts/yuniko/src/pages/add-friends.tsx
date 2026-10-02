@@ -95,6 +95,64 @@ export default function AddFriends() {
           if (!cancelled) setSearching(false);
         });
     }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query, tab]);
+
+  const sendRequest = async (user: FriendUser) => {
+    setBusy(user.id, true);
+    try {
+      await apiJson(`/friend-requests/${user.id}`, { method: "POST" });
+      setSent((prev) => [...prev, user]);
+      setSuggestions((prev) => prev.filter((item) => item.id !== user.id));
+      setSearchResults((prev) => prev.map((item) => item.id === user.id ? { ...item } : item));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to send request");
+    } finally {
+      setBusy(user.id, false);
+    }
+  };
+
+  const cancelRequest = async (user: FriendUser) => {
+    setBusy(user.id, true);
+    try {
+      await apiJson(`/friend-requests/${user.id}`, { method: "DELETE" });
+      setSent((prev) => prev.filter((item) => item.id !== user.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to cancel request");
+    } finally {
+      setBusy(user.id, false);
+    }
+  };
+
+  const acceptRequest = async (request: FriendRequest) => {
+    setBusy(request.user.id, true);
+    try {
+      await apiJson(`/friend-requests/${request.user.id}/accept`, { method: "POST" });
+      setRequests((prev) => prev.filter((item) => item.user.id !== request.user.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to accept request");
+    } finally {
+      setBusy(request.user.id, false);
+    }
+  };
+
+  const declineRequest = async (request: FriendRequest) => {
+    setBusy(request.user.id, true);
+    try {
+      await apiJson(`/friend-requests/${request.user.id}`, { method: "DELETE" });
+      setRequests((prev) => prev.filter((item) => item.user.id !== request.user.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to decline request");
+    } finally {
+      setBusy(request.user.id, false);
+    }
+  };
+
+  const activeSearchResults = useMemo(() => searchResults, [searchResults]);
+
     const displayedSuggestions = suggestions;
   return (
     <div className="relative min-h-[var(--yuniko-vh)] w-full overflow-x-hidden bg-[#050509] pb-28 text-white">
