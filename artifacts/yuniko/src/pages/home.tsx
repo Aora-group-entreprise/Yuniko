@@ -157,11 +157,25 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="relative z-20 px-4 pt-[88px] pb-3" data-testid="stories-section">
+      <section
+        className="fixed inset-x-0 top-[72px] z-40 w-full px-4 pt-3 pb-3"
+        style={{
+          background: "rgba(5,5,9,0.96)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderBottom: "1px solid rgba(255,255,255,0.045)",
+          boxShadow: "0 8px 24px rgba(0,0,0,.16)",
+        }}
+        data-testid="stories-section"
+      >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[18px] font-bold tracking-[-0.02em] text-white">Stories</h2>
         </div>
-        <div className="flex items-start gap-[clamp(10px,2.6vw,16px)] overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }} data-testid="stories-row">
+        <div
+          className="flex items-start gap-[clamp(10px,2.6vw,16px)] overflow-x-auto no-scrollbar"
+          style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
+          data-testid="stories-row"
+        >
           <StoryAvatar userId="me" isOwn />
           {liveStories.map((story) => (
             <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
@@ -188,6 +202,7 @@ export default function Home() {
         className="relative z-10 min-w-0 overflow-y-auto overflow-x-hidden px-[clamp(10px,3.5vw,22px)] pb-[calc(92px+env(safe-area-inset-bottom,0px))]"
         style={{
           minHeight: "calc(var(--yuniko-vh) - 72px)",
+          paddingTop: "128px",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorY: "contain",
           touchAction: "pan-y",
