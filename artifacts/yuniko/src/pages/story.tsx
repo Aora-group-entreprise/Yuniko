@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
-import { X, Send, MoreHorizontal, BadgeCheck } from "lucide-react";
+import { X, Send, Pause, Volume2, VolumeX, Heart, MapPin, BadgeCheck } from "lucide-react";
 import { stories, getUserById } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
-
-const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "🔥", "👏"];
 
 function relativeTime(iso: string): string {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -27,6 +25,15 @@ interface LiveStory {
   authorDisplayName: string;
   authorUsername: string;
   authorAvatarUrl: string | null;
+  location?: string | null;
+}
+
+interface ViewerStory {
+  id: string;
+  userId: string;
+  imageUrl: string;
+  timestamp: string;
+  location?: string | null;
 }
 
 export default function StoryViewer() {
@@ -47,9 +54,7 @@ export default function StoryViewer() {
       return;
     }
 
-    fetch(`/api/stories/${storyId}`, {
-      
-    })
+    fetch(`/api/stories/${storyId}`)
       .then(async (response) => {
         if (!response.ok) throw new Error("Story unavailable");
         const data = (await response.json()) as { story?: LiveStory };
@@ -75,44 +80,59 @@ export default function StoryViewer() {
         verified: false,
       }
     : mockUser;
-  const userStories = isLiveStory
+
+  const userStories: ViewerStory[] = isLiveStory
     ? liveStory
       ? [{
           id: String(liveStory.id),
           userId: String(liveStory.userId),
           imageUrl: liveStory.mediaUrl,
           timestamp: relativeTime(liveStory.createdAt),
+          location: liveStory.location ?? null,
         }]
       : []
-    : stories.filter((s) => s.userId === userId);
+    : stories
+        .filter((s) => s.userId === userId)
+        .map((s) => ({
+          id: s.id,
+          userId: s.userId,
+          imageUrl: s.imageUrl,
+          timestamp: s.timestamp,
+          location: null,
+        }));
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [replyText, setReplyText] = useState("");
-  const [reactionShown, setReactionShown] = useState<string | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [liked, setLiked] = useState(false);
+  const [reactionShown, setReactionShown] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const STORY_DURATION = 5000;
+  const segmentCount = Math.max(5, userStories.length);
 
   useEffect(() => {
-    if (paused) return;
+    if (paused || userStories.length === 0) return;
+
     intervalRef.current = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           if (currentIndex < userStories.length - 1) {
             setCurrentIndex((i) => i + 1);
             return 0;
-          } else {
-            setLocation("/");
-            return 100;
           }
+          setLocation("/");
+          return 100;
         }
         return prev + 100 / (STORY_DURATION / 100);
       });
     }, 100);
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [currentIndex, paused, userStories.length]);
+  }, [currentIndex, paused, userStories.length, setLocation]);
 
   const goNext = () => {
     if (currentIndex < userStories.length - 1) {
@@ -130,16 +150,17 @@ export default function StoryViewer() {
     }
   };
 
-  const handleReaction = (emoji: string) => {
-    setReactionShown(emoji);
-    setTimeout(() => setReactionShown(null), 1500);
+  const toggleReaction = () => {
+    setLiked((value) => !value);
+    setReactionShown(true);
+    window.setTimeout(() => setReactionShown(false), 900);
   };
 
   if (liveStoryLoading) return <LoadingSkeleton variant="story" />;
 
   if (!storyUser || userStories.length === 0) {
     return (
-      <div className="w-full max-w-[430px] mx-auto min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen w-full bg-black flex items-center justify-center">
         <div className="text-center">
           <p className="text-white/50">{t("noStories")}</p>
           <button onClick={() => setLocation("/")} className="mt-4" style={{ color: "#FF3D9A" }}>{t("back")}</button>
@@ -152,146 +173,218 @@ export default function StoryViewer() {
 
   return (
     <div
-      className="w-full max-w-[430px] mx-auto min-h-screen relative overflow-hidden"
-      style={{ background: "#000" }}
+      className="min-h-screen w-full overflow-hidden bg-black"
+      style={{
+        backgroundImage: "radial-gradient(ellipse 42% 75% at 0% 50%, rgba(255,20,147,.20), transparent 72%), radial-gradient(ellipse 42% 75% at 100% 50%, rgba(0,140,255,.20), transparent 72%)",
+      }}
       data-testid="story-viewer"
     >
-      {/* Story image */}
-      <img
-        src={currentStory.imageUrl}
-        alt="Story"
-        className="absolute inset-0 w-full h-full object-cover"
-        onClick={goNext}
-        onPointerDown={() => setPaused(true)}
-        onPointerUp={() => setPaused(false)}
-      />
-
-      {/* Dark gradient top */}
       <div
-        className="absolute inset-x-0 top-0 h-32 pointer-events-none"
-        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)" }}
-      />
+        className="relative mx-auto min-h-screen w-full max-w-[752px] overflow-hidden bg-[#08070d] shadow-[0_0_70px_rgba(0,0,0,.65)] md:my-4 md:min-h-[calc(100vh-32px)] md:rounded-[28px]"
+      >
+        <img
+          src={currentStory.imageUrl}
+          alt="Story"
+          className="absolute inset-0 z-0 h-full w-full object-cover"
+          onPointerDown={() => setPaused(true)}
+          onPointerUp={() => setPaused(false)}
+          onPointerCancel={() => setPaused(false)}
+        />
 
-      {/* Progress bars */}
-      <div className="absolute top-4 left-3 right-3 flex gap-1" data-testid="story-progress">
-        {userStories.map((_, i) => (
-          <div
-            key={i}
-            className="flex-1 h-1 rounded-full overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.3)" }}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-48"
+          style={{ background: "linear-gradient(to bottom, rgba(4,3,9,.84) 0%, rgba(4,3,9,.40) 45%, transparent 100%)" }}
+        />
+
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-64"
+          style={{ background: "linear-gradient(to top, rgba(4,3,9,.94) 0%, rgba(4,3,9,.48) 46%, transparent 100%)" }}
+        />
+
+        <div className="absolute left-8 right-8 top-5 z-40 flex gap-3" data-testid="story-progress">
+          {Array.from({ length: segmentCount }).map((_, i) => {
+            const isRealSegment = i < userStories.length;
+            const width = !isRealSegment
+              ? "0%"
+              : i < currentIndex
+                ? "100%"
+                : i === currentIndex
+                  ? `${progress}%`
+                  : "0%";
+
+            return (
+              <div
+                key={i}
+                className="h-[4px] min-w-0 flex-1 overflow-hidden rounded-full"
+                style={{ background: "rgba(255,255,255,.18)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width,
+                    background: "linear-gradient(90deg,#FF1493 0%,#8B5CF6 50%,#008CFF 100%)",
+                    boxShadow: "0 0 8px rgba(255,20,147,.32)",
+                    transition: "width .1s linear",
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="absolute left-8 right-8 top-[54px] z-40 flex items-center justify-between gap-4">
+          <button
+            onClick={() => setLocation(`/user/${storyUser.id}`)}
+            className="flex min-w-0 items-center gap-3 text-left"
+            data-testid="btn-story-user"
           >
             <div
-              className="h-full rounded-full"
+              className="h-[58px] w-[58px] shrink-0 rounded-full p-[3px]"
               style={{
-                width: i < currentIndex ? "100%" : i === currentIndex ? `${progress}%` : "0%",
-                background: "rgba(255,255,255,0.9)",
-                transition: "width 0.1s linear",
+                background: "linear-gradient(135deg,#FF1493 0%,#8B5CF6 52%,#008CFF 100%)",
+                boxShadow: "0 0 16px rgba(255,20,147,.28)",
+              }}
+            >
+              <img
+                src={storyUser.avatar}
+                alt={storyUser.displayName}
+                className="h-full w-full rounded-full border-[3px] border-[#090810] object-cover"
+              />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[19px] font-bold tracking-[-.02em] text-white">{storyUser.displayName}</span>
+                {storyUser.verified && <BadgeCheck size={15} className="fill-blue-300 text-blue-300" />}
+              </div>
+              <span className="text-[16px] font-medium text-white/75">{currentStory.timestamp} {t("ago")}</span>
+            </div>
+          </button>
+
+          <div className="flex shrink-0 items-center gap-3">
+            <button
+              onClick={() => setPaused((value) => !value)}
+              className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
+              aria-label={paused ? "Resume story" : "Pause story"}
+              data-testid="btn-story-pause"
+            >
+              {paused ? <span className="text-[22px] font-black">▶</span> : <Pause size={23} strokeWidth={2.2} />}
+            </button>
+            <button
+              onClick={() => setMuted((value) => !value)}
+              className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
+              aria-label={muted ? "Unmute story" : "Mute story"}
+              data-testid="btn-story-mute"
+            >
+              {muted ? <VolumeX size={24} strokeWidth={2.1} /> : <Volume2 size={24} strokeWidth={2.1} />}
+            </button>
+            <button
+              onClick={() => setLocation("/")}
+              className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
+              aria-label="Close story"
+              data-testid="btn-close-story"
+            >
+              <X size={26} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+
+        <div className="absolute inset-0 z-20 flex">
+          <button aria-label="Previous story" className="h-full w-1/2 cursor-default" onClick={goPrev} />
+          <button aria-label="Next story" className="h-full w-1/2 cursor-default" onClick={goNext} />
+        </div>
+
+        {reactionShown && (
+          <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+            <Heart
+              size={118}
+              strokeWidth={1.4}
+              className="animate-pulse"
+              style={{
+                color: "#FF7BC5",
+                fill: "rgba(255,20,147,.20)",
+                filter: "drop-shadow(0 0 28px rgba(255,20,147,.8))",
               }}
             />
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Header */}
-      <div className="absolute top-10 left-3 right-3 flex items-center justify-between">
-        <button
-          onClick={() => setLocation(`/user/${storyUser.id}`)}
-          className="flex items-center gap-2"
-          data-testid="btn-story-user"
-        >
-          <img
-            src={storyUser.avatar}
-            alt={storyUser.displayName}
-            className="w-9 h-9 rounded-full object-cover"
-            style={{ border: "2px solid rgba(255,0,110,0.8)" }}
-          />
-          <div>
-            <div className="flex items-center gap-1">
-              <span className="text-white font-semibold text-sm">{storyUser.displayName}</span>
-              {storyUser.verified && <BadgeCheck size={13} className="text-blue-300 fill-blue-300" />}
-            </div>
-            <span className="text-white/60 text-xs">{currentStory.timestamp} {t("ago")}</span>
+        <div className="absolute bottom-[96px] left-8 right-8 z-40 flex items-center gap-3">
+          <div
+            className="flex min-w-0 flex-1 items-center rounded-full px-7 py-[17px]"
+            style={{
+              background: "rgba(20,18,31,.90)",
+              border: "2px solid transparent",
+              backgroundImage: "linear-gradient(rgba(20,18,31,.92),rgba(20,18,31,.92)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)",
+              backgroundOrigin: "border-box",
+              backgroundClip: "padding-box,border-box",
+              boxShadow: "0 0 18px rgba(255,20,147,.16), 0 0 22px rgba(0,140,255,.10)",
+              backdropFilter: "blur(16px)",
+            }}
+          >
+            <input
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder={`Reply to ${storyUser.displayName}...`}
+              className="min-w-0 flex-1 bg-transparent text-[17px] font-medium text-white outline-none placeholder:text-white/55"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              data-testid="input-story-reply"
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleReaction();
+              }}
+              className="ml-3 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
+              aria-label={liked ? "Unlike story" : "Like story"}
+              data-testid="btn-story-heart"
+            >
+              <Heart
+                size={26}
+                strokeWidth={2}
+                style={{
+                  color: "#BFA8FF",
+                  fill: liked ? "url(#yunikoHeartGradient)" : "transparent",
+                }}
+              />
+              <svg width="0" height="0" aria-hidden="true">
+                <defs>
+                  <linearGradient id="yunikoHeartGradient" x1="0" x2="1">
+                    <stop offset="0%" stopColor="#FF4CB4" />
+                    <stop offset="100%" stopColor="#7DB8FF" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setReplyText("");
+              }}
+              className="ml-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
+              aria-label="Send reply"
+              data-testid="btn-send-reply"
+            >
+              <Send size={25} strokeWidth={2.2} style={{ color: "#B26CFF", filter: "drop-shadow(0 0 6px rgba(0,140,255,.45))" }} />
+            </button>
           </div>
-        </button>
-        <div className="flex items-center gap-2">
-          <button data-testid="btn-story-options">
-            <MoreHorizontal size={22} className="text-white" />
-          </button>
-          <button onClick={() => setLocation("/")} data-testid="btn-close-story">
-            <X size={22} className="text-white" />
-          </button>
         </div>
-      </div>
 
-      {/* Tap zones */}
-      <div className="absolute inset-0 flex">
-        <div className="flex-1" onClick={goPrev} />
-        <div className="flex-1" onClick={goNext} />
-      </div>
-
-      {/* Reaction popup */}
-      {reactionShown && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span
-            className="text-7xl animate-bounce"
-            style={{ filter: "drop-shadow(0 0 20px rgba(255,0,110,0.8))" }}
-          >
-            {reactionShown}
-          </span>
-        </div>
-      )}
-
-      {/* Dark gradient bottom */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-40 pointer-events-none"
-        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)" }}
-      />
-
-      {/* Quick reactions */}
-      <div className="absolute bottom-24 left-3 right-3 flex justify-center gap-3">
-        {QUICK_REACTIONS.map((emoji) => (
-          <button
-            key={emoji}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleReaction(emoji);
+        {currentStory.location && (
+          <div
+            className="absolute bottom-8 left-8 z-40 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[16px] font-semibold text-white"
+            style={{
+              border: "2px solid transparent",
+              backgroundImage: "linear-gradient(rgba(20,18,31,.86),rgba(20,18,31,.86)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)",
+              backgroundOrigin: "border-box",
+              backgroundClip: "padding-box,border-box",
+              boxShadow: "0 0 16px rgba(255,20,147,.14)",
+              backdropFilter: "blur(12px)",
             }}
-            className="text-2xl p-1 rounded-full hover:scale-125 transition-transform"
-            style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(8px)" }}
-            data-testid={`reaction-${emoji}`}
           >
-            {emoji}
-          </button>
-        ))}
-      </div>
-
-      {/* Reply input */}
-      <div className="absolute bottom-6 left-3 right-3 flex items-center gap-2">
-        <div
-          className="flex-1 flex items-center px-4 py-2.5 rounded-full"
-          style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", backdropFilter: "blur(12px)" }}
-        >
-          <input
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            placeholder={`Reply to ${storyUser.displayName}...`}
-            className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-white/50"
-            onClick={(e) => e.stopPropagation()}
-            data-testid="input-story-reply"
-          />
-        </div>
-        {replyText && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setReplyText("");
-            }}
-            className="w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #FF006E, #8B00FF)", boxShadow: "0 2px 10px rgba(255,0,110,0.4)" }}
-            data-testid="btn-send-reply"
-          >
-            <Send size={16} className="text-white" />
-          </button>
+            <MapPin size={20} strokeWidth={2} style={{ color: "#FF5BB7" }} />
+            <span>{currentStory.location}</span>
+          </div>
         )}
       </div>
     </div>
