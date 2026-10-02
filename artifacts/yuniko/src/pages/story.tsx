@@ -180,123 +180,120 @@ export default function StoryViewer() {
       data-testid="story-viewer"
     >
       <div
-        className="relative mx-auto h-[calc(100vh-64px)] min-h-[680px] w-full max-w-[752px] overflow-hidden bg-[#08070d] shadow-[0_0_70px_rgba(0,0,0,.65)] md:my-8 md:rounded-[28px]"
+        className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col overflow-hidden bg-[#08070d] shadow-[0_0_70px_rgba(0,0,0,.65)] md:min-h-[96vh] md:rounded-[28px]"
       >
+        <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_0%_45%,rgba(255,20,147,.18),transparent_34%),radial-gradient(circle_at_100%_45%,rgba(0,140,255,.18),transparent_34%)]" />
+
         <div
-          className="absolute left-0 right-0 top-[222px] bottom-[228px] z-0 overflow-hidden bg-black"
-          data-testid="story-media"
+          className="relative z-30 shrink-0 px-[clamp(1rem,4vw,2rem)] pt-[clamp(1rem,3vw,1.5rem)] pb-[clamp(.75rem,2vw,1.25rem)]"
+          style={{
+            background: "linear-gradient(to bottom, rgba(5,4,10,.98), rgba(5,4,10,.94) 72%, rgba(5,4,10,.78))",
+          }}
         >
+          <div className="flex gap-[clamp(.45rem,1.5vw,.9rem)]" data-testid="story-progress">
+            {Array.from({ length: segmentCount }).map((_, i) => {
+              const isRealSegment = i < userStories.length;
+              const width = !isRealSegment
+                ? "0%"
+                : i < currentIndex
+                  ? "100%"
+                  : i === currentIndex
+                    ? `${progress}%`
+                    : "0%";
+
+              return (
+                <div
+                  key={i}
+                  className="h-1 flex-1 overflow-hidden rounded-full border border-white/20 bg-white/[.06]"
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width,
+                      background: "linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)",
+                      boxShadow: "0 0 9px rgba(255,20,147,.35)",
+                      transition: "width .1s linear",
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-[clamp(1rem,3vw,1.5rem)] flex items-center gap-3">
+            <button
+              onClick={() => setLocation(`/user/${storyUser.id}`)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              data-testid="btn-story-user"
+            >
+              <div
+                className="size-[clamp(3.25rem,8vw,4.5rem)] shrink-0 rounded-full p-[3px]"
+                style={{
+                  background: "linear-gradient(135deg,#FF1493 0%,#8B5CF6 52%,#008CFF 100%)",
+                  boxShadow: "0 0 16px rgba(255,20,147,.28)",
+                }}
+              >
+                <img
+                  src={storyUser.avatar}
+                  alt={storyUser.displayName}
+                  className="h-full w-full rounded-full border-[3px] border-[#090810] object-cover"
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-[clamp(1.05rem,3.5vw,1.55rem)] font-bold tracking-[-.025em] text-white">{storyUser.displayName}</span>
+                  {storyUser.verified && <BadgeCheck size={15} className="fill-blue-300 text-blue-300" />}
+                </div>
+                <span className="text-[clamp(.85rem,2.5vw,1.05rem)] font-medium text-white/70">{currentStory.timestamp} {t("ago")}</span>
+              </div>
+            </button>
+
+            <div className="flex shrink-0 items-center gap-[clamp(.4rem,1.5vw,.75rem)]">
+              <button
+                onClick={() => setPaused((value) => !value)}
+                className="flex size-[clamp(2.75rem,7vw,3.5rem)] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
+                aria-label={paused ? "Resume story" : "Pause story"}
+                data-testid="btn-story-pause"
+              >
+                {paused ? <span className="text-lg font-black">▶</span> : <Pause size={21} strokeWidth={2.2} />}
+              </button>
+              <button
+                onClick={() => setMuted((value) => !value)}
+                className="flex size-[clamp(2.75rem,7vw,3.5rem)] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
+                aria-label={muted ? "Unmute story" : "Mute story"}
+                data-testid="btn-story-mute"
+              >
+                {muted ? <VolumeX size={22} strokeWidth={2.1} /> : <Volume2 size={22} strokeWidth={2.1} />}
+              </button>
+              <button
+                onClick={() => setLocation("/")}
+                className="flex size-[clamp(2.75rem,7vw,3.5rem)] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
+                aria-label="Close story"
+                data-testid="btn-close-story"
+              >
+                <X size={24} strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-0 min-h-0 flex-1 bg-black" data-testid="story-media">
           <img
             src={currentStory.imageUrl}
             alt="Story"
             className="h-full w-full object-cover"
           />
-        </div>
 
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[250px]"
-          style={{ background: "linear-gradient(to bottom, rgba(4,3,9,.98) 0%, rgba(4,3,9,.92) 55%, rgba(4,3,9,.20) 88%, transparent 100%)" }}
-        />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/35" />
 
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[280px]"
-          style={{ background: "linear-gradient(to top, rgba(4,3,9,.98) 0%, rgba(4,3,9,.94) 42%, rgba(4,3,9,.28) 78%, transparent 100%)" }}
-        />
-
-        <div className="absolute left-8 right-8 top-10 z-40 flex gap-4" data-testid="story-progress">
-          {Array.from({ length: segmentCount }).map((_, i) => {
-            const isRealSegment = i < userStories.length;
-            const width = !isRealSegment
-              ? "0%"
-              : i < currentIndex
-                ? "100%"
-                : i === currentIndex
-                  ? `${progress}%`
-                  : "0%";
-
-            return (
-              <div
-                key={i}
-                className="h-[4px] min-w-0 flex-1 overflow-hidden rounded-full"
-                style={{ background: "rgba(255,255,255,.18)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)" }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width,
-                    background: "linear-gradient(90deg,#FF1493 0%,#8B5CF6 50%,#008CFF 100%)",
-                    boxShadow: "0 0 8px rgba(255,20,147,.32)",
-                    transition: "width .1s linear",
-                  }}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="absolute left-8 right-8 top-[104px] z-40 flex items-center justify-between gap-4">
-          <button
-            onClick={() => setLocation(`/user/${storyUser.id}`)}
-            className="flex min-w-0 items-center gap-3 text-left"
-            data-testid="btn-story-user"
-          >
-            <div
-              className="h-[108px] w-[108px] shrink-0 rounded-full p-[4px]"
-              style={{
-                background: "linear-gradient(135deg,#FF1493 0%,#8B5CF6 52%,#008CFF 100%)",
-                boxShadow: "0 0 16px rgba(255,20,147,.28)",
-              }}
-            >
-              <img
-                src={storyUser.avatar}
-                alt={storyUser.displayName}
-                className="h-full w-full rounded-full border-[5px] border-[#090810] object-cover"
-              />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate text-[34px] font-bold tracking-[-.03em] text-white">{storyUser.displayName}</span>
-                {storyUser.verified && <BadgeCheck size={15} className="fill-blue-300 text-blue-300" />}
-              </div>
-              <span className="text-[23px] font-medium text-white/75">{currentStory.timestamp} {t("ago")}</span>
-            </div>
-          </button>
-
-          <div className="flex shrink-0 items-center gap-3">
-            <button
-              onClick={() => setPaused((value) => !value)}
-              className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
-              aria-label={paused ? "Resume story" : "Pause story"}
-              data-testid="btn-story-pause"
-            >
-              {paused ? <span className="text-[22px] font-black">▶</span> : <Pause size={23} strokeWidth={2.2} />}
-            </button>
-            <button
-              onClick={() => setMuted((value) => !value)}
-              className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
-              aria-label={muted ? "Unmute story" : "Mute story"}
-              data-testid="btn-story-mute"
-            >
-              {muted ? <VolumeX size={24} strokeWidth={2.1} /> : <Volume2 size={24} strokeWidth={2.1} />}
-            </button>
-            <button
-              onClick={() => setLocation("/")}
-              className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md"
-              aria-label="Close story"
-              data-testid="btn-close-story"
-            >
-              <X size={26} strokeWidth={2} />
-            </button>
+          <div className="absolute inset-0 z-20 flex">
+            <button aria-label="Previous story" className="h-full w-1/2 cursor-default" onClick={goPrev} />
+            <button aria-label="Next story" className="h-full w-1/2 cursor-default" onClick={goNext} />
           </div>
         </div>
 
-        <div className="absolute inset-x-0 top-[238px] bottom-[220px] z-20 flex">
-          <button aria-label="Previous story" className="h-full w-1/2 cursor-default" onClick={goPrev} />
-          <button aria-label="Next story" className="h-full w-1/2 cursor-default" onClick={goNext} />
-        </div>
-
         {reactionShown && (
-          <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+          <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
             <Heart
               size={118}
               strokeWidth={1.4}
@@ -310,9 +307,14 @@ export default function StoryViewer() {
           </div>
         )}
 
-        <div className="absolute bottom-[112px] left-8 right-8 z-40 flex items-center gap-3">
+        <div
+          className="relative z-30 shrink-0 px-[clamp(1rem,4vw,2rem)] pt-[clamp(1rem,3vw,1.5rem)] pb-[clamp(1rem,3vw,1.5rem)]"
+          style={{
+            background: "linear-gradient(to top, rgba(5,4,10,.99), rgba(5,4,10,.94) 72%, rgba(5,4,10,.72))",
+          }}
+        >
           <div
-            className="flex min-w-0 flex-1 items-center rounded-full px-7 py-[20px]"
+            className="flex min-w-0 items-center gap-2 rounded-full px-[clamp(.75rem,3vw,1.25rem)] py-2.5"
             style={{
               background: "rgba(20,18,31,.90)",
               border: "2px solid transparent",
@@ -327,7 +329,7 @@ export default function StoryViewer() {
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder={`Reply to ${storyUser.displayName}...`}
-              className="min-w-0 flex-1 bg-transparent text-[20px] font-medium text-white outline-none placeholder:text-white/55"
+              className="min-w-0 flex-1 bg-transparent text-[clamp(.9rem,2.7vw,1.05rem)] font-medium text-white outline-none placeholder:text-white/55"
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
               data-testid="input-story-reply"
@@ -337,12 +339,12 @@ export default function StoryViewer() {
                 e.stopPropagation();
                 toggleReaction();
               }}
-              className="ml-4 flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
+              className="flex size-[clamp(2.7rem,7vw,3.25rem)] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
               aria-label={liked ? "Unlike story" : "Like story"}
               data-testid="btn-story-heart"
             >
               <Heart
-                size={26}
+                size={24}
                 strokeWidth={2}
                 style={{
                   color: "#BFA8FF",
@@ -363,31 +365,31 @@ export default function StoryViewer() {
                 e.stopPropagation();
                 setReplyText("");
               }}
-              className="ml-2 flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
+              className="flex size-[clamp(2.7rem,7vw,3.25rem)] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90"
               aria-label="Send reply"
               data-testid="btn-send-reply"
             >
-              <Send size={25} strokeWidth={2.2} style={{ color: "#B26CFF", filter: "drop-shadow(0 0 6px rgba(0,140,255,.45))" }} />
+              <Send size={24} strokeWidth={2.2} style={{ color: "#B26CFF", filter: "drop-shadow(0 0 6px rgba(0,140,255,.45))" }} />
             </button>
           </div>
-        </div>
 
-        {currentStory.location && (
-          <div
-            className="absolute bottom-8 left-8 z-40 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[18px] font-semibold text-white"
-            style={{
-              border: "2px solid transparent",
-              backgroundImage: "linear-gradient(rgba(20,18,31,.86),rgba(20,18,31,.86)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)",
-              backgroundOrigin: "border-box",
-              backgroundClip: "padding-box,border-box",
-              boxShadow: "0 0 16px rgba(255,20,147,.14)",
-              backdropFilter: "blur(12px)",
-            }}
-          >
-            <MapPin size={20} strokeWidth={2} style={{ color: "#FF5BB7" }} />
-            <span>{currentStory.location}</span>
-          </div>
-        )}
+          {currentStory.location && (
+            <div
+              className="mt-3 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[clamp(.85rem,2.5vw,1rem)] font-semibold text-white"
+              style={{
+                border: "2px solid transparent",
+                backgroundImage: "linear-gradient(rgba(20,18,31,.86),rgba(20,18,31,.86)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)",
+                backgroundOrigin: "border-box",
+                backgroundClip: "padding-box,border-box",
+                boxShadow: "0 0 16px rgba(255,20,147,.14)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <MapPin size={19} strokeWidth={2} style={{ color: "#FF5BB7" }} />
+              <span>{currentStory.location}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
