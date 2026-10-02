@@ -97,7 +97,7 @@ export default function Messages(){
 
   return <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 flex flex-col overflow-hidden" style={{background:"#050509"}}>
     <header className="relative z-40 shrink-0 px-4 pt-6 pb-4 flex items-center justify-between" style={{background:"rgba(13,11,20,0.96)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(255,255,255,0.06)"}} data-testid="messages-header">
-      <div className="flex items-center gap-2"><h1 className="text-[36px] font-extrabold tracking-[-0.045em] leading-none" style={{background:GRADIENT,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}">{t("messages")}</h1>{totalUnread>0&&<span className="text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center" style={{background:GRADIENT}}>{totalUnread}</span>}</div>
+      <div className="flex items-center gap-2"><h1 className="text-[36px] font-extrabold tracking-[-0.045em] leading-none" style={{background:GRADIENT,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{t("messages")}</h1>{totalUnread>0&&<span className="text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center" style={{background:GRADIENT}}>{totalUnread}</span>}</div>
       <div className="flex items-center gap-3">
         <button onClick={()=>setLocation("/message-requests")} data-testid="btn-message-requests"><UserPlus size={20} className="text-white/70" strokeWidth={1.8}/></button>
         <button onClick={()=>setLocation("/archived-chats")} data-testid="btn-archived"><Archive size={20} className="text-white/70" strokeWidth={1.8}/></button>
