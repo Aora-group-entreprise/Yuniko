@@ -198,13 +198,19 @@ export default function Home() {
           </div>
         ) : (
           <div className="mx-auto w-full max-w-[680px]">
-            <StoryRail stories={liveStories} ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id} />
+            <StoryRail
+  stories={liveStories.filter((story) => Number(story.userId) !== Number(user?.id))}
+  ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id}
+/>
             {allFeedItems.map(({ post, author }, index) => (
               <ReactFragment key={post.id}>
                 <article className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
                   <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
                 </article>
-                {(index + 1) % 11 === 0 && index + 1 < allFeedItems.length && <StoryRail stories={liveStories} />}
+                {(index + 1) % 11 === 0 && index + 1 < allFeedItems.length && <StoryCardRail
+  stories={liveStories.filter((story) => Number(story.userId) !== Number(user?.id))}
+  ownStory={liveStories.find((story) => Number(story.userId) === Number(user?.id))}
+ />}
               </ReactFragment>
             ))}
           </div>
@@ -269,6 +275,114 @@ function StoryRail({ stories, ownStoryId }: { stories: LiveStory[]; ownStoryId?:
         ))}
       </div>
     </section>
+  );
+}
+
+function StoryCardRail({ stories, ownStory }: { stories: LiveStory[]; ownStory?: LiveStory }) {
+  return (
+    <section
+      className="relative mb-7 w-full"
+      data-testid="stories-card-section"
+    >
+      <div
+        className="flex items-start gap-2.5 overflow-x-auto no-scrollbar px-0.5"
+        style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
+        data-testid="stories-card-row"
+      >
+        <StoryCard
+          isOwn
+          story={ownStory}
+          storyId={ownStory?.id}
+          userId="me"
+          label="Your story"
+        />
+        {stories.map((story) => (
+          <StoryCard key={`sc_${story.id}`} story={story} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StoryCard({
+  story,
+  isOwn = false,
+  storyId,
+  userId,
+  label,
+}: {
+  story?: LiveStory;
+  isOwn?: boolean;
+  storyId?: number;
+  userId?: string;
+  label?: string;
+}) {
+  const [, setLocation] = useLocation();
+  const { user: authUser } = useAuth();
+
+  const displayName = isOwn
+    ? label ?? "Your story"
+    : story?.authorDisplayName ?? "Story";
+
+  const avatarSrc = isOwn
+    ? authUser?.avatarUrl ??
+      `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "U")}&backgroundColor=FF006E`
+    : story?.authorAvatarUrl ??
+      `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=FF006E`;
+
+  const openStory = () => {
+    if (isOwn) {
+      setLocation(storyId ? `/story/live_${storyId}` : "/create?mode=story");
+      return;
+    }
+    if (story) setLocation(`/story/live_${story.id}`);
+  };
+
+  return (
+    <motion.button
+      onClick={openStory}
+      whileTap={{ scale: 0.97 }}
+      className="relative shrink-0 overflow-hidden rounded-[14px] text-left"
+      style={{
+        width: "clamp(108px, 28vw, 140px)",
+        aspectRatio: "9 / 16",
+        background: "#16161d",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 8px 22px rgba(0,0,0,.28)",
+      }}
+      aria-label={`Open ${displayName}`}
+      data-testid={`story-card-${userId ?? story?.id ?? "story"}`}
+    >
+      <img
+        src={story?.mediaUrl ?? avatarSrc}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+        loading="lazy"
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: "linear-gradient(180deg, rgba(0,0,0,.04) 35%, rgba(0,0,0,.82) 100%)",
+        }}
+      />
+      <div
+        className="absolute left-2.5 top-2.5 h-9 w-9 overflow-hidden rounded-full p-[2px]"
+        style={{
+          background: "linear-gradient(135deg,#FF1493 0%,#008CFF 100%)",
+          boxShadow: "0 0 10px rgba(255,20,147,.28)",
+        }}
+      >
+        <img
+          src={avatarSrc}
+          alt=""
+          className="h-full w-full rounded-full object-cover"
+          style={{ border: "2px solid #111118" }}
+        />
+      </div>
+      <span className="absolute bottom-2.5 left-2.5 right-2.5 truncate text-[12px] font-bold leading-tight text-white">
+        {displayName}
+      </span>
+    </motion.button>
   );
 }
 
