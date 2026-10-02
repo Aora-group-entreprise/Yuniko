@@ -158,7 +158,7 @@ export default function Home() {
       </header>
 
       <section
-        className="fixed inset-x-0 top-[72px] z-40 w-full px-4 pt-3 pb-3"
+        className="fixed inset-x-0 top-[72px] z-40 w-full px-4 pt-2 pb-2"
         style={{
           background: "rgba(5,5,9,0.96)",
           backdropFilter: "blur(20px)",
@@ -168,7 +168,7 @@ export default function Home() {
         }}
         data-testid="stories-section"
       >
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-2 flex items-center justify-between">
           <h2 className="text-[18px] font-bold tracking-[-0.02em] text-white">Stories</h2>
         </div>
         <div
@@ -202,7 +202,7 @@ export default function Home() {
         className="relative z-10 min-w-0 overflow-y-auto overflow-x-hidden px-[clamp(10px,3.5vw,22px)] pb-[calc(92px+env(safe-area-inset-bottom,0px))]"
         style={{
           minHeight: "calc(var(--yuniko-vh) - 72px)",
-          paddingTop: "128px",
+          paddingTop: "120px",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorY: "contain",
           touchAction: "pan-y",
