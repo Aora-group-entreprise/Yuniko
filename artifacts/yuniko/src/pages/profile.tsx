@@ -252,6 +252,14 @@ export default function Profile({ userId }: ProfilePageProps) {
             <div className="absolute inset-0" style={{background:"linear-gradient(135deg,#17081d 0%,#071a30 55%,#09050f 100%)"}}/>
           )}
           <div className="absolute inset-0" style={{background:"linear-gradient(180deg,rgba(0,0,0,.04) 20%,rgba(5,5,9,.18) 55%,rgba(5,5,9,.96) 100%)"}}/>
+          {isOwn&&<button
+            onClick={()=>setLocation("/settings")}
+            className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md active:scale-95"
+            aria-label="Settings"
+            data-testid="btn-profile-settings"
+          >
+            <Settings size={20} strokeWidth={2.2}/>
+          </button>}
         </div>
 
         <div className="relative -mt-[57px] px-4">
