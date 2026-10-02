@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Bell, Send, Globe, Bookmark, Share2, Flag, EyeOff, WifiOff } from "lucide-react";
+import { Bell, UserPlus, Globe, Bookmark, Share2, Flag, EyeOff, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Post } from "@/data/mockData";
 import StoryAvatar from "@/components/StoryAvatar";
@@ -151,8 +151,8 @@ export default function Home() {
             <Bell size={25} strokeWidth={1.7} style={{ color: "rgba(255,210,235,0.88)" }} />
             <span className="absolute -right-0.5 top-0.5 h-2 w-2 rounded-full" style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.7)" }} />
           </motion.button>
-          <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/messages")} className="flex h-9 w-9 items-center justify-center" aria-label={t("messages")}>
-            <Send size={25} strokeWidth={1.7} style={{ color: "rgba(255,210,235,0.88)" }} />
+          <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/add-friends")} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("addFriends")}>
+            <UserPlus size={25} strokeWidth={1.75} style={{ color: "rgba(255,210,235,0.92)" }} />
           </motion.button>
         </div>
       </header>

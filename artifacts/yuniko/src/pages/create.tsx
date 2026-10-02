@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
-import { X, Image as ImageIcon, Video, MapPin, Hash, Globe, Layers, AlertCircle, Camera } from "lucide-react";
+import { X, Image as ImageIcon, Video, MapPin, Hash, Globe, AlertCircle, Camera, Sparkles, Music2, Smile, Type, Send, Clock3, PlusCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ScreenPortal from "@/components/ScreenPortal";
 import { t } from "@/lib/i18n";
@@ -173,215 +173,182 @@ export default function Create() {
   const canSubmit = activeTab === "story" ? !!selectedMedia : !!(caption.trim() || selectedMedia);
 
   return (
-    <div className="w-full max-w-[430px] mx-auto min-h-screen pb-24" style={{ background: "hsl(250, 30%, 7%)" }}>
-      {/* Hidden file input — opens camera/gallery on mobile */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
+    <div className="relative mx-auto min-h-[var(--yuniko-vh)] w-full max-w-[430px] overflow-x-hidden pb-28 text-white" style={{ background: "#050509" }}>
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+
+      <div
+        className="pointer-events-none fixed inset-y-0 left-0 right-0 mx-auto w-full max-w-[430px] opacity-80"
+        style={{ background: "radial-gradient(ellipse 70% 45% at 0% 35%,rgba(255,20,147,.13),transparent 68%),radial-gradient(ellipse 65% 45% at 100% 58%,rgba(0,140,255,.14),transparent 68%)" }}
       />
 
-      {/* Header */}
-      <header
-        className="sticky top-0 z-40 px-4 pt-4 pb-0 flex flex-col gap-0"
-        style={{
-          background: "rgba(10,8,18,0.96)",
-          backdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-        }}
-      >
-        <div className="flex items-center justify-between pb-3">
-          <motion.button whileTap={{ scale: 0.88 }} onClick={() => setLocation("/")}>
-            <X size={22} className="text-white/80" />
-          </motion.button>
-          <h1 className="text-base font-semibold text-white">
-            {activeTab === "story" ? "New Story" : t("newPost")}
-          </h1>
+      <header className="relative z-20 px-5 pt-6 pb-4">
+        <div className="flex items-center justify-between">
+          <button onClick={() => setLocation("/")} aria-label="Close create">
+            <X size={27} className="text-white/75" strokeWidth={1.8} />
+          </button>
+          <div
+            className="text-[30px] font-black tracking-[-0.06em]"
+            style={{ background: "linear-gradient(90deg,#FF1493,#8B5CFF,#008CFF)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}
+          >
+            ✦ Yuniko
+          </div>
           <motion.button
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale:.92 }}
             onClick={handleSubmit}
             disabled={loading || !canSubmit}
-            className="px-4 py-1.5 rounded-full text-sm font-semibold text-white"
-            style={{
-              background: canSubmit ? GRADIENT : "rgba(255,255,255,0.1)",
-              opacity: loading ? 0.75 : canSubmit ? 1 : 0.5,
-              boxShadow: canSubmit ? "0 2px 12px rgba(255,0,110,0.35)" : "none",
-            }}
+            className="rounded-full px-4 py-2 text-sm font-bold text-white disabled:opacity-45"
+            style={{ background: canSubmit ? "linear-gradient(135deg,#FF1493,#008CFF)" : "rgba(255,255,255,.09)", boxShadow: canSubmit ? "0 0 18px rgba(255,20,147,.28)" : "none" }}
           >
-            {loading
-              ? <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-              : activeTab === "story" ? "Share" : t("postButton")}
+            {loading ? <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : activeTab === "story" ? "Share" : "Post"}
           </motion.button>
         </div>
 
-        {/* Post / Story tabs */}
-        <div className="flex border-b border-white/8">
-          {(["post", "story"] as TabMode[]).map((tab) => (
+        <div className="mt-5 flex h-[54px] rounded-full p-1.5" style={{ background:"rgba(255,255,255,.10)", boxShadow:"inset 0 0 0 1px rgba(255,255,255,.035)" }}>
+          {(["post","story"] as TabMode[]).map((tab) => (
             <button
               key={tab}
               onClick={() => { setActiveTab(tab); setError(""); }}
-              className="flex-1 pb-2.5 text-sm font-semibold capitalize relative"
-              style={{ color: activeTab === tab ? "white" : "rgba(255,255,255,0.4)" }}
+              className="relative flex-1 rounded-full text-[18px] font-bold"
+              style={{ color: activeTab===tab ? "#fff" : "rgba(255,255,255,.42)", background: activeTab===tab ? "linear-gradient(135deg,rgba(255,20,147,.98),rgba(0,140,255,.98))" : "transparent", boxShadow: activeTab===tab ? "0 0 22px rgba(255,20,147,.18)" : "none" }}
             >
-              {tab}
-              {activeTab === tab && (
-                <motion.div
-                  layoutId="tab-indicator"
-                  className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-8 rounded-full"
-                  style={{ background: GRADIENT }}
-                />
-              )}
+              {tab === "post" ? "Post" : "Story"}
             </button>
           ))}
         </div>
       </header>
 
-      <div className="px-4 py-4">
-        {/* User row + caption */}
-        <div className="flex gap-3 mb-4">
-          <img
-            src={avatarSrc}
-            alt={user?.username ?? ""}
-            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-            style={{ boxShadow: "0 0 0 2px rgba(255,61,154,0.5)" }}
-          />
-          <div className="flex-1">
-            <p className="text-white font-semibold text-sm mb-1.5">{user?.username ?? ""}</p>
+      <main className="relative z-10 px-5">
+        <section className="mb-5">
+          <div className="mb-3 flex items-center gap-2.5">
+            <Camera size={21} style={{ color:"#FF43B0" }} />
+            <span className="text-[18px] font-bold" style={{ background:"linear-gradient(90deg,#FF43B0,#8B5CFF,#008CFF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>
+              {activeTab === "story" ? "STORY" : "POST"}
+            </span>
+          </div>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="relative block w-full overflow-hidden rounded-[24px] text-left"
+            style={{ minHeight: activeTab === "story" ? "360px" : "245px", background:"linear-gradient(145deg,rgba(255,20,147,.09),rgba(0,140,255,.08))", border:"1px solid rgba(255,20,147,.35)", boxShadow:"0 0 22px rgba(255,20,147,.10),inset 0 0 30px rgba(0,140,255,.035)" }}
+          >
+            {selectedMedia ? (
+              <img src={selectedMedia} alt="Selected media" className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/45">
+                <ImageIcon size={42} />
+                <span className="text-sm font-medium">Add a photo</span>
+              </div>
+            )}
+            {selectedMedia && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setSelectedMedia(null); }}
+                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60"
+                aria-label="Remove photo"
+              >
+                <X size={17} />
+              </button>
+            )}
+          </button>
+        </section>
+
+        <section className="mb-5 flex gap-2.5 overflow-x-auto no-scrollbar">
+          {(activeTab === "post"
+            ? [{label:"Original",icon:<Sparkles size={18}/>},{label:"Warm",icon:<Sparkles size={18}/>},{label:"Cool",icon:<Sparkles size={18}/>},{label:"Moody",icon:<Sparkles size={18}/>}]
+            : [{label:"Text",icon:<Type size={18}/>},{label:"Music",icon:<Music2 size={18}/>},{label:"Stickers",icon:<Smile size={18}/>},{label:"Filters",icon:<Sparkles size={18}/>}]
+          ).map((tool,index) => (
+            <button key={tool.label} className="flex h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-semibold" style={{ background:index===0?"linear-gradient(135deg,#FF1493,#008CFF)":"rgba(255,255,255,.08)", border:index===0?"none":"1px solid rgba(255,255,255,.10)", color:"#fff" }}>
+              {tool.icon}{tool.label}
+            </button>
+          ))}
+        </section>
+
+        <section className="rounded-[22px] p-4 mb-5" style={{ background:"rgba(8,8,14,.78)", border:"1px solid rgba(255,20,147,.24)", boxShadow:"0 0 18px rgba(0,140,255,.06)" }}>
+          <div className="flex items-start gap-3">
+            <img src={avatarSrc} alt={user?.username ?? ""} className="h-11 w-11 shrink-0 rounded-full object-cover" style={{ boxShadow:"0 0 0 2px rgba(255,20,147,.65),0 0 12px rgba(0,140,255,.22)" }} />
             <textarea
               value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder={activeTab === "story" ? "Add a caption (optional)" : t("addCaption")}
-              className="w-full bg-transparent text-white/85 text-sm resize-none outline-none placeholder:text-white/30"
-              rows={activeTab === "story" ? 2 : 4}
+              onChange={(e)=>setCaption(e.target.value)}
+              placeholder={activeTab === "story" ? "Write on your story..." : "Write a caption... #wanderlust #nature"}
+              className="min-h-[74px] flex-1 resize-none bg-transparent text-[16px] leading-6 text-white outline-none placeholder:text-white/35"
+              rows={3}
             />
           </div>
-        </div>
+          <div className="mt-3 flex items-center justify-between text-xs text-white/35">
+            <span>{caption.length}/500</span>
+            {activeTab === "post" && <span className="text-white/45">Public</span>}
+          </div>
+        </section>
 
-        {/* Selected media preview */}
-        <AnimatePresence>
-          {selectedMedia && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative mb-4 rounded-2xl overflow-hidden"
-            >
-              <img src={selectedMedia} alt="Selected" className="w-full rounded-2xl" />
-              <button
-                onClick={() => setSelectedMedia(null)}
-                className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/65 flex items-center justify-center"
-              >
-                <X size={14} className="text-white" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Media buttons */}
-        <div className="flex gap-3 mb-6">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 py-4 rounded-2xl flex flex-col items-center gap-2"
-            style={{ background: "rgba(255,0,110,0.08)", border: "1px solid rgba(255,0,110,0.25)" }}
-          >
-            <Camera size={24} style={{ color: "#FF3D9A" }} />
-            <span className="text-white/70 text-xs font-medium">
-              {selectedMedia ? "Change Photo" : "Add Photo"}
-            </span>
-          </motion.button>
-          {activeTab === "post" && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowVideoModal(true)}
-              className="flex-1 py-4 rounded-2xl flex flex-col items-center gap-2"
-              style={{ background: "rgba(139,0,255,0.08)", border: "1px solid rgba(139,0,255,0.25)" }}
-            >
-              <Video size={24} style={{ color: "#B060FF" }} />
-              <span className="text-white/70 text-xs font-medium">{t("video")}</span>
-            </motion.button>
-          )}
-        </div>
-
-        {/* Post-only options */}
         {activeTab === "post" && (
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-          >
-            <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-              <MapPin size={18} className="text-pink-400 flex-shrink-0" />
-              <input
-                value={locationText}
-                onChange={(e) => setLocationText(e.target.value)}
-                placeholder={t("location")}
-                className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/30"
-              />
+          <section className="mb-5 rounded-[22px] overflow-hidden" style={{ background:"rgba(8,8,14,.76)", border:"1px solid rgba(255,255,255,.08)" }}>
+            <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom:"1px solid rgba(255,255,255,.06)" }}>
+              <MapPin size={20} style={{color:"#FF43B0"}} />
+              <input value={locationText} onChange={(e)=>setLocationText(e.target.value)} placeholder="Add location" className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/35" />
             </div>
-            <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-              <Hash size={18} className="text-blue-400 flex-shrink-0" />
-              <input
-                value={hashtags}
-                onChange={(e) => setHashtags(e.target.value)}
-                placeholder={t("hashtags")}
-                className="flex-1 bg-transparent text-white/80 text-sm outline-none placeholder:text-white/30"
-              />
+            <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom:"1px solid rgba(255,255,255,.06)" }}>
+              <Hash size={20} className="text-blue-400" />
+              <input value={hashtags} onChange={(e)=>setHashtags(e.target.value)} placeholder="#hashtags" className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/35" />
             </div>
+            <button className="flex w-full items-center gap-3 px-4 py-3.5 text-left" style={{ borderBottom:"1px solid rgba(255,255,255,.06)" }}>
+              <PlusCircle size={20} style={{color:"#8B5CFF"}} />
+              <span className="flex-1 text-sm text-white/80">Add to your post</span>
+              <span className="text-white/30">›</span>
+            </button>
             <div className="flex items-center gap-3 px-4 py-3.5">
-              <Globe size={18} style={{ color: "#FF3D9A" }} className="flex-shrink-0" />
-              <span className="flex-1 text-white/80 text-sm">{t("worldFeed")}</span>
+              <Globe size={20} style={{color:"#FF43B0"}} />
+              <span className="flex-1 text-sm text-white/80">World Feed</span>
               <Toggle value={isWorldFeed} onChange={setIsWorldFeed} />
             </div>
-          </div>
+          </section>
         )}
 
-        {error && (
-          <p className="text-red-400 text-xs text-center mt-4">{error}</p>
+        {activeTab === "story" && (
+          <section className="mb-5">
+            <div className="mb-3 flex items-center gap-3">
+              <Clock3 size={21} style={{color:"#8B5CFF"}} />
+              <span className="font-bold" style={{color:"#FF43B0"}}>STORY</span>
+            </div>
+            <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full p-[4px]" style={{background:"conic-gradient(#FF1493 0 55%,#008CFF 55% 78%,rgba(255,255,255,.12) 78% 100%)",boxShadow:"0 0 25px rgba(255,20,147,.22)"}}>
+              <div className="flex h-full w-full items-center justify-center rounded-full bg-[#050509] text-center text-sm font-bold">15s</div>
+            </div>
+            <p className="mt-3 text-center text-sm text-white/45">Story disappears after 24h</p>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {[["Filters",<Sparkles size={22}/>],["Stickers",<Smile size={22}/>],["Text",<Type size={22}/>]].map(([label,icon])=>(
+                <button key={String(label)} className="flex h-20 flex-col items-center justify-center gap-2 rounded-2xl text-sm font-semibold" style={{background:"rgba(255,20,147,.05)",border:"1px solid rgba(139,92,255,.35)",color:"#FF7AC7"}}>
+                  {icon}{label}
+                </button>
+              ))}
+            </div>
+          </section>
         )}
-      </div>
+
+        {error && <p className="mb-4 text-center text-xs text-red-400">{error}</p>}
+
+        <motion.button
+          whileTap={{scale:.98}}
+          onClick={handleSubmit}
+          disabled={loading || !canSubmit}
+          className="mb-4 flex w-full items-center justify-center gap-3 rounded-[22px] py-4 text-[20px] font-bold text-white disabled:opacity-45"
+          style={{background:canSubmit?"linear-gradient(135deg,#FF1493,#008CFF)":"rgba(255,255,255,.10)",boxShadow:canSubmit?"0 0 26px rgba(255,20,147,.28)":"none"}}
+        >
+          {activeTab==="story" ? <Send size={23}/> : <Send size={23}/>}
+          {activeTab==="story" ? "Share" : "Post"}
+        </motion.button>
+      </main>
 
       <BottomNav />
-
-      {/* Video not available modal */}
       <AnimatePresence>
         {showVideoModal && (
           <ScreenPortal>
-          <>
-            <motion.div
-              key="video-backdrop"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/70"
-              onClick={() => setShowVideoModal(false)}
-            />
-            <motion.div
-              key="video-modal"
-              initial={{ opacity: 0, scale: 0.88, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.88, y: 20 }}
-              transition={{ type: "spring", damping: 22, stiffness: 300 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-72 z-50 rounded-3xl p-6 text-center"
-              style={{ background: "rgba(16,12,28,0.98)", border: "1px solid rgba(255,61,154,0.25)", boxShadow: "0 20px 60px rgba(0,0,0,0.7)" }}
-            >
-              <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
-                style={{ background: "rgba(255,0,110,0.12)", border: "1px solid rgba(255,0,110,0.25)" }}>
-                <AlertCircle size={28} style={{ color: "#FF3D9A" }} />
-              </div>
-              <h3 className="text-white font-bold text-base mb-2">Not Available Yet</h3>
-              <p className="text-white/55 text-sm leading-relaxed mb-5">
-                Video uploads are coming soon. Stay tuned! 🎬
-              </p>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowVideoModal(false)}
-                className="w-full py-3 rounded-2xl text-white font-semibold text-sm"
-                style={{ background: GRADIENT }}
-              >
-                Got it
-              </motion.button>
-            </motion.div>
-          </>
+            <>
+              <motion.div key="video-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 bg-black/70" onClick={()=>setShowVideoModal(false)} />
+              <motion.div key="video-modal" initial={{opacity:0,scale:.88,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:.88,y:20}} transition={{type:"spring",damping:22,stiffness:300}} className="fixed left-1/2 top-1/2 z-50 w-72 -translate-x-1/2 -translate-y-1/2 rounded-3xl p-6 text-center" style={{background:"rgba(16,12,28,.98)",border:"1px solid rgba(255,61,154,.25)",boxShadow:"0 20px 60px rgba(0,0,0,.7)"}}>
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style={{background:"rgba(255,0,110,.12)",border:"1px solid rgba(255,0,110,.25)"}}><AlertCircle size={28} style={{color:"#FF3D9A"}} /></div>
+                <h3 className="mb-2 text-base font-bold text-white">Not Available Yet</h3>
+                <p className="mb-5 text-sm leading-relaxed text-white/55">Video uploads are coming soon. Stay tuned!</p>
+                <motion.button whileTap={{scale:.95}} onClick={()=>setShowVideoModal(false)} className="w-full rounded-2xl py-3 text-sm font-semibold text-white" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)"}}>Got it</motion.button>
+              </motion.div>
+            </>
           </ScreenPortal>
         )}
       </AnimatePresence>
