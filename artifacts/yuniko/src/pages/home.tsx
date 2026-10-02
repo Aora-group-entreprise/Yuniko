@@ -185,7 +185,7 @@ export default function Home() {
         {feedLoading ? <LoadingSkeleton variant="feed" /> : (
           <div className="mx-auto w-full max-w-[680px]">
             <StoryRail
-              stories={liveStories.filter((story) => Number(story.userId) !== Number(user?.id))}
+              stories={liveStories}
               ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id}
             />
             {allFeedItems.length === 0 ? (
