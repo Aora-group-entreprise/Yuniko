@@ -17,6 +17,15 @@ const FEED_CANDIDATE_LIMIT = 2000;
 const FEED_MINIMUM_RESULTS = 15;
 const FEED_STAGES = [3, 5, 7] as const;
 
+// Temporary launch safety net: keep the normal distribution/ranking algorithm intact,
+// but make public world-feed posts globally eligible while Yuniko is still small.
+// The mode disables itself once recent platform activity reaches all three thresholds.
+// These can be overridden by Cloudflare Worker environment variables without a code change.
+const COLD_START_MAX_ACTIVE_CREATORS = 500;
+const COLD_START_MIN_POSTS = 2000;
+const COLD_START_MIN_IMPRESSIONS = 100000;
+const COLD_START_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 type FeedPostRow = Record<string, any> & {
   id: number;
   userId: number;
@@ -29,6 +38,28 @@ function normalizeCountry(value: string | null | undefined) {
 
 function feedQuality(rows: FeedPostRow[]) {
   return rows.length >= FEED_MINIMUM_RESULTS && new Set(rows.map((row) => row.userId)).size >= 3;
+}
+
+function envNumber(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function coldStartIsActive(posts: Array<Record<string, any>>, stats: Array<Record<string, any>>) {
+  const cutoff = Date.now() - COLD_START_WINDOW_MS;
+  const recentPosts = posts.filter((post) => new Date(String(post.createdAt ?? 0)).getTime() >= cutoff);
+  const activeCreators = new Set(recentPosts.map((post) => Number(post.userId)).filter(Number.isInteger)).size;
+  const recentPostIds = new Set(recentPosts.map((post) => Number(post.id)));
+  const recentImpressions = stats.reduce((total, stat) => {
+    const postId = Number(stat.postId);
+    return recentPostIds.has(postId) ? total + Math.max(0, Number(stat.impressions) || 0) : total;
+  }, 0);
+
+  const creatorThreshold = envNumber("YUNIKO_COLD_START_ACTIVE_CREATORS", COLD_START_MAX_ACTIVE_CREATORS);
+  const postThreshold = envNumber("YUNIKO_COLD_START_POSTS", COLD_START_MIN_POSTS);
+  const impressionThreshold = envNumber("YUNIKO_COLD_START_IMPRESSIONS", COLD_START_MIN_IMPRESSIONS);
+
+  return activeCreators < creatorThreshold || recentPosts.length < postThreshold || recentImpressions < impressionThreshold;
 }
 
 async function feedRows(viewerId: number) {
@@ -60,19 +91,25 @@ async function feedRows(viewerId: number) {
   const topicByName = new Map(topics.map((row) => [String(row.topic??"").toLowerCase(), Math.max(0, Math.min(1, Number(row.score)||0))]));
   const distributionByPost = new Map(distributions.map((row) => [Number(row.postId), row]));
   const viewerCountry = String(byId.get(viewerId)?.country??"").trim().toLowerCase()||null;
+  const coldStart = coldStartIsActive(posts, stats);
 
   const baseCandidates = posts.filter((post) => {
     const authorId=Number(post.userId);
     if (blockedIds.has(authorId)||seenByPost.has(Number(post.id))||Boolean(post.deletedAt)) return false;
     const isPrivate=privateById.get(authorId)??false;
     if (isPrivate&&authorId!==viewerId&&!followingIds.has(authorId)) return false;
-    const distribution=distributionByPost.get(Number(post.id));
-    if (distribution&&String(distribution.status)==="stopped") return false;
-    if (distribution&&Number(distribution.stage)<4&&!followingIds.has(authorId)) {
-      const countries=Array.isArray(distribution.countries)?distribution.countries.map(String):[];
-      const author=byId.get(authorId);
-      const authorCountry=String(author?.country??"").trim().toLowerCase();
-      if (!countries.includes(viewerCountry??"")&&authorCountry!==viewerCountry) return false;
+
+    // Cold Start bypasses distribution status/stage/country gates only.
+    // Privacy, blocking, deletion and seen-post protection remain enforced.
+    if (!coldStart) {
+      const distribution=distributionByPost.get(Number(post.id));
+      if (distribution&&String(distribution.status)==="stopped") return false;
+      if (distribution&&Number(distribution.stage)<4&&!followingIds.has(authorId)) {
+        const countries=Array.isArray(distribution.countries)?distribution.countries.map(String):[];
+        const author=byId.get(authorId);
+        const authorCountry=String(author?.country??"").trim().toLowerCase();
+        if (!countries.includes(viewerCountry??"")&&authorCountry!==viewerCountry) return false;
+      }
     }
     return true;
   }).map((post) => {
