@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment as ReactFragment } from "react";
 import { useLocation } from "wouter";
 import { Bell, UserPlus, Globe, Bookmark, Share2, Flag, EyeOff, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -157,32 +157,6 @@ export default function Home() {
         </div>
       </header>
 
-      <section
-        className="fixed inset-x-0 top-[72px] z-40 w-full px-4 pt-2 pb-2"
-        style={{
-          background: "rgba(5,5,9,0.96)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,255,255,0.045)",
-          boxShadow: "0 8px 24px rgba(0,0,0,.16)",
-        }}
-        data-testid="stories-section"
-      >
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-[18px] font-bold tracking-[-0.02em] text-white">Stories</h2>
-        </div>
-        <div
-          className="flex items-start gap-[clamp(10px,2.6vw,16px)] overflow-x-auto no-scrollbar"
-          style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
-          data-testid="stories-row"
-        >
-          <StoryAvatar userId="me" isOwn />
-          {liveStories.map((story) => (
-            <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
-          ))}
-        </div>
-      </section>
-
       <AnimatePresence>
         {!isOnline && (
           <motion.div
@@ -202,7 +176,7 @@ export default function Home() {
         className="relative z-10 min-w-0 overflow-y-auto overflow-x-hidden px-[clamp(10px,3.5vw,22px)] pb-[calc(92px+env(safe-area-inset-bottom,0px))]"
         style={{
           minHeight: "calc(var(--yuniko-vh) - 72px)",
-          paddingTop: "120px",
+          paddingTop: "84px",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorY: "contain",
           touchAction: "pan-y",
@@ -224,10 +198,14 @@ export default function Home() {
           </div>
         ) : (
           <div className="mx-auto w-full max-w-[680px]">
-            {allFeedItems.map(({ post, author }) => (
-              <article key={post.id} className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
-                <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
-              </article>
+            <StoryRail stories={liveStories} />
+            {allFeedItems.map(({ post, author }, index) => (
+              <ReactFragment key={post.id}>
+                <article className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
+                  <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
+                </article>
+                {(index + 1) % 11 === 0 && index + 1 < allFeedItems.length && <StoryRail stories={liveStories} />}
+              </ReactFragment>
             ))}
           </div>
         )}
@@ -263,6 +241,34 @@ export default function Home() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function StoryRail({ stories }: { stories: LiveStory[] }) {
+  return (
+    <section
+      className="relative mb-6 w-full rounded-[18px] px-3 py-2.5"
+      style={{
+        background: "rgba(5,5,9,0.9)",
+        border: "1px solid rgba(255,255,255,0.045)",
+        boxShadow: "0 8px 24px rgba(0,0,0,.16)",
+      }}
+      data-testid="stories-section"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-[18px] font-bold tracking-[-0.02em] text-white">Stories</h2>
+      </div>
+      <div
+        className="flex items-start gap-[clamp(10px,2.6vw,16px)] overflow-x-auto no-scrollbar"
+        style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", touchAction: "pan-x" }}
+        data-testid="stories-row"
+      >
+        <StoryAvatar userId="me" isOwn />
+        {stories.map((story) => (
+          <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
+        ))}
+      </div>
+    </section>
   );
 }
 

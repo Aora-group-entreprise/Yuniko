@@ -321,7 +321,7 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
         )}
       </div>
 
-      <div className="relative w-full overflow-hidden rounded-[20px] bg-black" style={{ aspectRatio: "1.48 / 1", boxShadow: post.isSponsored ? "0 8px 30px rgba(255,20,147,.15)" : "0 5px 24px rgba(0,0,0,.34)" }}>
+      <div className="relative w-full overflow-hidden rounded-[20px] bg-black" style={{ aspectRatio: "1 / 1", boxShadow: post.isSponsored ? "0 8px 30px rgba(255,20,147,.15)" : "0 5px 24px rgba(0,0,0,.34)" }}>
         <img src={post.imageUrl} alt={post.caption} className="absolute inset-0 block h-full w-full object-cover" onClick={handleImageTap} loading="eager" decoding="auto" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(to top,rgba(0,0,0,.22),transparent)" }} />
         <AnimatePresence>
