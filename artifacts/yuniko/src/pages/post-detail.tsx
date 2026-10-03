@@ -612,6 +612,7 @@ export default function PostDetail() {
           onClose={closeCommentsSheet}
           onSubmit={submitComment}
           onLike={toggleCommentLike}
+          keyboardOpen={keyboardOpen}
         />
       )}
 
@@ -665,6 +666,7 @@ function CommentSheet({
   onClose,
   onSubmit,
   onLike,
+  keyboardOpen,
 }: {
   comments: DetailComment[];
   authUser: any;
@@ -673,6 +675,7 @@ function CommentSheet({
   onClose: () => void;
   onSubmit: () => void;
   onLike: (id: string) => void;
+  keyboardOpen: boolean;
 }) {
   return (
     <ScreenPortal>
@@ -692,7 +695,9 @@ function CommentSheet({
             background: "rgba(18,15,30,0.99)",
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "0 -14px 45px rgba(0,0,0,0.55)",
-            marginBottom: "calc(68px + env(safe-area-inset-bottom, 0px))",
+            marginBottom: keyboardOpen
+              ? "calc(var(--yuniko-keyboard-offset, 0px) + 68px + env(safe-area-inset-bottom, 0px))"
+              : "calc(68px + env(safe-area-inset-bottom, 0px))",
           }}
           data-testid="comments-sheet"
         >
