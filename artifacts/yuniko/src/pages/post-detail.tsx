@@ -552,7 +552,7 @@ export default function PostDetail() {
       {!commentsSheetOpen && commentInputVisible && (
       <ScreenPortal>
       <div
-        className="fixed inset-x-0 z-[60] mx-auto w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,16px)] py-3"
+        className="fixed inset-x-0 z-[10001] mx-auto w-full max-w-[430px] min-w-0 px-[clamp(8px,3vw,16px)] py-3"
         style={{
           background: "rgba(13,11,20,0.96)",
           backdropFilter: "blur(20px)",
@@ -567,7 +567,7 @@ export default function PostDetail() {
           // When it is closed, reserve the bottom navigation space.
           bottom: keyboardOpen
             ? "var(--yuniko-keyboard-offset, 0px)"
-            : "calc(var(--yuniko-keyboard-offset, 0px) + 68px + env(safe-area-inset-bottom, 0px))",
+            : "calc(76px + env(safe-area-inset-bottom, 0px))",
           paddingBottom: 12,
         }}
         data-testid="comment-input-bar"
