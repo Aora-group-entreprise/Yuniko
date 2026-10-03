@@ -754,30 +754,39 @@ function CommentSheet({
             )}
           </div>
 
-          <div className="shrink-0 px-3 py-3" style={{ background: "rgba(13,11,20,0.98)", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-            <div className="flex items-center gap-2">
+          <div
+            className="relative z-20 shrink-0 flex-none px-3 pt-3"
+            style={{
+              background: "rgba(13,11,20,0.99)",
+              borderTop: "1px solid rgba(255,255,255,0.08)",
+              paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
+            }}
+            data-testid="comment-composer"
+          >
+            <div className="flex w-full items-center gap-2 min-h-[42px]">
               <img src={authUser?.avatarUrl ?? "https://picsum.photos/seed/me/200/200"} alt="me" className="w-8 h-8 rounded-full object-cover shrink-0" />
-              <div className="flex-1 min-w-0 flex items-center px-3 py-2 rounded-full" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <div className="flex-1 min-w-0 h-10 flex items-center px-3 rounded-full" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }}>
                 <input
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") onSubmit(); }}
                   placeholder={t("writeComment")}
-                  className="w-full bg-transparent text-white/85 text-sm outline-none placeholder:text-white/30"
+                  className="block w-full min-w-0 bg-transparent text-white/90 text-sm outline-none placeholder:text-white/40"
                   data-testid="input-comment-sheet"
                 />
               </div>
               <button
+                type="button"
                 onClick={onSubmit}
-                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: commentText.trim() ? "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)" : "rgba(255,255,255,0.08)" }}
+                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: commentText.trim() ? "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)" : "rgba(255,255,255,0.12)" }}
                 data-testid="btn-send-comment-sheet"
+                aria-label="Send comment"
               >
-                <Send size={14} className={commentText.trim() ? "text-white" : "text-white/30"} />
+                <Send size={15} className={commentText.trim() ? "text-white" : "text-white/40"} />
               </button>
             </div>
-          </div>
-        </section>
+          </div>     </section>
       </>
     </ScreenPortal>
   );
