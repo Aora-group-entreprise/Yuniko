@@ -677,17 +677,18 @@ function CommentSheet({
   return (
     <ScreenPortal>
       <>
-        <div className="fixed inset-0 z-[70] bg-black/55" onClick={onClose} />
+        <div className="fixed inset-0 z-[10000] bg-black/55" onClick={onClose} />
         <section
           role="dialog"
           aria-modal="true"
           aria-label="Comments"
-          className="fixed inset-x-0 bottom-0 z-[71] mx-auto w-full max-w-[430px] h-[82vh] min-h-0 rounded-t-[22px] overflow-hidden flex flex-col"
+          className="fixed inset-x-0 z-[10001] mx-auto w-full max-w-[430px] h-[82vh] min-h-0 rounded-t-[22px] overflow-hidden flex flex-col"
           style={{
             background: "rgba(18,15,30,0.99)",
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "0 -14px 45px rgba(0,0,0,0.45)",
             paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            bottom: "calc(68px + env(safe-area-inset-bottom, 0px))",
           }}
           data-testid="comments-sheet"
         >
