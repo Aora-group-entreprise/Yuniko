@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, UserPlus, Reply, AtSign, Tag, Bell, MoreHorizontal } from "lucide-react";
+import { Heart, MessageCircle, UserPlus, Reply, AtSign, Tag, Bell } from "lucide-react";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import { apiJson } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF1493 0%, #8B5CFF 48%, #008CFF 100%)";
+const NOTIFICATION_REFRESH_MS = 3000;
 
 interface NotificationItem {
   id: number;
@@ -21,6 +22,24 @@ interface NotificationItem {
   };
 }
 
+function mapNotification(notification: any): NotificationItem {
+  return {
+    id: Number(notification.id),
+    type: String(notification.type ?? ""),
+    text: String(notification.text ?? ""),
+    read: Boolean(notification.read),
+    postId: notification.postId == null ? null : Number(notification.postId),
+    createdAt: String(notification.createdAt),
+    actor: {
+      id: Number(notification.actorId),
+      displayName: String(notification.actorDisplayName ?? "Yuniko user"),
+      avatar:
+        notification.actorAvatarUrl ??
+        `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(String(notification.actorDisplayName ?? "Yuniko user"))}&backgroundColor=FF006E`,
+    },
+  };
+}
+
 function relativeTime(iso: string): string {
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
   const minutes = Math.floor(diff / 60000);
@@ -29,10 +48,7 @@ function relativeTime(iso: string): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   if (hours < 48) return "Yesterday";
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function groupFor(iso: string): "new" | "today" | "earlier" {
@@ -56,20 +72,13 @@ function groupFor(iso: string): "new" | "today" | "earlier" {
 
 function typeIcon(type: string) {
   switch (type) {
-    case "like":
-      return <Heart size={14} fill="currentColor" />;
-    case "comment":
-      return <MessageCircle size={14} />;
-    case "follow":
-      return <UserPlus size={14} />;
-    case "story_reply":
-      return <Reply size={14} />;
-    case "mention":
-      return <AtSign size={14} />;
-    case "tag":
-      return <Tag size={14} />;
-    default:
-      return <Heart size={14} fill="currentColor" />;
+    case "like": return <Heart size={14} fill="currentColor" />;
+    case "comment": return <MessageCircle size={14} />;
+    case "follow": return <UserPlus size={14} />;
+    case "story_reply": return <Reply size={14} />;
+    case "mention": return <AtSign size={14} />;
+    case "tag": return <Tag size={14} />;
+    default: return <Heart size={14} fill="currentColor" />;
   }
 }
 
@@ -114,9 +123,7 @@ function NotificationCard({
       onClick={() => onOpen(notif)}
       className="group relative w-full overflow-hidden rounded-[19px] border px-4 py-3.5 text-left transition-transform active:scale-[0.99]"
       style={{
-        borderColor: notif.read
-          ? "rgba(255,255,255,0.10)"
-          : "rgba(255,20,147,0.30)",
+        borderColor: notif.read ? "rgba(255,255,255,0.10)" : "rgba(255,20,147,0.30)",
         background: notif.read
           ? "linear-gradient(120deg,rgba(17,16,24,.94),rgba(9,10,18,.94))"
           : "linear-gradient(120deg,rgba(28,17,31,.96),rgba(10,14,27,.96))",
@@ -156,18 +163,13 @@ function NotificationCard({
             <span className="font-extrabold tracking-[-0.02em]">{notif.actor.displayName}</span>{" "}
             <span className="font-medium text-white/90">{text}</span>
           </p>
-          <p className="mt-1 text-[14px] font-medium text-white/48">
-            {relativeTime(notif.createdAt)}
-          </p>
+          <p className="mt-1 text-[14px] font-medium text-white/48">{relativeTime(notif.createdAt)}</p>
         </div>
 
         {isFollow ? (
           <span
             className="shrink-0 rounded-[12px] px-4 py-2 text-[15px] font-extrabold text-white"
-            style={{
-              background: GRADIENT,
-              boxShadow: "0 0 18px rgba(117,76,255,.22)",
-            }}
+            style={{ background: GRADIENT, boxShadow: "0 0 18px rgba(117,76,255,.22)" }}
             onClick={(event) => event.stopPropagation()}
           >
             Follow
@@ -199,28 +201,48 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiJson<{ notifications: Array<any> }>("/notifications")
-      .then((result) =>
-        setItems(
-          result.notifications.map((notification) => ({
-            id: notification.id,
-            type: notification.type,
-            text: notification.text,
-            read: notification.read,
-            postId: notification.postId,
-            createdAt: notification.createdAt,
-            actor: {
-              id: notification.actorId,
-              displayName: notification.actorDisplayName,
-              avatar:
-                notification.actorAvatarUrl ??
-                `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(notification.actorDisplayName)}&backgroundColor=FF006E`,
-            },
-          })),
-        ),
-      )
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
+    let alive = true;
+    let requestInFlight = false;
+
+    const syncNotifications = async (initial = false) => {
+      if (!alive || requestInFlight) return;
+      requestInFlight = true;
+
+      try {
+        const result = await apiJson<{ notifications: Array<any> }>("/notifications");
+        if (!alive) return;
+
+        const incoming = (result.notifications ?? []).map(mapNotification);
+        setItems((current) => {
+          if (current.length === 0) return incoming;
+
+          const previousById = new Map(current.map((item) => [item.id, item]));
+          return incoming.map((item) => {
+            const previous = previousById.get(item.id);
+            return previous && previous.read && !item.read ? { ...item, read: true } : item;
+          });
+        });
+      } catch {
+        // Keep the last successful list visible during a temporary network failure.
+      } finally {
+        requestInFlight = false;
+        if (alive && initial) setLoading(false);
+      }
+    };
+
+    void syncNotifications(true);
+    const interval = window.setInterval(() => void syncNotifications(false), NOTIFICATION_REFRESH_MS);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void syncNotifications(false);
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      alive = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   const markAllRead = () => {
@@ -284,10 +306,7 @@ export default function Notifications() {
       className="relative mx-auto flex h-[100dvh] w-full max-w-[430px] flex-col overflow-hidden bg-[#050509] text-white"
       data-testid="notifications-page"
     >
-      <div
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-        aria-hidden="true"
-      >
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <div
           className="absolute -left-32 top-28 h-80 w-80 rounded-full opacity-75 blur-[75px]"
           style={{ background: "rgba(255,0,140,.20)" }}
@@ -317,9 +336,7 @@ export default function Notifications() {
         </div>
 
         <div className="flex items-center justify-between">
-          <h1 className="text-[42px] font-black tracking-[-0.055em] text-white">
-            Notifications
-          </h1>
+          <h1 className="text-[42px] font-black tracking-[-0.055em] text-white">Notifications</h1>
 
           <button
             type="button"
@@ -334,10 +351,7 @@ export default function Notifications() {
             <Bell
               size={32}
               strokeWidth={1.8}
-              style={{
-                color: "#C86BFF",
-                filter: "drop-shadow(0 0 8px rgba(255,20,147,.8))",
-              }}
+              style={{ color: "#C86BFF", filter: "drop-shadow(0 0 8px rgba(255,20,147,.8))" }}
             />
             <span
               className="absolute inset-0 rounded-full"
