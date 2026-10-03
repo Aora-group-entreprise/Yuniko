@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, UserPlus, Reply, AtSign, Tag, Bell } from "lucide-react";
+import { Heart, MessageCircle, UserPlus, Reply, AtSign, Tag, Bell, Mail } from "lucide-react";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import { apiJson } from "@/lib/api";
@@ -78,6 +78,9 @@ function typeIcon(type: string) {
     case "story_reply": return <Reply size={14} />;
     case "mention": return <AtSign size={14} />;
     case "tag": return <Tag size={14} />;
+    case "message": return <Mail size={14} />;
+    case "message_request": return <Mail size={14} />;
+    case "story_reaction": return <Heart size={14} fill="currentColor" />;
     default: return <Heart size={14} fill="currentColor" />;
   }
 }
@@ -90,6 +93,9 @@ function typeClass(type: string): string {
     case "story_reply": return "text-emerald-400";
     case "mention": return "text-amber-300";
     case "tag": return "text-orange-400";
+    case "message": return "text-cyan-400";
+    case "message_request": return "text-blue-400";
+    case "story_reaction": return "text-rose-400";
     default: return "text-pink-400";
   }
 }
@@ -103,6 +109,9 @@ function cleanText(notif: NotificationItem): string {
     case "story_reply": return "replied to your story";
     case "mention": return "mentioned you";
     case "tag": return "tagged you";
+    case "message": return "sent you a message";
+    case "message_request": return "sent you a message request";
+    case "story_reaction": return "reacted to your story";
     default: return "interacted with you";
   }
 }
@@ -265,6 +274,8 @@ export default function Notifications() {
   const openNotification = (notif: NotificationItem) => {
     if (notif.postId) {
       setLocation(`/post/live_${notif.postId}`);
+    } else if (notif.type === "message" || notif.type === "message_request" || notif.type === "story_reply") {
+      setLocation(`/messages?userId=${notif.actor.id}`);
     } else {
       setLocation(`/user/${notif.actor.id}`);
     }

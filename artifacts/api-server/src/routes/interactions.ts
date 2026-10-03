@@ -9,7 +9,7 @@ import {
   updateRows,
 } from "../lib/supabase";
 import { canInteract } from "../lib/privacy";
-import { sendPushToUser } from "../lib/web-push";
+import { createNotification } from "../lib/notifications";
 
 const interactionsRouter = Router();
 type AuthenticatedRequest = Request & { userId?: number };
@@ -26,25 +26,7 @@ async function countFor(table: string, postId: number) {
 
 async function notify(recipientId: number, actorId: number, type: string, text: string, postId?: number) {
   if (recipientId === actorId) return;
-
-  await insertRow("notifications", {
-    userId: recipientId,
-    actorId,
-    type,
-    message: text,
-    postId: postId ?? null,
-    storyId: null,
-    readAt: null,
-    groupKey: null,
-    count: 1,
-  });
-
-  await sendPushToUser(recipientId, {
-    title: "Yuniko",
-    body: text,
-    url: postId ? `/post/live_${postId}` : "/notifications",
-    tag: `notification-${type}`,
-  });
+  await createNotification(recipientId, actorId, type, text, { postId: postId ?? null });
 }
 
 async function usersById() {
