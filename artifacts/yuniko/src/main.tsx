@@ -163,14 +163,24 @@ class GlobalReactErrorBoundary extends Component<
   }
 }
 
-function GlobalRuntimeErrors({ children }: { children: ReactNode }) {
+async function setupPushNotifications() {\n  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return false;\n  try {\n    const registration = await navigator.serviceWorker.ready;\n    let permission = Notification.permission;\n    if (permission === "default") permission = await Notification.requestPermission();\n    if (permission !== "granted") return false;\n    const keyResponse = await fetch("/api/push/vapid-public-key", { credentials: "include" });\n    if (!keyResponse.ok) return false;\n    const { publicKey } = await keyResponse.json() as { publicKey: string };\n    const padded = publicKey + "=".repeat((4 - (publicKey.length % 4)) % 4);\n    const raw = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));\n    const applicationServerKey = Uint8Array.from(raw, (char) => char.charCodeAt(0));\n    let subscription = await registration.pushManager.getSubscription();\n    if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });\n    const keyToBase64Url = (name: "p256dh" | "auth") => {\n      const value = subscription!.getKey(name);\n      if (!value) throw new Error("Missing push key");\n      const bytes = new Uint8Array(value);\n      let binary = "";\n      for (const byte of bytes) binary += String.fromCharCode(byte);\n      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");\n    };\n    const response = await fetch("/api/push/subscribe", {\n      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },\n      body: JSON.stringify({ endpoint: subscription.endpoint, keys: { p256dh: keyToBase64Url("p256dh"), auth: keyToBase64Url("auth") } }),\n    });\n    return response.ok;\n  } catch { return false; }\n}\nfunction GlobalRuntimeErrors({ children }: { children: ReactNode }) {
   const [error, setError] = useState<RuntimeError | null>(null);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+      void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(() => {
+        if (Notification.permission === "granted") void setupPushNotifications();
+      }).catch(() => {});
     }
 
+    let pushPrompted = false;
+    const activatePushAfterGesture = () => {
+      if (pushPrompted) return;
+      pushPrompted = true;
+      void setupPushNotifications();
+    };
+    window.addEventListener("pointerdown", activatePushAfterGesture, { once: true, passive: true });
+    window.addEventListener("touchstart", activatePushAfterGesture, { once: true, passive: true });
 
     const handleError = (event: ErrorEvent) => {
       setError(toRuntimeError(event.error ?? event.message, "window.error"));
@@ -186,6 +196,8 @@ function GlobalRuntimeErrors({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener("error", handleError);
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+      window.removeEventListener("pointerdown", activatePushAfterGesture);
+      window.removeEventListener("touchstart", activatePushAfterGesture);
     };
   }, []);
 

@@ -128,8 +128,8 @@ export async function sendPushToUser(userId: number, payload: PushPayload): Prom
       }, payload);
       if (ok) delivered += 1;
       else await deleteRows("push_subscriptions", [eq("endpoint", String(row.endpoint))]);
-    } catch {
-      // Never break an in-app notification because a push endpoint failed.
+    } catch (error) {
+      console.error("[YUNIKO PUSH] delivery failed", error);
     }
   }
   return delivered;

@@ -1,3 +1,6 @@
+self.addEventListener("install", () => { self.skipWaiting(); });
+self.addEventListener("activate", (event) => { event.waitUntil(self.clients.claim()); });
+
 self.addEventListener("push", (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch {}
@@ -5,7 +8,7 @@ self.addEventListener("push", (event) => {
     body: payload.body || "Vous avez une nouvelle notification.",
     icon: "/favicon.svg",
     badge: "/favicon.svg",
-    tag: payload.tag || "yuniko-notification",
+    tag: payload.tag || `yuniko-notification-${Date.now()}`,
     data: { url: payload.url || "/notifications" },
     vibrate: [100, 50, 100],
   }));

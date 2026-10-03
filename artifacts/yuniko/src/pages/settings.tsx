@@ -216,7 +216,7 @@ export default function Settings() {
             {section.items.map((item, i) => (
               <button
                 key={item.label}
-                onClick={() => item.label === "Push Notifications" ? void enablePushNotifications() : setLocation(item.href)}
+                onClick={() => setLocation(item.href)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-white/5"
                 style={{ borderBottom: i < section.items.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
                 data-testid={`settings-item-${item.label.toLowerCase().replace(/\s/g, "-")}`}
