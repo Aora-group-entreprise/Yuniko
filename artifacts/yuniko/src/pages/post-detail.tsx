@@ -679,34 +679,39 @@ function CommentSheet({
 }) {
   return (
     <ScreenPortal>
-      <div className="fixed inset-0 z-[100] flex items-end justify-center pointer-events-none">
-        <button
-          type="button"
-          aria-label="Close comments"
-          className="absolute inset-0 z-[100] bg-black/65 pointer-events-auto"
+      <>
+        <div
+          className="fixed inset-0 z-50 bg-black/60"
           onClick={onClose}
+          aria-hidden="true"
         />
         <section
           role="dialog"
           aria-modal="true"
           aria-label="Comments"
-          className="fixed bottom-0 left-1/2 -translate-x-1/2 z-[101] w-full max-w-[430px] h-[82vh] min-h-0 overflow-hidden rounded-t-[22px] flex flex-col pointer-events-auto"
+          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden flex flex-col"
           style={{
             background: "rgba(18,15,30,0.99)",
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "0 -14px 45px rgba(0,0,0,0.55)",
-            bottom: 0,
+            height: "82vh",
+            maxHeight: "82vh",
+            bottom: keyboardOpen
+              ? "var(--yuniko-keyboard-offset, 0px)"
+              : "0px",
           }}
           data-testid="comments-sheet"
         >
-          <div className="shrink-0 px-4 pt-3 pb-2">
+          <div className="shrink-0 px-4 pt-3 pb-3">
             <button
               type="button"
               onClick={onClose}
-              className="w-10 h-1 rounded-full bg-white/25 mx-auto block mb-3"
+              className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-3 block"
               aria-label="Close comments"
             />
-            <h2 className="text-center text-white font-semibold text-base">{t("comments")}</h2>
+            <h2 className="text-center text-white font-semibold text-sm">
+              {t("comments")}
+            </h2>
           </div>
 
           <div
@@ -731,27 +736,53 @@ function CommentSheet({
                     : getUserById(comment.userId)
                 );
                 if (!cUser) return null;
+
                 return (
-                  <div key={comment.id} className="flex gap-3 px-3 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.045)" }}>
-                    <img src={cUser.avatar} alt={cUser.displayName} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                  <div
+                    key={comment.id}
+                    className="flex gap-3 px-3 py-3"
+                    style={{ borderBottom: "1px solid rgba(255,255,255,0.045)" }}
+                  >
+                    <img
+                      src={cUser.avatar}
+                      alt={cUser.displayName}
+                      className="w-9 h-9 rounded-full object-cover shrink-0"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-1.5 flex-wrap">
-                        <span className="text-white font-semibold text-sm">{cUser.displayName}</span>
-                        <span className="text-white/80 text-sm break-words">{comment.text}</span>
+                        <span className="text-white font-semibold text-sm">
+                          {cUser.displayName}
+                        </span>
+                        <span className="text-white/80 text-sm break-words">
+                          {comment.text}
+                        </span>
                       </div>
                       <div className="flex items-center gap-4 mt-1.5">
-                        <span className="text-white/35 text-xs">{comment.timestamp}</span>
-                        <button onClick={() => onLike(comment.id)} className={comment.liked ? "text-pink-400 text-xs" : "text-white/40 text-xs"}>
+                        <span className="text-white/35 text-xs">
+                          {comment.timestamp}
+                        </span>
+                        <button
+                          onClick={() => onLike(comment.id)}
+                          className={comment.liked ? "text-pink-400 text-xs" : "text-white/40 text-xs"}
+                        >
                           {comment.likes} {t("like")}
                         </button>
-                        <button className="text-white/40 text-xs">{t("replyTo")}</button>
+                        <button className="text-white/40 text-xs">
+                          {t("replyTo")}
+                        </button>
                       </div>
                     </div>
-                    <button onClick={() => onLike(comment.id)} className="shrink-0 pt-1">
+                    <button
+                      onClick={() => onLike(comment.id)}
+                      className="shrink-0 pt-1"
+                    >
                       <Heart
                         size={15}
                         strokeWidth={1.8}
-                        style={{ color: comment.liked ? "#FF006E" : undefined, fill: comment.liked ? "#FF006E" : undefined }}
+                        style={{
+                          color: comment.liked ? "#FF006E" : undefined,
+                          fill: comment.liked ? "#FF006E" : undefined,
+                        }}
                         className={comment.liked ? "" : "text-white/35"}
                       />
                     </button>
@@ -762,21 +793,33 @@ function CommentSheet({
           </div>
 
           <div
-            className="shrink-0 flex-none px-3 pt-3"
+            className="shrink-0 px-3 pt-3"
             style={{
               background: "rgba(13,11,20,0.99)",
               borderTop: "1px solid rgba(255,255,255,0.08)",
-              paddingBottom: "12px",
+              paddingBottom: "max(12px, env(safe-area-inset-bottom, 12px))",
             }}
             data-testid="comment-composer"
           >
             <div className="flex w-full items-center gap-2 min-h-[42px]">
-              <img src={authUser?.avatarUrl ?? "https://picsum.photos/seed/me/200/200"} alt="me" className="w-8 h-8 rounded-full object-cover shrink-0" />
-              <div className="flex-1 min-w-0 h-10 flex items-center px-3 rounded-full" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)" }}>
+              <img
+                src={authUser?.avatarUrl ?? "https://picsum.photos/seed/me/200/200"}
+                alt="me"
+                className="w-8 h-8 rounded-full object-cover shrink-0"
+              />
+              <div
+                className="flex-1 min-w-0 h-10 flex items-center px-3 rounded-full"
+                style={{
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                }}
+              >
                 <input
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") onSubmit(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onSubmit();
+                  }}
                   placeholder={t("writeComment")}
                   className="block w-full min-w-0 bg-transparent text-white/90 text-sm outline-none placeholder:text-white/40"
                   data-testid="input-comment-sheet"
@@ -786,16 +829,23 @@ function CommentSheet({
                 type="button"
                 onClick={onSubmit}
                 className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: commentText.trim() ? GRADIENT : "rgba(255,255,255,0.12)" }}
+                style={{
+                  background: commentText.trim()
+                    ? GRADIENT
+                    : "rgba(255,255,255,0.12)",
+                }}
                 data-testid="btn-send-comment-sheet"
                 aria-label="Send comment"
               >
-                <Send size={15} className={commentText.trim() ? "text-white" : "text-white/40"} />
+                <Send
+                  size={15}
+                  className={commentText.trim() ? "text-white" : "text-white/40"}
+                />
               </button>
             </div>
           </div>
         </section>
-      </div>
+      </>
     </ScreenPortal>
   );
 }
