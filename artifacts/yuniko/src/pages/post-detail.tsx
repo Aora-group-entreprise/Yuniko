@@ -685,42 +685,32 @@ function CommentSheet({
           onClick={onClose}
           aria-hidden="true"
         />
-        <section
-          role="dialog"
-          aria-modal="true"
-          aria-label="Comments"
-          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden flex flex-col"
+        <div
+          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-3xl overflow-hidden"
           style={{
             background: "rgba(18,15,30,0.99)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 -14px 45px rgba(0,0,0,0.55)",
-            height: "82vh",
             maxHeight: "82vh",
-            bottom: keyboardOpen
+            paddingBottom: keyboardOpen
               ? "var(--yuniko-keyboard-offset, 0px)"
               : "0px",
           }}
           data-testid="comments-sheet"
         >
-          <div className="shrink-0 px-4 pt-3 pb-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-3 block"
-              aria-label="Close comments"
-            />
-            <h2 className="text-center text-white font-semibold text-sm">
+          <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2" />
+
+          <div className="px-5 py-3 border-b border-white/10">
+            <p className="text-white font-semibold text-sm text-center">
               {t("comments")}
-            </h2>
+            </p>
           </div>
 
           <div
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 pb-2"
+            className="max-h-[calc(82vh-150px)] overflow-y-auto overscroll-contain px-1"
             style={{ WebkitOverflowScrolling: "touch" }}
             data-testid="comments-sheet-list"
           >
             {comments.length === 0 ? (
-              <div className="h-full min-h-[180px] flex items-center justify-center px-8 text-center text-white/40 text-sm">
+              <div className="h-40 flex items-center justify-center text-white/35 text-sm">
                 {t("comments")}
               </div>
             ) : (
@@ -793,7 +783,7 @@ function CommentSheet({
           </div>
 
           <div
-            className="shrink-0 px-3 pt-3"
+            className="px-3 pt-3"
             style={{
               background: "rgba(13,11,20,0.99)",
               borderTop: "1px solid rgba(255,255,255,0.08)",
@@ -844,7 +834,7 @@ function CommentSheet({
               </button>
             </div>
           </div>
-        </section>
+        </div>
       </>
     </ScreenPortal>
   );
