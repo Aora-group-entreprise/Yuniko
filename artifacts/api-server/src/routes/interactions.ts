@@ -5,7 +5,6 @@ import {
   eq,
   insertRow,
   selectRows,
-  sortRows,
   supabaseError,
   updateRows,
 } from "../lib/supabase";
@@ -26,9 +25,20 @@ async function countFor(table: string, postId: number) {
 
 async function notify(recipientId: number, actorId: number, type: string, text: string, postId?: number) {
   if (recipientId === actorId) return;
-  // In-app notifications are independent from optional push/email delivery.
-  // The notification center must still receive the event when external channels are disabled.
-  await insertRow("notifications", { recipientId, actorId, type, text, postId: postId ?? null, read: false });
+
+  // The notifications table uses user_id/message/read_at.
+  // Keep the write shape aligned with the real database schema.
+  await insertRow("notifications", {
+    userId: recipientId,
+    actorId,
+    type,
+    message: text,
+    postId: postId ?? null,
+    storyId: null,
+    readAt: null,
+    groupKey: null,
+    count: 1,
+  });
 }
 
 async function usersById() {
@@ -53,22 +63,30 @@ interactionsRouter.get("/notifications", authMiddleware, async (req: Authenticat
   try {
     const [rows, byId] = await Promise.all([
       selectRows("notifications", {
-        filters: [eq("recipientId", req.userId!)],
+        filters: [eq("userId", req.userId!)],
         order: { column: "createdAt", ascending: false },
         limit: 100,
       }),
       usersById(),
     ]);
+
     const notifications = rows.map((notification) => {
       const actor = byId.get(Number(notification.actorId));
       return {
-        ...notification,
+        id: notification.id,
+        type: String(notification.type ?? "notification"),
+        text: String(notification.message ?? ""),
+        read: Boolean(notification.readAt),
+        postId: notification.postId == null ? null : Number(notification.postId),
+        storyId: notification.storyId == null ? null : Number(notification.storyId),
+        createdAt: notification.createdAt,
         actorId: actor?.id ?? notification.actorId,
         actorUsername: actor?.username ?? null,
         actorDisplayName: actor?.displayName ?? null,
         actorAvatarUrl: actor?.avatarUrl ?? null,
       };
     });
+
     return res.json({ notifications });
   } catch (err) {
     return supabaseError(res, err);
@@ -77,7 +95,11 @@ interactionsRouter.get("/notifications", authMiddleware, async (req: Authenticat
 
 interactionsRouter.patch("/notifications/read-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    await updateRows("notifications", { read: true }, [eq("recipientId", req.userId!)]);
+    await updateRows(
+      "notifications",
+      { readAt: new Date() },
+      [eq("userId", req.userId!)],
+    );
     return res.json({ ok: true });
   } catch (err) {
     return supabaseError(res, err);
