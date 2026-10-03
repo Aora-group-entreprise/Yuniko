@@ -29,12 +29,7 @@ function hkdfInfo(label: string, ...context: Uint8Array[]): Uint8Array {
 }
 async function hkdfBits(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, bits: number): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey("raw", toBuffer(ikm), "HKDF", false, ["deriveBits"]);
-  return new Uint8Array(await crypto.subtle.deriveBits({
-    name: "HKDF",
-    hash: "SHA-256",
-    salt: toBuffer(salt),
-    info: toBuffer(info),
-  }, key, bits));
+  return new Uint8Array(await crypto.subtle.deriveBits({name:"HKDF",hash:"SHA-256",salt:toBuffer(salt),info:toBuffer(info)}, key, bits));
 }
 async function encryptPayload(payload: Uint8Array, p256dh: string, auth: string): Promise<Uint8Array> {
   if (payload.length > 3993) throw new Error("Push payload too large");
@@ -42,56 +37,33 @@ async function encryptPayload(payload: Uint8Array, p256dh: string, auth: string)
   const authSecret = decode(auth);
   if (clientPublic.length !== 65 || clientPublic[0] !== 4) throw new Error("Invalid p256dh key");
   if (authSecret.length < 16) throw new Error("Invalid auth secret");
-
-  const serverKeys = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
-  const clientKey = await crypto.subtle.importKey("raw", toBuffer(clientPublic), { name: "ECDH", namedCurve: "P-256" }, false, []);
-  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: clientKey }, serverKeys.privateKey, 256));
+  const serverKeys = await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"}, true, ["deriveBits"]);
+  const clientKey = await crypto.subtle.importKey("raw", toBuffer(clientPublic), {name:"ECDH",namedCurve:"P-256"}, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({name:"ECDH",public:clientKey}, serverKeys.privateKey, 256));
   const serverPublic = new Uint8Array(await crypto.subtle.exportKey("raw", serverKeys.publicKey));
   const ikm = await hkdfBits(shared, authSecret, hkdfInfo("WebPush: info", clientPublic, serverPublic), 256);
-
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const ikmKey = await crypto.subtle.importKey("raw", toBuffer(ikm), "HKDF", false, ["deriveKey"]);
-  const cek = await crypto.subtle.deriveKey({
-    name: "HKDF",
-    hash: "SHA-256",
-    salt: toBuffer(salt),
-    info: toBuffer(hkdfInfo("Content-Encoding: aes128gcm")),
-  }, ikmKey, { name: "AES-GCM", length: 128 }, false, ["encrypt"]);
-  const nonce = new Uint8Array(await crypto.subtle.deriveBits({
-    name: "HKDF",
-    hash: "SHA-256",
-    salt: toBuffer(salt),
-    info: toBuffer(hkdfInfo("Content-Encoding: nonce")),
-  }, ikmKey, 96));
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: toBuffer(nonce) },
-    cek,
-    toBuffer(concat(payload, new Uint8Array([2]))),
-  ));
+  const cek = await crypto.subtle.deriveKey({name:"HKDF",hash:"SHA-256",salt:toBuffer(salt),info:toBuffer(hkdfInfo("Content-Encoding: aes128gcm"))}, ikmKey, {name:"AES-GCM",length:128}, false, ["encrypt"]);
+  const nonce = new Uint8Array(await crypto.subtle.deriveBits({name:"HKDF",hash:"SHA-256",salt:toBuffer(salt),info:toBuffer(hkdfInfo("Content-Encoding: nonce"))}, ikmKey, 96));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv:toBuffer(nonce)}, cek, toBuffer(concat(payload,new Uint8Array([2])))));
   const header = new Uint8Array(86);
-  header.set(salt, 0);
-  new DataView(header.buffer).setUint32(16, 4096, false);
-  header[20] = 65;
-  header.set(serverPublic, 21);
-  return concat(header, ciphertext);
+  header.set(salt,0);
+  new DataView(header.buffer).setUint32(16,4096,false);
+  header[20]=65;
+  header.set(serverPublic,21);
+  return concat(header,ciphertext);
 }
 async function createVapidJwt(endpoint: string, publicKey: string, privateKey: string, subject: string): Promise<string> {
   const url = new URL(endpoint);
   const publicBytes = decode(publicKey);
   const privateBytes = decode(privateKey);
   if (publicBytes.length !== 65 || publicBytes[0] !== 4 || privateBytes.length !== 32) throw new Error("Invalid VAPID keys");
-  const key = await crypto.subtle.importKey("jwk", {
-    kty: "EC", crv: "P-256",
-    x: encode(publicBytes.slice(1, 33)), y: encode(publicBytes.slice(33)), d: encode(privateBytes),
-  }, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
-  const now = Math.floor(Date.now() / 1000);
+  const key = await crypto.subtle.importKey("jwk",{kty:"EC",crv:"P-256",x:encode(publicBytes.slice(1,33)),y:encode(publicBytes.slice(33)),d:encode(privateBytes)},{name:"ECDSA",namedCurve:"P-256"},false,["sign"]);
+  const now = Math.floor(Date.now()/1000);
   const segment = (value: unknown) => encode(encoder.encode(JSON.stringify(value)));
-  const unsigned = `${segment({ typ: "JWT", alg: "ES256" })}.${segment({ aud: `${url.protocol}//${url.host}`, exp: now + 43200, sub: subject })}`;
-  const signature = new Uint8Array(await crypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    key,
-    toBuffer(encoder.encode(unsigned)),
-  ));
+  const unsigned = `${segment({typ:"JWT",alg:"ES256"})}.${segment({aud:`${url.protocol}//${url.host}`,exp:now+43200,sub:subject})}`;
+  const signature = new Uint8Array(await crypto.subtle.sign({name:"ECDSA",hash:"SHA-256"},key,toBuffer(encoder.encode(unsigned))));
   return `${unsigned}.${encode(signature)}`;
 }
 async function sendOne(subscription: PushSubscriptionData, payload: PushPayload): Promise<boolean> {
@@ -99,46 +71,22 @@ async function sendOne(subscription: PushSubscriptionData, payload: PushPayload)
   const privateKey = process.env["VAPID_PRIVATE_KEY"];
   const subject = process.env["VAPID_SUBJECT"];
   if (!publicKey || !privateKey || !subject) throw new Error("Push notifications are not configured");
-  const encrypted = await encryptPayload(encoder.encode(JSON.stringify(payload)), subscription.keys.p256dh, subscription.keys.auth);
-  const jwt = await createVapidJwt(subscription.endpoint, publicKey, privateKey, subject);
-  const response = await fetch(subscription.endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `vapid t=${jwt}, k=${publicKey}`,
-      "Content-Encoding": "aes128gcm",
-      "Content-Type": "application/octet-stream",
-      TTL: "86400",
-      Urgency: "high",
-    },
-    body: toBuffer(encrypted),
-  });
-  if (response.status === 404 || response.status === 410) return false;
-  if (!response.ok) throw new Error(`Push service returned ${response.status}`);
+  const encrypted = await encryptPayload(encoder.encode(JSON.stringify(payload)),subscription.keys.p256dh,subscription.keys.auth);
+  const jwt = await createVapidJwt(subscription.endpoint,publicKey,privateKey,subject);
+  const response = await fetch(subscription.endpoint,{method:"POST",headers:{Authorization:`vapid t=${jwt}, k=${publicKey}`,"Content-Encoding":"aes128gcm","Content-Type":"application/octet-stream",TTL:"86400",Urgency:"high"},body:toBuffer(encrypted)});
+  if(response.status===404||response.status===410)return false;
+  if(!response.ok)throw new Error(`Push service returned ${response.status}`);
   return true;
 }
-export async function sendPushToUser(userId: number, payload: PushPayload): Promise<number> {
-  let delivered = 0;
-  const { deleteRows, eq, selectRows } = await import("./supabase");
-  const subscriptions = await selectRows("push_subscriptions", { filters: [eq("userId", userId)], limit: 100 });
-  for (const row of subscriptions) {
-    try {
-      const ok = await sendOne({
-        endpoint: String(row.endpoint),
-        keys: { p256dh: String(row.p256dh), auth: String(row.auth) },
-      }, payload);
-      if (ok) delivered += 1;
-      else await deleteRows("push_subscriptions", [eq("endpoint", String(row.endpoint))]);
-    } catch (error) {
-      console.error("[YUNIKO PUSH] delivery failed", error);
-    }
+export async function sendPushToUser(userId:number,payload:PushPayload):Promise<number>{
+  let delivered=0;
+  const {deleteRows,eq,selectRows}=await import("./supabase");
+  const subscriptions=await selectRows("push_subscriptions",{filters:[eq("userId",userId)],limit:100});
+  for(const row of subscriptions){
+    try{
+      const ok=await sendOne({endpoint:String(row.endpoint),keys:{p256dh:String(row.p256dh),auth:String(row.auth)}},payload);
+      if(ok)delivered+=1;else await deleteRows("push_subscriptions",[eq("endpoint",String(row.endpoint))]);
+    }catch(error){console.error("[YUNIKO PUSH] delivery failed",error);}
   }
-
-  try {
-    const { sendFcmToUser } = await import("./fcm");
-    delivered += await sendFcmToUser(userId, payload);
-  } catch (error) {
-    console.error("[YUNIKO PUSH] FCM delivery failed", error);
-  }
-
   return delivered;
 }

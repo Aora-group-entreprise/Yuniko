@@ -44,26 +44,15 @@ jobs:
         run: |
           mkdir -p .capacitor
           printf '%s\n' '{"name":"yuniko-capacitor-ci","private":true}' > .capacitor/package.json
-          npm install --prefix .capacitor --no-save --package-lock=false --ignore-scripts @capacitor/cli@8.5.2 @capacitor/core@8.5.2 @capacitor/android@8.5.2 @capacitor/push-notifications@8.1.2
+          npm install --prefix .capacitor --no-save --package-lock=false --ignore-scripts @capacitor/cli@8.5.2 @capacitor/core@8.5.2 @capacitor/android@8.5.2
           mkdir -p node_modules/@capacitor
           ln -sfn "$PWD/.capacitor/node_modules/@capacitor/core" node_modules/@capacitor/core
           ln -sfn "$PWD/.capacitor/node_modules/@capacitor/android" node_modules/@capacitor/android
-          ln -sfn "$PWD/.capacitor/node_modules/@capacitor/push-notifications" node_modules/@capacitor/push-notifications
 
       - name: Generate Capacitor Android project
         run: |
           rm -rf android
           ./.capacitor/node_modules/.bin/cap add android
-
-      - name: Configure Firebase for Android push
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
-            echo "Missing GOOGLE_SERVICES_JSON repository secret"
-            exit 1
-          fi
-          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
       - name: Sync web assets into Android
         run: ./.capacitor/node_modules/.bin/cap sync android

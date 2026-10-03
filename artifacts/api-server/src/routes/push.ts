@@ -53,40 +53,6 @@ pushRouter.delete("/push/subscribe", authMiddleware, async (req: AuthenticatedRe
   }
 });
 
-pushRouter.post("/push/mobile/register", authMiddleware, async (req: AuthenticatedRequest, res) => {
-  const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
-  const platform = typeof req.body?.platform === "string" ? req.body.platform.trim() : "android";
-  if (!token || token.length > 4096) return res.status(400).json({ error: "Invalid mobile push token" });
-  try {
-    const filters = [eq("token", token)];
-    const existing = await selectRows("mobile_push_tokens", { filters, limit: 1 });
-    if (existing.length) {
-      await updateRows("mobile_push_tokens", {
-        userId: req.userId!, platform, updatedAt: new Date(),
-      }, filters);
-    } else {
-      await insertRow("mobile_push_tokens", {
-        userId: req.userId!, token, platform,
-        createdAt: new Date(), updatedAt: new Date(),
-      });
-    }
-    return res.status(201).json({ registered: true });
-  } catch (err) {
-    return supabaseError(res, err);
-  }
-});
-
-pushRouter.delete("/push/mobile/register", authMiddleware, async (req: AuthenticatedRequest, res) => {
-  const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
-  if (!token) return res.status(400).json({ error: "Token required" });
-  try {
-    await deleteRows("mobile_push_tokens", [eq("userId", req.userId!), eq("token", token)]);
-    return res.json({ unregistered: true });
-  } catch (err) {
-    return supabaseError(res, err);
-  }
-});
-
 pushRouter.post("/push/test", authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     const delivered = await sendPushToUser(Number(req.userId), {
