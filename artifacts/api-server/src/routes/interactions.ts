@@ -9,6 +9,7 @@ import {
   updateRows,
 } from "../lib/supabase";
 import { canInteract } from "../lib/privacy";
+import { sendPushToUser } from "../lib/web-push";
 
 const interactionsRouter = Router();
 type AuthenticatedRequest = Request & { userId?: number };
@@ -26,8 +27,6 @@ async function countFor(table: string, postId: number) {
 async function notify(recipientId: number, actorId: number, type: string, text: string, postId?: number) {
   if (recipientId === actorId) return;
 
-  // The notifications table uses user_id/message/read_at.
-  // Keep the write shape aligned with the real database schema.
   await insertRow("notifications", {
     userId: recipientId,
     actorId,
@@ -38,6 +37,13 @@ async function notify(recipientId: number, actorId: number, type: string, text: 
     readAt: null,
     groupKey: null,
     count: 1,
+  });
+
+  void sendPushToUser(recipientId, {
+    title: "Yuniko",
+    body: text,
+    url: postId ? `/post/live_${postId}` : "/notifications",
+    tag: `notification-${type}`,
   });
 }
 

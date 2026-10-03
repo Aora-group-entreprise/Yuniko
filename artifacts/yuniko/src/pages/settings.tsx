@@ -7,6 +7,7 @@ import { t, availableLanguages, getLang, setLang, Lang } from "@/lib/i18n";
 import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth-context";
+import { apiFetch, apiJson } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
@@ -17,6 +18,55 @@ export default function Settings() {
   const [showLogout, setShowLogout] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [lang, setLangState] = useState(getLang());
+  const [pushStatus, setPushStatus] = useState<"unknown" | "enabled" | "denied" | "unsupported" | "error">("unknown");
+  const [pushBusy, setPushBusy] = useState(false);
+
+  const enablePushNotifications = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+        setPushStatus("unsupported");
+        return;
+      }
+      const keyResponse = await apiJson<{ publicKey: string }>("/push/vapid-public-key");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushStatus("denied");
+        return;
+      }
+      const registration = await navigator.serviceWorker.ready;
+      const padded = keyResponse.publicKey + "=".repeat((4 - (keyResponse.publicKey.length % 4)) % 4);
+      const raw = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+      const applicationServerKey = Uint8Array.from(raw, (char) => char.charCodeAt(0));
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+      }
+      const toBase64Url = (name: "p256dh" | "auth") => {
+        const value = subscription!.getKey(name);
+        if (!value) throw new Error(`Missing ${name} key`);
+        const bytes = new Uint8Array(value);
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      };
+      const response = await apiFetch("/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: subscription.endpoint,
+          keys: { p256dh: toBase64Url("p256dh"), auth: toBase64Url("auth") },
+        }),
+      });
+      if (!response.ok) throw new Error("Subscription failed");
+      setPushStatus("enabled");
+    } catch {
+      setPushStatus("error");
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const sections = [
     {
@@ -166,7 +216,7 @@ export default function Settings() {
             {section.items.map((item, i) => (
               <button
                 key={item.label}
-                onClick={() => setLocation(item.href)}
+                onClick={() => item.label === "Push Notifications" ? void enablePushNotifications() : setLocation(item.href)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-white/5"
                 style={{ borderBottom: i < section.items.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
                 data-testid={`settings-item-${item.label.toLowerCase().replace(/\s/g, "-")}`}
@@ -178,6 +228,11 @@ export default function Settings() {
                   <item.icon size={16} style={{ color: section.color }} />
                 </div>
                 <span className="flex-1 text-white/80 text-sm">{item.label}</span>
+                {item.label === "Push Notifications" && (
+                  <span className="text-xs font-semibold" style={{ color: pushStatus === "enabled" ? "#4ADE80" : pushStatus === "denied" ? "#F87171" : "#FFFFFF55" }}>
+                    {pushBusy ? "..." : pushStatus === "enabled" ? "On" : pushStatus === "denied" ? "Blocked" : pushStatus === "unsupported" ? "Unavailable" : ""}
+                  </span>
+                )}
                 <ChevronRight size={14} className="text-white/25" />
               </button>
             ))}

@@ -167,6 +167,11 @@ function GlobalRuntimeErrors({ children }: { children: ReactNode }) {
   const [error, setError] = useState<RuntimeError | null>(null);
 
   useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+    }
+
+
     const handleError = (event: ErrorEvent) => {
       setError(toRuntimeError(event.error ?? event.message, "window.error"));
     };
