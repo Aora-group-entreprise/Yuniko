@@ -39,7 +39,7 @@ async function notify(recipientId: number, actorId: number, type: string, text: 
     count: 1,
   });
 
-  void sendPushToUser(recipientId, {
+  await sendPushToUser(recipientId, {
     title: "Yuniko",
     body: text,
     url: postId ? `/post/live_${postId}` : "/notifications",

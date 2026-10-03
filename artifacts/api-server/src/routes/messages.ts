@@ -2,6 +2,7 @@ import { Router, type Request } from "express";
 import { env as cloudflareEnv } from "cloudflare:workers";
 import { authMiddleware } from "../middlewares/auth";
 import { deleteRows, eq, insertRow, selectRows, updateRows, supabaseError } from "../lib/supabase";
+import { sendPushToUser } from "../lib/web-push";
 
 const messagesRouter = Router();
 const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
@@ -386,6 +387,7 @@ messagesRouter.post("/messages/conversations/:userId",authMiddleware,async(req:A
     const message=await insertRow("messages",{conversationId,senderId:currentId,kind:"text",body:text,mediaUrl:null,durationMs:null,deliveredAt:null,readAt:null,replyToMessageId:replyTo,forwardedFromMessageId:null,editedAt:null,deletedAt:null,createdAt:now,encryptionVersion:req.body?.encryptionVersion??null,senderDeviceId:req.body?.senderDeviceId??null});
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
     await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    await sendPushToUser(friendId,{title:"Nouveau message sur Yuniko",body:text,url:`/messages?userId=${currentId}`,tag:`message-${conversationId}`});
     return res.status(201).json({message:{id:Number(message.id),senderId:currentId,text,timestamp:dateValue(message.createdAt),read:false,delivered:false,edited:false,deleted:false,replyToMessageId:replyTo,forwardedFromMessageId:null,reactions:[],type:"text"}});
   }catch(err){return supabaseError(res,err);}
 });
@@ -515,6 +517,7 @@ messagesRouter.post("/message-requests/:userId",authMiddleware,async(req:Authent
     if(permission==="onlyMe") return res.status(403).json({error:"This user does not accept message requests"});
     if(existing.length)return res.status(409).json({error:"Message request already exists"});
     const request=await insertRow("message_requests",{senderId:currentId,recipientId:targetId,message,status:"pending",createdAt:new Date(),updatedAt:new Date()});
+    await sendPushToUser(targetId,{title:"Nouvelle demande de message",body:message,url:"/messages",tag:`message-request-${request.id}`});
     return res.status(201).json({request:{id:Number(request.id),status:"pending"}});
   }catch(err){return supabaseError(res,err);}
 });
@@ -637,6 +640,7 @@ messagesRouter.post("/messages/conversations/:userId/media",authMiddleware,async
     });
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
     await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    await sendPushToUser(friendId,{title:"Nouveau message sur Yuniko",body:"Vous avez reçu un nouveau média.",url:`/messages?userId=${currentId}`,tag:`message-${conversationId}`});
     const mediaUrl=await signedMediaUrl(objectPath);
     return res.status(201).json({message:{
       id:Number(message.id),senderId:currentId,text:undefined,imageUrl:finalKind==="image"||finalKind==="sticker"?mediaUrl:undefined,audioUrl:finalKind==="audio"?mediaUrl:undefined,videoUrl:finalKind==="video"?mediaUrl:undefined,fileUrl:finalKind==="file"?mediaUrl:undefined,
