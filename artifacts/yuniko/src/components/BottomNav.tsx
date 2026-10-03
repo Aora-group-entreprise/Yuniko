@@ -2,6 +2,7 @@ import { useLocation, Link } from "wouter";
 import { Home, Search, Plus, MessageCircle, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { t } from "@/lib/i18n";
+import ScreenPortal from "@/components/ScreenPortal";
 
 const ACTIVE_COLOR = "#FF2FA4";
 const INACTIVE_COLOR = "rgba(255,255,255,0.48)";
@@ -11,7 +12,8 @@ export default function BottomNav() {
   const isActive = (path: string) => path === "/" ? location === "/" : location.startsWith(path);
 
   return (
-    <nav
+    <ScreenPortal>
+      <nav
       className="fixed inset-x-0 z-50 w-full"
       style={{
         bottom: "calc(var(--yuniko-keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px))",
@@ -59,7 +61,8 @@ export default function BottomNav() {
           <User size={25} style={{ color: isActive("/profile") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/profile") ? 2.1 : 1.7} />
         </NavItem>
       </div>
-    </nav>
+      </nav>
+    </ScreenPortal>
   );
 }
 
