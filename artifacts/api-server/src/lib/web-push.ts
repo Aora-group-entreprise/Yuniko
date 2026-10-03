@@ -117,9 +117,9 @@ async function sendOne(subscription: PushSubscriptionData, payload: PushPayload)
   return true;
 }
 export async function sendPushToUser(userId: number, payload: PushPayload): Promise<number> {
+  let delivered = 0;
   const { deleteRows, eq, selectRows } = await import("./supabase");
   const subscriptions = await selectRows("push_subscriptions", { filters: [eq("userId", userId)], limit: 100 });
-  let delivered = 0;
   for (const row of subscriptions) {
     try {
       const ok = await sendOne({
@@ -132,5 +132,13 @@ export async function sendPushToUser(userId: number, payload: PushPayload): Prom
       console.error("[YUNIKO PUSH] delivery failed", error);
     }
   }
+
+  try {
+    const { sendFcmToUser } = await import("./fcm");
+    delivered += await sendFcmToUser(userId, payload);
+  } catch (error) {
+    console.error("[YUNIKO PUSH] FCM delivery failed", error);
+  }
+
   return delivered;
 }

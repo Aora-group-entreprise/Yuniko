@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { apiJson } from "@/lib/api";
 import "./index.css";
 
 type RuntimeError = {
@@ -163,16 +164,58 @@ class GlobalReactErrorBoundary extends Component<
   }
 }
 
-async function setupPushNotifications() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return false;
+export async function setupPushNotifications() {
   try {
+    const nativeCapacitor = (window as any).Capacitor;
+    const nativePush = nativeCapacitor?.isNativePlatform?.()
+      ? nativeCapacitor?.Plugins?.PushNotifications
+      : null;
+
+    if (nativePush) {
+      const permissions = await nativePush.checkPermissions();
+      if (permissions.receive !== "granted") return false;
+
+      await nativePush.addListener("registration", async (token: { value: string }) => {
+        if (!token?.value) return;
+        try {
+          await apiJson("/push/mobile/register", {
+            method: "POST",
+            body: JSON.stringify({ token: token.value, platform: "android" }),
+          });
+        } catch (error) {
+          console.error("[YUNIKO PUSH] mobile token registration failed", error);
+        }
+      });
+
+      await nativePush.addListener("registrationError", (error: unknown) => {
+        console.error("[YUNIKO PUSH] native registration failed", error);
+      });
+
+      await nativePush.addListener("pushNotificationActionPerformed", (event: any) => {
+        const url = event?.notification?.data?.url;
+        if (typeof url === "string" && url) window.location.href = url;
+      });
+
+      try {
+        await nativePush.createChannel({
+          id: "yuniko",
+          name: "Yuniko",
+          description: "Notifications Yuniko",
+          importance: 5,
+          visibility: 1,
+          sound: "default",
+          vibration: true,
+        });
+      } catch {}
+
+      await nativePush.register();
+      return true;
+    }
+
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return false;
     const registration = await navigator.serviceWorker.ready;
-    let permission = Notification.permission;
-    if (permission === "default") permission = await Notification.requestPermission();
-    if (permission !== "granted") return false;
-    const keyResponse = await fetch("/api/push/vapid-public-key", { credentials: "include" });
-    if (!keyResponse.ok) return false;
-    const { publicKey } = await keyResponse.json() as { publicKey: string };
+    if (Notification.permission !== "granted") return false;
+    const { publicKey } = await apiJson<{ publicKey: string }>("/push/vapid-public-key");
     const padded = publicKey + "=".repeat((4 - (publicKey.length % 4)) % 4);
     const raw = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
     const applicationServerKey = Uint8Array.from(raw, (char) => char.charCodeAt(0));
@@ -188,17 +231,17 @@ async function setupPushNotifications() {
       for (const byte of bytes) binary += String.fromCharCode(byte);
       return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
     };
-    const response = await fetch("/api/push/subscribe", {
+    const response = await apiJson<{ subscribed: boolean }>("/push/subscribe", {
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         endpoint: subscription.endpoint,
         keys: { p256dh: keyToBase64Url("p256dh"), auth: keyToBase64Url("auth") },
       }),
     });
-    return response.ok;
-  } catch {
+    return Boolean(response.subscribed);
+  } catch (error) {
+    console.error("[YUNIKO PUSH] setup failed", error);
     return false;
   }
 }
@@ -211,6 +254,8 @@ function GlobalRuntimeErrors({ children }: { children: ReactNode }) {
       void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(() => {
         void setupPushNotifications();
       }).catch(() => {});
+    } else {
+      void setupPushNotifications();
     }
 
     const handleError = (event: ErrorEvent) => {

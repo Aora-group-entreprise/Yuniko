@@ -4,5 +4,13 @@
   "webDir": "artifacts/yuniko/dist/public",
   "server": {
     "androidScheme": "https"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "alert",
+        "sound"
+      ]
+    }
   }
 }

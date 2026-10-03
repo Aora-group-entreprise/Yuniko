@@ -5,9 +5,21 @@ import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
 import BottomNav from "@/components/BottomNav";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
+import { setupPushNotifications } from "@/main";
 
 async function requestPushPermission() {
- if (typeof window === "undefined" || !("Notification" in window)) return true;
+ if (typeof window === "undefined") return false;
+ const nativeCapacitor = (window as any).Capacitor;
+ const nativePush = nativeCapacitor?.isNativePlatform?.()
+   ? nativeCapacitor?.Plugins?.PushNotifications
+   : null;
+ if (nativePush) {
+   const current = await nativePush.checkPermissions();
+   if (current.receive === "granted") return true;
+   const requested = await nativePush.requestPermissions();
+   return requested.receive === "granted";
+ }
+ if (!("Notification" in window)) return false;
  if (Notification.permission === "granted") return true;
  const permission = await Notification.requestPermission();
  return permission === "granted";
