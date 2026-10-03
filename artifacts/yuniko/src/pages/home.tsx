@@ -118,7 +118,7 @@ export default function Home() {
 
   return (
     <div
-      className="home-screen relative min-h-full w-full min-w-0 overflow-hidden"
+      className="home-screen relative w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 flex flex-col overflow-hidden"
       style={{ minHeight: "var(--yuniko-vh)", background: "#050509", backgroundImage: "radial-gradient(ellipse 48% 30% at -2% 34%, rgba(0,140,255,.16), transparent 68%), radial-gradient(ellipse 48% 34% at 102% 56%, rgba(255,20,147,.14), transparent 68%)" }}
     >
       <header
@@ -172,9 +172,9 @@ export default function Home() {
 
       <main
         ref={scrollRef}
-        className="relative z-10 min-w-0 overflow-y-auto overflow-x-hidden px-[clamp(10px,3.5vw,22px)] pb-[calc(92px+env(safe-area-inset-bottom,0px))]"
+        className="relative z-10 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-[clamp(10px,3.5vw,22px)] pb-24"
         style={{
-          minHeight: "calc(var(--yuniko-vh) - 72px)",
+          minHeight: 0,
           paddingTop: "84px",
           WebkitOverflowScrolling: "touch",
           overscrollBehaviorY: "contain",
