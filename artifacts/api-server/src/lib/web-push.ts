@@ -13,6 +13,11 @@ function encode(value: Uint8Array): string {
   for (const byte of value) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
+function toBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
+}
 function concat(...parts: Uint8Array[]): Uint8Array {
   const result = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let offset = 0;
@@ -23,8 +28,13 @@ function hkdfInfo(label: string, ...context: Uint8Array[]): Uint8Array {
   return concat(encoder.encode(label), new Uint8Array([0]), ...context);
 }
 async function hkdfBits(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, bits: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
-  return new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info }, key, bits));
+  const key = await crypto.subtle.importKey("raw", toBuffer(ikm), "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({
+    name: "HKDF",
+    hash: "SHA-256",
+    salt: toBuffer(salt),
+    info: toBuffer(info),
+  }, key, bits));
 }
 async function encryptPayload(payload: Uint8Array, p256dh: string, auth: string): Promise<Uint8Array> {
   if (payload.length > 3993) throw new Error("Push payload too large");
@@ -34,22 +44,29 @@ async function encryptPayload(payload: Uint8Array, p256dh: string, auth: string)
   if (authSecret.length < 16) throw new Error("Invalid auth secret");
 
   const serverKeys = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
-  const clientKey = await crypto.subtle.importKey("raw", clientPublic, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const clientKey = await crypto.subtle.importKey("raw", toBuffer(clientPublic), { name: "ECDH", namedCurve: "P-256" }, false, []);
   const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: clientKey }, serverKeys.privateKey, 256));
   const serverPublic = new Uint8Array(await crypto.subtle.exportKey("raw", serverKeys.publicKey));
   const ikm = await hkdfBits(shared, authSecret, hkdfInfo("WebPush: info", clientPublic, serverPublic), 256);
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const ikmKey = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveKey"]);
-  const cek = await crypto.subtle.deriveKey(
-    { name: "HKDF", hash: "SHA-256", salt, info: hkdfInfo("Content-Encoding: aes128gcm") },
-    ikmKey, { name: "AES-GCM", length: 128 }, false, ["encrypt"],
-  );
-  const nonce = new Uint8Array(await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt, info: hkdfInfo("Content-Encoding: nonce") }, ikmKey, 96,
-  ));
+  const ikmKey = await crypto.subtle.importKey("raw", toBuffer(ikm), "HKDF", false, ["deriveKey"]);
+  const cek = await crypto.subtle.deriveKey({
+    name: "HKDF",
+    hash: "SHA-256",
+    salt: toBuffer(salt),
+    info: toBuffer(hkdfInfo("Content-Encoding: aes128gcm")),
+  }, ikmKey, { name: "AES-GCM", length: 128 }, false, ["encrypt"]);
+  const nonce = new Uint8Array(await crypto.subtle.deriveBits({
+    name: "HKDF",
+    hash: "SHA-256",
+    salt: toBuffer(salt),
+    info: toBuffer(hkdfInfo("Content-Encoding: nonce")),
+  }, ikmKey, 96));
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce }, cek, concat(payload, new Uint8Array([2])),
+    { name: "AES-GCM", iv: toBuffer(nonce) },
+    cek,
+    toBuffer(concat(payload, new Uint8Array([2]))),
   ));
   const header = new Uint8Array(86);
   header.set(salt, 0);
@@ -70,7 +87,11 @@ async function createVapidJwt(endpoint: string, publicKey: string, privateKey: s
   const now = Math.floor(Date.now() / 1000);
   const segment = (value: unknown) => encode(encoder.encode(JSON.stringify(value)));
   const unsigned = `${segment({ typ: "JWT", alg: "ES256" })}.${segment({ aud: `${url.protocol}//${url.host}`, exp: now + 43200, sub: subject })}`;
-  const signature = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, encoder.encode(unsigned)));
+  const signature = new Uint8Array(await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    key,
+    toBuffer(encoder.encode(unsigned)),
+  ));
   return `${unsigned}.${encode(signature)}`;
 }
 async function sendOne(subscription: PushSubscriptionData, payload: PushPayload): Promise<boolean> {
@@ -89,7 +110,7 @@ async function sendOne(subscription: PushSubscriptionData, payload: PushPayload)
       TTL: "86400",
       Urgency: "high",
     },
-    body: encrypted,
+    body: toBuffer(encrypted),
   });
   if (response.status === 404 || response.status === 410) return false;
   if (!response.ok) throw new Error(`Push service returned ${response.status}`);
