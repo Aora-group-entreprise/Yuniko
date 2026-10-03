@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
-import { setupPushNotifications } from "@/main";
 import BottomNav from "@/components/BottomNav";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
 

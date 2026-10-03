@@ -1,7 +1,11 @@
+import { env as cloudflareEnv } from "cloudflare:workers";
 import { Router, type Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
 import { deleteRows, eq, insertRow, selectRows, supabaseError, updateRows } from "../lib/supabase";
 import { sendPushToUser } from "../lib/web-push";
+
+const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+const getEnv = (name: string) => runtimeEnv[name] ?? process.env[name] ?? "";
 
 const pushRouter = Router();
 type AuthenticatedRequest = Request & { userId?: number };
@@ -15,7 +19,7 @@ function validSubscription(value: unknown): value is { endpoint: string; keys: {
 }
 
 pushRouter.get("/push/vapid-public-key", (_req, res) => {
-  const publicKey = process.env["VAPID_PUBLIC_KEY"];
+  const publicKey = getEnv("VAPID_PUBLIC_KEY");
   if (!publicKey) return res.status(503).json({ error: "Push notifications are not configured" });
   return res.json({ publicKey });
 });

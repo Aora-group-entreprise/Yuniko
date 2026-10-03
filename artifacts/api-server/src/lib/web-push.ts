@@ -1,5 +1,9 @@
+import { env as cloudflareEnv } from "cloudflare:workers";
 type PushSubscriptionData = { endpoint: string; keys: { p256dh: string; auth: string } };
 export type PushPayload = { title: string; body?: string; url?: string; tag?: string };
+
+const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
+function getEnv(name: string) { return runtimeEnv[name] ?? process.env[name] ?? ""; }
 
 const encoder = new TextEncoder();
 
@@ -67,9 +71,9 @@ async function createVapidJwt(endpoint: string, publicKey: string, privateKey: s
   return `${unsigned}.${encode(signature)}`;
 }
 async function sendOne(subscription: PushSubscriptionData, payload: PushPayload): Promise<boolean> {
-  const publicKey = process.env["VAPID_PUBLIC_KEY"];
-  const privateKey = process.env["VAPID_PRIVATE_KEY"];
-  const subject = process.env["VAPID_SUBJECT"];
+  const publicKey = getEnv("VAPID_PUBLIC_KEY");
+  const privateKey = getEnv("VAPID_PRIVATE_KEY");
+  const subject = getEnv("VAPID_SUBJECT");
   if (!publicKey || !privateKey || !subject) throw new Error("Push notifications are not configured");
   const encrypted = await encryptPayload(encoder.encode(JSON.stringify(payload)),subscription.keys.p256dh,subscription.keys.auth);
   const jwt = await createVapidJwt(subscription.endpoint,publicKey,privateKey,subject);
