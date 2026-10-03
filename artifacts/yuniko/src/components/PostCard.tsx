@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
+import ScreenPortal from "@/components/ScreenPortal";
 import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, MoreVertical, Sparkles, ExternalLink, X, Send, Download, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Post, getUserById, formatCount } from "@/data/mockData";
@@ -481,7 +482,8 @@ function PostViewer({
   onCloseComments: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] pointer-events-none">
+    <ScreenPortal>
+      <div className="fixed inset-0 z-[80] pointer-events-none">
       {showViewer && (
         <>
           <div className="absolute inset-0 bg-black pointer-events-auto overflow-hidden">
@@ -683,7 +685,8 @@ function PostViewer({
           </section>
         </div>
       )}
-    </div>
+      </div>
+    </ScreenPortal>
   );
 }
 
