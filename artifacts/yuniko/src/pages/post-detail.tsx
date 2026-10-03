@@ -679,25 +679,23 @@ function CommentSheet({
 }) {
   return (
     <ScreenPortal>
-      <div className="fixed inset-0 z-[99999] flex items-end justify-center pointer-events-none">
+      <div className="fixed inset-0 z-[100] flex items-end justify-center pointer-events-none">
         <button
           type="button"
           aria-label="Close comments"
-          className="absolute inset-0 z-[99999] bg-black/65 pointer-events-auto"
+          className="absolute inset-0 z-[100] bg-black/65 pointer-events-auto"
           onClick={onClose}
         />
         <section
           role="dialog"
           aria-modal="true"
           aria-label="Comments"
-          className="fixed z-[100000] left-1/2 -translate-x-1/2 w-full max-w-[430px] h-[calc(82vh-68px)] min-h-0 overflow-hidden rounded-t-[22px] flex flex-col pointer-events-auto"
+          className="fixed bottom-0 left-1/2 -translate-x-1/2 z-[101] w-full max-w-[430px] h-[82vh] min-h-0 overflow-hidden rounded-t-[22px] flex flex-col pointer-events-auto"
           style={{
             background: "rgba(18,15,30,0.99)",
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "0 -14px 45px rgba(0,0,0,0.55)",
-            bottom: keyboardOpen
-              ? "calc(var(--yuniko-keyboard-offset, 0px) + 68px + env(safe-area-inset-bottom, 0px))"
-              : "calc(68px + env(safe-area-inset-bottom, 0px))",
+            bottom: 0,
           }}
           data-testid="comments-sheet"
         >
