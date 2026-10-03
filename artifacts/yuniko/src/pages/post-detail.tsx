@@ -676,35 +676,38 @@ function CommentSheet({
 }) {
   return (
     <ScreenPortal>
-      <>
-        <div className="fixed inset-0 z-[10000] bg-black/55" onClick={onClose} />
+      <div className="fixed inset-0 z-[200] flex items-end justify-center">
+        <button
+          type="button"
+          aria-label="Close comments"
+          className="absolute inset-0 bg-black/65"
+          onClick={onClose}
+        />
         <section
           role="dialog"
           aria-modal="true"
           aria-label="Comments"
-          className="fixed inset-x-0 z-[10001] mx-auto w-full max-w-[430px] h-[82vh] min-h-0 rounded-t-[22px] overflow-hidden flex flex-col"
+          className="relative z-[201] w-full max-w-[430px] h-[calc(82vh-68px)] min-h-0 overflow-hidden rounded-t-[22px] flex flex-col"
           style={{
             background: "rgba(18,15,30,0.99)",
             border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 -14px 45px rgba(0,0,0,0.45)",
-            paddingBottom: "env(safe-area-inset-bottom, 0px)",
-            bottom: "calc(68px + env(safe-area-inset-bottom, 0px))",
+            boxShadow: "0 -14px 45px rgba(0,0,0,0.55)",
+            marginBottom: "calc(68px + env(safe-area-inset-bottom, 0px))",
           }}
           data-testid="comments-sheet"
         >
           <div className="shrink-0 px-4 pt-3 pb-2">
-            <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mb-3" />
-            <div className="flex items-center">
-              <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center text-white/70" aria-label="Close comments">
-                <ArrowLeft size={20} />
-              </button>
-              <h2 className="flex-1 text-center text-white font-semibold text-base">{t("comments")}</h2>
-              <div className="w-9 h-9" />
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-10 h-1 rounded-full bg-white/25 mx-auto block mb-3"
+              aria-label="Close comments"
+            />
+            <h2 className="text-center text-white font-semibold text-base">{t("comments")}</h2>
           </div>
 
           <div
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 pb-3"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 pb-2"
             style={{ WebkitOverflowScrolling: "touch" }}
             data-testid="comments-sheet-list"
           >
@@ -756,11 +759,11 @@ function CommentSheet({
           </div>
 
           <div
-            className="relative z-20 shrink-0 flex-none px-3 pt-3"
+            className="shrink-0 flex-none px-3 pt-3"
             style={{
               background: "rgba(13,11,20,0.99)",
               borderTop: "1px solid rgba(255,255,255,0.08)",
-              paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
+              paddingBottom: "12px",
             }}
             data-testid="comment-composer"
           >
@@ -780,15 +783,16 @@ function CommentSheet({
                 type="button"
                 onClick={onSubmit}
                 className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: commentText.trim() ? "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)" : "rgba(255,255,255,0.12)" }}
+                style={{ background: commentText.trim() ? GRADIENT : "rgba(255,255,255,0.12)" }}
                 data-testid="btn-send-comment-sheet"
                 aria-label="Send comment"
               >
                 <Send size={15} className={commentText.trim() ? "text-white" : "text-white/40"} />
               </button>
             </div>
-          </div>     </section>
-      </>
+          </div>
+        </section>
+      </div>
     </ScreenPortal>
   );
 }
