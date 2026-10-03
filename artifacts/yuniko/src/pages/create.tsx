@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import BottomNav from "@/components/BottomNav";
 import { apiFetch } from "@/lib/api";
+import { invalidateSessionCache } from "@/lib/session-cache";
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -53,7 +54,6 @@ export default function Create() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
 
-  // Detect ?mode=story from URL
   const [activeTab, setActiveTab] = useState<TabMode>(() => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search).get("mode");
@@ -74,7 +74,6 @@ export default function Create() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync tab when URL param changes (e.g. navigated with ?mode=story)
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("mode");
     setActiveTab(p === "story" ? "story" : "post");
@@ -117,6 +116,10 @@ export default function Create() {
         });
         const d = await r.json() as { story?: any; error?: string };
         if (!r.ok) { setError(d.error ?? "Failed to post story"); return; }
+
+        // The Home page caches /stories in the session cache. Invalidate it
+        // immediately so the newly-created story is fetched from the API.
+        invalidateSessionCache("/stories");
       } else {
         const r = await apiFetch("/posts", {
           method: "POST",
