@@ -98,7 +98,7 @@ async function sendOne(subscription: PushSubscriptionData, payload: PushPayload)
   const publicKey = process.env["VAPID_PUBLIC_KEY"];
   const privateKey = process.env["VAPID_PRIVATE_KEY"];
   const subject = process.env["VAPID_SUBJECT"];
-  if (!publicKey || !privateKey || !subject) return false;
+  if (!publicKey || !privateKey || !subject) throw new Error("Push notifications are not configured");
   const encrypted = await encryptPayload(encoder.encode(JSON.stringify(payload)), subscription.keys.p256dh, subscription.keys.auth);
   const jwt = await createVapidJwt(subscription.endpoint, publicKey, privateKey, subject);
   const response = await fetch(subscription.endpoint, {
