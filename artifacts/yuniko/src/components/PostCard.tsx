@@ -219,20 +219,81 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
     setCommentsLoading(true);
     try {
       const data = await apiJson<{ comments?: Array<any> }>(`/posts/${livePostId}/comments`);
-      setComments((data.comments ?? []).map((comment) => ({
-        id: String(comment.id),
-        userId: String(comment.userId),
-        text: comment.text ?? "",
-        displayName: comment.displayName ?? "User",
-        avatar:
+
+      // Live comments must use the real database profile, never mockData or a
+      // generated avatar. Resolve each commenter through the same profile
+      // endpoint used by the profile page and keep the lookup scoped to the
+      // unique user ids returned by this post.
+      const rawComments = data.comments ?? [];
+      const commenterIds = Array.from(
+        new Set(
+          rawComments
+            .map((comment) => String(
+              comment.userId ??
+              comment.authorId ??
+              comment.user?.id ??
+              comment.author?.id ??
+              comment.profile?.id ??
+              "",
+            ))
+            .filter(Boolean),
+        ),
+      );
+
+      const profileEntries = await Promise.all(
+        commenterIds.map(async (userId) => {
+          try {
+            const profile = await apiJson<{
+              user?: {
+                id: number;
+                displayName?: string | null;
+                avatarUrl?: string | null;
+              };
+            }>(`/users/${userId}`);
+            return [userId, profile.user ?? null] as const;
+          } catch {
+            return [userId, null] as const;
+          }
+        }),
+      );
+      const profiles = new Map(profileEntries);
+
+      setComments(rawComments.map((comment) => {
+        const inlineProfile = comment.user ?? comment.author ?? comment.profile ?? {};
+        const userId = String(
+          comment.userId ??
+          comment.authorId ??
+          inlineProfile.id ??
+          "",
+        );
+        const profile = profiles.get(userId);
+
+        const displayName =
+          profile?.displayName ??
+          inlineProfile.displayName ??
+          comment.displayName ??
+          "User";
+        const avatarUrl =
+          profile?.avatarUrl ??
+          inlineProfile.avatarUrl ??
           comment.avatarUrl ??
-          `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(comment.displayName ?? "User")}&backgroundColor=FF006E`,
-        likes: Number(comment.likes ?? 0),
-        liked: Boolean(comment.liked),
-        timestamp: comment.createdAt
-          ? new Date(comment.createdAt).toLocaleDateString()
-          : "",
-      })));
+          null;
+
+        return {
+          id: String(comment.id),
+          userId,
+          text: comment.text ?? "",
+          displayName,
+          avatar:
+            avatarUrl ??
+            `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=FF006E`,
+          likes: Number(comment.likes ?? 0),
+          liked: Boolean(comment.liked),
+          timestamp: comment.createdAt
+            ? new Date(comment.createdAt).toLocaleDateString()
+            : "",
+        };
+      }));
     } catch {
       setComments([]);
     } finally {
@@ -259,17 +320,19 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
       ...prev,
       {
         id: `local_${Date.now()}`,
-        userId: "me",
+        userId: String(authUser?.id ?? "me"),
         text,
-        displayName: "You",
-        avatar: `https://api.dicebear.com/8.x/initials/svg?seed=You&backgroundColor=FF006E`,
+        displayName: authUser?.displayName ?? "You",
+        avatar:
+          authUser?.avatarUrl ??
+          `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "You")}&backgroundColor=FF006E`,
         likes: 0,
         liked: false,
         timestamp: "just now",
       },
     ]);
     setCommentText("");
-  }, [commentText, livePostId]);
+  }, [authUser?.avatarUrl, authUser?.displayName, authUser?.id, commentText, livePostId]);
 
   const toggleCommentLike = useCallback((id: string) => {
     setComments((prev) =>
