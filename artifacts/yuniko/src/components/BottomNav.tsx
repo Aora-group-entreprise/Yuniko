@@ -14,7 +14,7 @@ export default function BottomNav() {
   return (
     <ScreenPortal>
       <nav
-      className="fixed inset-x-0 z-50 w-full"
+      className="fixed inset-x-0 z-40 w-full"
       style={{
         bottom: "calc(var(--yuniko-keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px))",
         background: "rgba(5,5,9,0.94)",
