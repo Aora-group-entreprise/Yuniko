@@ -89,7 +89,7 @@ export default function BottomNav({
   );
 }
 
-function NavItem({ href, label, active, children, compact = false }: {
+function NavItem({ href, label, active, children, compact = false, onClick }: {
   href: string;
   label: string;
   active: boolean;
