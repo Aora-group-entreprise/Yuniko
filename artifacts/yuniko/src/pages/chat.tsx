@@ -101,7 +101,7 @@ export default function Chat(){
         if(data.messages?.length){
           const fresh=await Promise.all(data.messages.map(async m=>({
             ...m,
-            text:m.text&&m.encryptionPublicKey&&Number(m.senderId)!==Number(authUser?.id)?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text,
+            text:m.text&&m.encryptionPublicKey?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text,
           })));
           setMessages(current=>{
             const known=new Set(current.map(m=>m.id));

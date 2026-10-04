@@ -8,12 +8,14 @@ import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
 import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUser } from "@/lib/session-cache";
 import { useAuth } from "@/lib/auth-context";
+import { decryptFromPublicKey } from "@/lib/e2e";
 
 type Conversation = {
   id: number;
   user: { id:number; username:string; displayName:string; avatarUrl:string|null; verified:boolean };
   lastMessage: string;
   lastMessageTime: string|null;
+  lastMessageEncryptionPublicKey?: string|null;
   unread: number;
 };
 
@@ -48,12 +50,19 @@ export default function Messages(){
   const archiveRefs=useRef<Record<number,HTMLDivElement|null>>({});
   const suppressClickRef=useRef(false); const longPressOpenedRef=useRef(false); const panelTouchLockRef=useRef(false);
 
-  const load=()=>{
+  const load=async()=>{
     setLoading(true);setError(null);
-    void fetchSessionJson<{conversations:Conversation[]}>("/messages/conversations")
-      .then(data=>setConversations(data.conversations??[]))
-      .catch(err=>setError(err instanceof Error?err.message:"Unable to load messages"))
-      .finally(()=>setLoading(false));
+    try{
+      const data=await fetchSessionJson<{conversations:Conversation[]}>("/messages/conversations");
+      const decrypted=await Promise.all((data.conversations??[]).map(async conversation=>({
+        ...conversation,
+        lastMessage:conversation.lastMessageEncryptionPublicKey
+          ? await decryptFromPublicKey(conversation.lastMessageEncryptionPublicKey,conversation.lastMessage).catch(()=>conversation.lastMessage)
+          : conversation.lastMessage,
+      })));
+      setConversations(decrypted);
+    }catch(err){setError(err instanceof Error?err.message:"Unable to load messages");}
+    finally{setLoading(false);}
   };
   useEffect(()=>{load();},[]);
   useEffect(()=>{if(!authUser?.id)return;const scheme=window.location.protocol==="https:"?"wss":"ws";const ws=new WebSocket(scheme+"://"+window.location.host+"/api/calls/ws?scope=inbox");ws.onmessage=event=>{try{const data=JSON.parse(String(event.data));if(data?.type==="incoming-call")setIncomingCall({id:String(data.roomId),callType:data.callType,callerId:Number(data.callerId),user:data.user});}catch{}};return()=>ws.close();},[authUser?.id]);

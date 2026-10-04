@@ -117,7 +117,7 @@ export default function BottomNav({
                 style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.45)" }}
                 aria-label={`${displayedNewPostsCount} new posts`}
               >
-                {displayedNewPostsCount > 9 ? "9+" : displayedNewPostsCount}
+                1+
               </span>
             )}
           </div>

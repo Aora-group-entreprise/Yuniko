@@ -95,8 +95,10 @@ export default function Home() {
   const [liveStories, setLiveStories] = useState<LiveStory[]>(() => cachedStories?.stories ?? []);
   const [feedLoading, setFeedLoading] = useState(!cachedFeed);
   const [newPostsCount, setNewPostsCount] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const feedSnapshotRef = useRef<string>(new Date().toISOString());
   const feedRefreshInFlightRef = useRef(false);
+  const notificationCheckRef = useRef(false);
 
   const refreshFeed = async () => {
     if (!user || feedRefreshInFlightRef.current) return;
@@ -136,7 +138,17 @@ export default function Home() {
       } catch {}
     };
 
+    const checkNotifications = async () => {
+      if (notificationCheckRef.current || document.visibilityState === "hidden") return;
+      notificationCheckRef.current = true;
+      try {
+        const data = await apiJson<{ notifications?: Array<{ read?: boolean }> }>("/notifications");
+        setUnreadNotifications((data.notifications ?? []).filter(item => !item.read).length);
+      } catch {} finally { notificationCheckRef.current = false; }
+    };
+    void checkNotifications();
     const interval = window.setInterval(checkForNewPosts, 15000);
+    const notificationInterval = window.setInterval(checkNotifications, 5000);
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") void checkForNewPosts();
     };
@@ -144,6 +156,7 @@ export default function Home() {
 
     return () => {
       window.clearInterval(interval);
+      window.clearInterval(notificationInterval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [user]);
@@ -183,7 +196,7 @@ export default function Home() {
         <div className="flex items-center gap-5">
           <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/notifications")} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("notifications")}>
             <Bell size={25} strokeWidth={1.7} style={{ color: "rgba(255,210,235,0.88)" }} />
-            <span className="absolute -right-0.5 top-0.5 h-2 w-2 rounded-full" style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.7)" }} />
+            {unreadNotifications > 0 && <span className="absolute -right-2 -top-1 min-w-4 h-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center" style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.45)" }} aria-label="Nouvelles notifications">1+</span>}
           </motion.button>
           <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/add-friends")} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("addFriends")}>
             <UserPlus size={25} strokeWidth={1.75} style={{ color: "rgba(255,210,235,0.92)" }} />

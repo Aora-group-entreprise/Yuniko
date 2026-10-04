@@ -155,8 +155,17 @@ messagesRouter.get("/messages/conversations",authMiddleware,async(req:Authentica
       selectRows("conversations",{order:{column:"updatedAt",ascending:false},limit:1000}),
       selectRows("messages",{order:{column:"createdAt",ascending:false},limit:5000}),
       selectRows<UserRow>("users",{limit:1000}),
+      selectRows("message_devices",{limit:5000}),
     ]);
     const userById=new Map(users.map(u=>[Number(u.id),u]));
+    const activeDeviceByUser=new Map<number,string>();
+    const activeDeviceByUserAndId=new Map<string,string>();
+    for(const device of messageDevices){
+      const userId=Number(device.userId), deviceId=String(device.deviceId??""), key=String(device.publicKey??"");
+      if(!key||device.revokedAt) continue;
+      if(deviceId) activeDeviceByUserAndId.set(userId+":"+deviceId,key);
+      if(!activeDeviceByUser.has(userId)) activeDeviceByUser.set(userId,key);
+    }
     const membersByConversation=new Map<number,typeof memberships>();
     for(const member of memberships){
       const id=Number(member.conversationId);
@@ -180,12 +189,18 @@ messagesRouter.get("/messages/conversations",authMiddleware,async(req:Authentica
       const currentMember=members.find(m=>Number(m.userId)===currentId);
       const friend=userById.get(friendId);
       const latest=messages.find(m=>Number(m.conversationId)===conversationId);
+      const latestEncryptionPublicKey = latest?.encryptionVersion != null
+        ? (Number(latest.senderId) === currentId
+          ? (activeDeviceByUser.get(friendId) ?? null)
+          : (activeDeviceByUserAndId.get(Number(latest.senderId)+":"+String(latest.senderDeviceId??"")) ?? activeDeviceByUser.get(Number(latest.senderId)) ?? null))
+        : null;
       const lastReadAt=currentMember?.lastReadAt?new Date(String(currentMember.lastReadAt)).getTime():0;
       const unread=messages.filter(m=>Number(m.conversationId)===conversationId&&Number(m.senderId)===friendId&&new Date(String(m.createdAt)).getTime()>lastReadAt).length;
       if(friend) result.push({
         id:conversationId,
         user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified"},
         lastMessage:latest?.kind==="image"?"Photo":latest?.kind==="audio"?"Voice message":String(latest?.body??""),
+        lastMessageEncryptionPublicKey:latestEncryptionPublicKey,
         lastMessageTime:dateValue(latest?.createdAt??conversation.updatedAt),
         unread,
       });

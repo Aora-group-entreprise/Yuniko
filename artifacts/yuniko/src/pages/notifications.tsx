@@ -237,6 +237,7 @@ export default function Notifications() {
   const [filter, setFilter] = useState<NotificationFilter>("all");
 
   useEffect(() => {
+    void apiJson("/notifications/read-all", { method: "PATCH" }).catch(() => undefined);
     let alive = true;
     let requestInFlight = false;
 
