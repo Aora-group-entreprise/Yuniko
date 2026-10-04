@@ -120,12 +120,14 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+    scrollbar-gutter: auto;
   }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .yuniko-root .overflow-y-auto,
   .yuniko-root .overflow-y-scroll {
     -ms-overflow-style: none;
     scrollbar-width: none;
+    scrollbar-gutter: auto;
   }
   .yuniko-root .overflow-y-auto::-webkit-scrollbar,
   .yuniko-root .overflow-y-scroll::-webkit-scrollbar {
