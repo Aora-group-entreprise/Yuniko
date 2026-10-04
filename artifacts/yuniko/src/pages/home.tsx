@@ -278,7 +278,7 @@ export default function Home() {
         )}
       </main>
 
-      <BottomNav newPostsCount={newPostsCount} onHomePress={() => { void refreshFeed(); scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }} />
+      <BottomNav newPostsCount={newPostsCount} onHomePress={() => { scrollRef.current?.scrollTo({ top: 0, behavior: "auto" }); void refreshFeed(); }} />
 
       <AnimatePresence>
         {optionsPostId && (
