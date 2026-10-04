@@ -13,6 +13,8 @@ import { fetchSessionJson, getSessionCache, setSessionUser, warmSessionData } fr
 import { apiJson } from "@/lib/api";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
+const FEED_SCROLL_POSITION_KEY = "yuniko_feed_scroll_top";
+const FEED_INITIALIZED_KEY = "yuniko_feed_initialized";
 
 function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -125,7 +127,49 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
 
-    refreshFeed();
+    let shouldInitialRefresh = true;
+    try {
+      shouldInitialRefresh = sessionStorage.getItem(FEED_INITIALIZED_KEY) !== "1";
+    } catch {}
+
+    if (shouldInitialRefresh) {
+      void refreshFeed();
+      try { sessionStorage.setItem(FEED_INITIALIZED_KEY, "1"); } catch {}
+    }
+
+    let frame = 0;
+    let attempts = 0;
+    if (!shouldInitialRefresh) {
+      const restoreFeedPosition = () => {
+        attempts += 1;
+        let savedPosition = 0;
+        try {
+          savedPosition = Math.max(0, Number(sessionStorage.getItem(FEED_SCROLL_POSITION_KEY) ?? "0") || 0);
+        } catch {}
+
+        const scrollElement = scrollRef.current;
+        if (!scrollElement || savedPosition <= 0) return;
+
+        const canReachPosition = scrollElement.scrollHeight - scrollElement.clientHeight >= savedPosition;
+        if (canReachPosition || attempts >= 12) {
+          scrollElement.scrollTo({ top: savedPosition, behavior: "auto" });
+          return;
+        }
+        frame = window.requestAnimationFrame(restoreFeedPosition);
+      };
+
+      frame = window.requestAnimationFrame(restoreFeedPosition);
+    }
+
+    const scrollElement = scrollRef.current;
+    const saveFeedPosition = () => {
+      if (!scrollElement) return;
+      try {
+        sessionStorage.setItem(FEED_SCROLL_POSITION_KEY, String(Math.max(0, scrollElement.scrollTop)));
+      } catch {}
+    };
+    scrollElement?.addEventListener("scroll", saveFeedPosition, { passive: true });
+
     window.setTimeout(() => warmSessionData(Number(user.id)), 0);
 
     const checkForNewPosts = async () => {
@@ -161,6 +205,9 @@ export default function Home() {
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
+      window.cancelAnimationFrame(frame);
+      saveFeedPosition();
+      scrollElement?.removeEventListener("scroll", saveFeedPosition);
       window.clearInterval(interval);
       window.clearInterval(notificationInterval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -186,7 +233,7 @@ export default function Home() {
         }}
         data-testid="home-header"
       >
-        <button onClick={() => { void refreshFeed(); scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }} className="shrink-0" aria-label="Yuniko home">
+        <button onClick={() => { scrollRef.current?.scrollTo({ top: 0, behavior: "auto" }); void refreshFeed(); }} className="shrink-0" aria-label="Yuniko home">
           <span
             className="text-[clamp(31px,8vw,39px)] font-black tracking-[-0.055em] leading-none"
             style={{
@@ -278,7 +325,7 @@ export default function Home() {
         )}
       </main>
 
-      <BottomNav newPostsCount={newPostsCount} onHomePress={() => { void refreshFeed(); scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }} />
+      <BottomNav newPostsCount={newPostsCount} onHomePress={() => { scrollRef.current?.scrollTo({ top: 0, behavior: "auto" }); try { sessionStorage.setItem(FEED_SCROLL_POSITION_KEY, "0"); } catch {} void refreshFeed(); }} />
 
       <AnimatePresence>
         {optionsPostId && (
