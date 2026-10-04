@@ -14,7 +14,7 @@ import { apiJson } from "@/lib/api";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
 const FEED_SCROLL_POSITION_KEY = "yuniko_feed_scroll_top";
-const FEED_INITIALIZED_KEY = "yuniko_feed_initialized";
+let feedInitializedUserId: number | null = null;
 
 function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -130,14 +130,12 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
 
-    let shouldInitialRefresh = true;
-    try {
-      shouldInitialRefresh = sessionStorage.getItem(FEED_INITIALIZED_KEY) !== "1";
-    } catch {}
+    const currentUserId = Number(user.id);
+    const shouldInitialRefresh = feedInitializedUserId !== currentUserId;
 
     if (shouldInitialRefresh) {
+      feedInitializedUserId = currentUserId;
       void refreshFeed();
-      try { sessionStorage.setItem(FEED_INITIALIZED_KEY, "1"); } catch {}
     }
 
     let frame = 0;
