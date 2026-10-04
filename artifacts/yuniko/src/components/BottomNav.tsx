@@ -7,7 +7,13 @@ import ScreenPortal from "@/components/ScreenPortal";
 const ACTIVE_COLOR = "#FF2FA4";
 const INACTIVE_COLOR = "rgba(255,255,255,0.48)";
 
-export default function BottomNav() {
+export default function BottomNav({
+  newPostsCount = 0,
+  onHomePress,
+}: {
+  newPostsCount?: number;
+  onHomePress?: () => void;
+}) {
   const [location] = useLocation();
   const isActive = (path: string) => path === "/" ? location === "/" : location.startsWith(path);
 
@@ -27,8 +33,25 @@ export default function BottomNav() {
       data-testid="bottom-nav"
     >
       <div className="grid grid-cols-5 items-center w-full h-[68px] px-2">
-        <NavItem href="/" label={t("home")} active={isActive("/")} compact>
-          <Home size={25} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.25 : 1.7} />
+        <NavItem
+          href="/"
+          label={t("home")}
+          active={isActive("/")}
+          compact
+          onClick={location === "/" ? onHomePress : undefined}
+        >
+          <div className="relative">
+            <Home size={25} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.25 : 1.7} />
+            {newPostsCount > 0 && (
+              <span
+                className="absolute -right-3 -top-2.5 min-w-4 h-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center"
+                style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.45)" }}
+                aria-label={`${newPostsCount} new posts`}
+              >
+                {newPostsCount > 9 ? "9+" : newPostsCount}
+              </span>
+            )}
+          </div>
         </NavItem>
         <NavItem href="/search" label="Search" active={isActive("/search")} compact>
           <Search size={25} style={{ color: isActive("/search") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={1.8} />
@@ -72,9 +95,10 @@ function NavItem({ href, label, active, children, compact = false }: {
   active: boolean;
   children: React.ReactNode;
   compact?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <Link href={href} className="min-w-0 w-full">
+    <Link href={href} className="min-w-0 w-full" onClick={onClick}>
       <motion.button
         className={`flex w-full min-w-0 flex-col items-center justify-center relative ${compact ? "h-14" : "gap-0.5 py-1"}`}
         whileTap={{ scale: 0.88 }}

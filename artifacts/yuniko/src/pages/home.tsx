@@ -93,24 +93,57 @@ export default function Home() {
   const [livePosts, setLivePosts] = useState<LiveFeedPost[]>(() => convertPosts(cachedFeed?.posts ?? []));
   const [liveStories, setLiveStories] = useState<LiveStory[]>(() => cachedStories?.stories ?? []);
   const [feedLoading, setFeedLoading] = useState(!cachedFeed);
+  const [newPostsCount, setNewPostsCount] = useState(0);
+  const feedSnapshotRef = useRef<string>(new Date().toISOString());
+  const feedRefreshInFlightRef = useRef(false);
+
+  const refreshFeed = async () => {
+    if (!user || feedRefreshInFlightRef.current) return;
+    feedRefreshInFlightRef.current = true;
+    try {
+      const [feedData, storiesData] = await Promise.all([
+        fetchSessionJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed"),
+        fetchSessionJson<{ stories?: LiveStory[] }>("/stories"),
+      ]);
+      setLivePosts(convertPosts(feedData.posts ?? []));
+      setLiveStories(storiesData.stories ?? []);
+      feedSnapshotRef.current = feedData.feedSnapshotAt ?? new Date().toISOString();
+      setNewPostsCount(0);
+      setFeedLoading(false);
+    } catch {
+      setFeedLoading(false);
+    } finally {
+      feedRefreshInFlightRef.current = false;
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
 
-    fetchSessionJson<{ posts?: any[] }>("/posts/feed")
-      .then((data) => {
-        setLivePosts(convertPosts(data.posts ?? []));
-        setFeedLoading(false);
-        window.setTimeout(() => warmSessionData(Number(user.id)), 0);
-      })
-      .catch(() => {
-        setLivePosts([]);
-        setFeedLoading(false);
-      });
+    refreshFeed();
+    window.setTimeout(() => warmSessionData(Number(user.id)), 0);
 
-    fetchSessionJson<{ stories?: LiveStory[] }>("/stories")
-      .then((data) => setLiveStories(data.stories ?? []))
-      .catch(() => {})
+    const checkForNewPosts = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const data = await fetchSessionJson<{ newPostsCount?: number }>(
+          `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
+        );
+        const count = Math.max(0, Number(data.newPostsCount) || 0);
+        if (count > 0) setNewPostsCount(count);
+      } catch {}
+    };
+
+    const interval = window.setInterval(checkForNewPosts, 15000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void checkForNewPosts();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [user]);
 
   const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> =
@@ -132,7 +165,7 @@ export default function Home() {
         }}
         data-testid="home-header"
       >
-        <button onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })} className="shrink-0" aria-label="Yuniko home">
+        <button onClick={() => { void refreshFeed(); scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }} className="shrink-0" aria-label="Yuniko home">
           <span
             className="text-[clamp(31px,8vw,39px)] font-black tracking-[-0.055em] leading-none"
             style={{
@@ -220,7 +253,7 @@ export default function Home() {
         )}
       </main>
 
-      <BottomNav />
+      <BottomNav newPostsCount={newPostsCount} onHomePress={() => { void refreshFeed(); scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }} />
 
       <AnimatePresence>
         {optionsPostId && (

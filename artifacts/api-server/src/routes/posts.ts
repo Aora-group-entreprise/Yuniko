@@ -238,19 +238,26 @@ postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: 
       posts:candidates.map(row=>serializeFeedPost(row,likedIds,savedIds,followingIds)),
       newPostsCount,
       latestCreatedAt:candidates[0]?.createdAt??null,
+      feedSnapshotAt:new Date().toISOString(),
       scope:{mode:countries.length?"countries":"world",countries,countryCount:countries.length,viewerCountry,label:countries.length?countries.length+" countries":"world"},
     });
   } catch(err) {
     return supabaseError(res,err);
   }
 });
-postsRouter.get("/posts/feed/updates", authMiddleware, async (req, res) => {
+postsRouter.get("/posts/feed/updates", authMiddleware, async (req: Request & { userId?: number }, res) => {
   const sinceValue = typeof req.query["since"] === "string" ? req.query["since"] : null;
   const sinceDate = sinceValue ? new Date(sinceValue) : null;
   if (!sinceDate || Number.isNaN(sinceDate.getTime())) return res.json({ newPostsCount: 0 });
   try {
-    const rows = await selectRows("posts", { filters: [eq("isWorldFeed", true), gt("createdAt", sinceDate)] });
-    return res.json({ newPostsCount: rows.length });
+    const rows = await selectRows("posts", {
+      filters: [eq("isWorldFeed", true), gt("createdAt", sinceDate)],
+      limit: FEED_CANDIDATE_LIMIT,
+    });
+    const newPostsCount = rows.filter((post) =>
+      Number(post.userId) !== Number(req.userId) && !post.deletedAt,
+    ).length;
+    return res.json({ newPostsCount });
   } catch (err) {
     return supabaseError(res, err);
   }
