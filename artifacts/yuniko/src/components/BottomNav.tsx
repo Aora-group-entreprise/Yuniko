@@ -19,6 +19,7 @@ export default function BottomNav({
   const [location] = useLocation();
   const [globalNewPostsCount, setGlobalNewPostsCount] = useState(newPostsCount);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [messagesBadgeCleared, setMessagesBadgeCleared] = useState(false);
   const isActive = (path: string) => path === "/" ? location === "/" : location.startsWith(path);
 
   useEffect(() => {
@@ -62,8 +63,11 @@ export default function BottomNav({
   const displayedNewPostsCount = location === "/" ? newPostsCount : globalNewPostsCount;
 
   useEffect(() => {
+    try { setMessagesBadgeCleared(sessionStorage.getItem("yuniko_messages_badge_cleared") === "1"); } catch {}
     if (location.startsWith("/messages")) {
       setUnreadMessages(0);
+      setMessagesBadgeCleared(true);
+      try { sessionStorage.setItem("yuniko_messages_badge_cleared", "1"); } catch {}
       return;
     }
     let cancelled = false;
@@ -73,7 +77,11 @@ export default function BottomNav({
         const data = await apiJson<{ conversations?: Array<{ unread?: number }> }>("/messages/conversations");
         if (!cancelled) {
           const total = (data.conversations ?? []).reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
-          setUnreadMessages(total);
+          if (total > 0) {
+            setUnreadMessages(total);
+            setMessagesBadgeCleared(false);
+            try { sessionStorage.removeItem("yuniko_messages_badge_cleared"); } catch {}
+          }
         }
       } catch {}
     };
@@ -143,10 +151,13 @@ export default function BottomNav({
             </motion.button>
           </Link>
         </div>
-        <NavItem href="/messages" label={t("messages")} active={isActive("/messages")} compact>
+        <NavItem href="/messages" label={t("messages")} active={isActive("/messages")} compact onClick={() => {
+          setUnreadMessages(0); setMessagesBadgeCleared(true);
+          try { sessionStorage.setItem("yuniko_messages_badge_cleared", "1"); } catch {}
+        }}>
           <div className="relative">
             <MessageCircle size={25} style={{ color: isActive("/messages") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/messages") ? 2.2 : 1.7} />
-            {unreadMessages > 0 && (
+            {!messagesBadgeCleared && unreadMessages > 0 && (
               <span
                 className="absolute -right-1.5 -top-1.5 h-4 min-w-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center"
                 style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 0 8px rgba(255,20,147,.35)" }}

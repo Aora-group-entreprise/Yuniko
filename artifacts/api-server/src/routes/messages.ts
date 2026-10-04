@@ -150,7 +150,7 @@ messagesRouter.get("/messages/conversations",authMiddleware,async(req:Authentica
       .filter(id=>!blockedIds.has(id));
     if(!friendIds.length) return res.json({conversations:[]});
 
-    const [memberships,conversations,messages,users]=await Promise.all([
+    const [memberships,conversations,messages,users,messageDevices]=await Promise.all([
       selectRows("conversation_members",{limit:5000}),
       selectRows("conversations",{order:{column:"updatedAt",ascending:false},limit:1000}),
       selectRows("messages",{order:{column:"createdAt",ascending:false},limit:5000}),

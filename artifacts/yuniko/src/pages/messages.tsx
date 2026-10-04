@@ -53,7 +53,7 @@ export default function Messages(){
   const load=async()=>{
     setLoading(true);setError(null);
     try{
-      const data=await fetchSessionJson<{conversations:Conversation[]}>("/messages/conversations");
+      const data=await apiJson<{conversations:Conversation[]}>("/messages/conversations");
       const decrypted=await Promise.all((data.conversations??[]).map(async conversation=>({
         ...conversation,
         lastMessage:conversation.lastMessageEncryptionPublicKey

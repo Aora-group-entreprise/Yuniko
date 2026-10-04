@@ -96,6 +96,7 @@ export default function Home() {
   const [feedLoading, setFeedLoading] = useState(!cachedFeed);
   const [newPostsCount, setNewPostsCount] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notificationBadgeCleared, setNotificationBadgeCleared] = useState(false);
   const feedSnapshotRef = useRef<string>(new Date().toISOString());
   const feedRefreshInFlightRef = useRef(false);
   const notificationCheckRef = useRef(false);
@@ -138,12 +139,17 @@ export default function Home() {
       } catch {}
     };
 
+    try { setNotificationBadgeCleared(sessionStorage.getItem("yuniko_notifications_badge_cleared") === "1"); } catch {}
     const checkNotifications = async () => {
       if (notificationCheckRef.current || document.visibilityState === "hidden") return;
       notificationCheckRef.current = true;
       try {
         const data = await apiJson<{ notifications?: Array<{ read?: boolean }> }>("/notifications");
-        setUnreadNotifications((data.notifications ?? []).filter(item => !item.read).length);
+        const count = (data.notifications ?? []).filter(item => !item.read).length;
+        if (count > 0) {
+          setUnreadNotifications(count); setNotificationBadgeCleared(false);
+          try { sessionStorage.removeItem("yuniko_notifications_badge_cleared"); } catch {}
+        }
       } catch {} finally { notificationCheckRef.current = false; }
     };
     void checkNotifications();
@@ -194,9 +200,13 @@ export default function Home() {
           </span>
         </button>
         <div className="flex items-center gap-5">
-          <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/notifications")} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("notifications")}>
+          <motion.button whileTap={{ scale: 0.84 }} onClick={() => {
+            setUnreadNotifications(0); setNotificationBadgeCleared(true);
+            try { sessionStorage.setItem("yuniko_notifications_badge_cleared", "1"); } catch {}
+            setLocation("/notifications");
+          }} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("notifications")}>
             <Bell size={25} strokeWidth={1.7} style={{ color: "rgba(255,210,235,0.88)" }} />
-            {unreadNotifications > 0 && <span className="absolute -right-2 -top-1 min-w-4 h-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center" style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.45)" }} aria-label="Nouvelles notifications">1+</span>}
+            {!notificationBadgeCleared && unreadNotifications > 0 && <span className="absolute -right-2 -top-1 min-w-4 h-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center" style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.45)" }} aria-label="Nouvelles notifications">1+</span>}
           </motion.button>
           <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/add-friends")} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("addFriends")}>
             <UserPlus size={25} strokeWidth={1.75} style={{ color: "rgba(255,210,235,0.92)" }} />
