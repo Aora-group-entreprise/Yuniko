@@ -79,7 +79,7 @@ export default function Chat(){
     try{
       const data=await fetchSessionJson<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null;settings?:{readReceiptsEnabled?:boolean;nickname?:string}}>("/messages/conversations/"+userId);
       setUser(data.user);
-      setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&m.encryptionPublicKey&&Number(m.senderId)!==Number(authUser?.id)?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));
+      setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&m.encryptionPublicKey?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));
       setReadReceiptsEnabled(data.settings?.readReceiptsEnabled!==false);
       setNickname(data.settings?.nickname??"");
       setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);

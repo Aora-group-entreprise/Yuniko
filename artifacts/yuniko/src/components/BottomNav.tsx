@@ -18,6 +18,7 @@ export default function BottomNav({
 }) {
   const [location] = useLocation();
   const [globalNewPostsCount, setGlobalNewPostsCount] = useState(newPostsCount);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const isActive = (path: string) => path === "/" ? location === "/" : location.startsWith(path);
 
   useEffect(() => {
@@ -59,6 +60,31 @@ export default function BottomNav({
   }, [location, newPostsCount]);
 
   const displayedNewPostsCount = location === "/" ? newPostsCount : globalNewPostsCount;
+
+  useEffect(() => {
+    if (location.startsWith("/messages")) {
+      setUnreadMessages(0);
+      return;
+    }
+    let cancelled = false;
+    const checkUnreadMessages = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const data = await apiJson<{ conversations?: Array<{ unread?: number }> }>("/messages/conversations");
+        if (!cancelled) {
+          const total = (data.conversations ?? []).reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
+          setUnreadMessages(total);
+        }
+      } catch {}
+    };
+    void checkUnreadMessages();
+    const interval = window.setInterval(checkUnreadMessages, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [location]);
+
 
   return (
     <ScreenPortal>
@@ -120,7 +146,15 @@ export default function BottomNav({
         <NavItem href="/messages" label={t("messages")} active={isActive("/messages")} compact>
           <div className="relative">
             <MessageCircle size={25} style={{ color: isActive("/messages") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/messages") ? 2.2 : 1.7} />
-            <span className="absolute -right-1.5 -top-1.5 h-4 min-w-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center" style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 0 8px rgba(255,20,147,.35)" }}>3</span>
+            {unreadMessages > 0 && (
+              <span
+                className="absolute -right-1.5 -top-1.5 h-4 min-w-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 0 8px rgba(255,20,147,.35)" }}
+                aria-label="Nouveaux messages"
+              >
+                1+
+              </span>
+            )}
           </div>
         </NavItem>
         <NavItem href="/profile" label={t("profile")} active={isActive("/profile")} compact>

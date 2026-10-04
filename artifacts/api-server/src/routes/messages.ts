@@ -336,7 +336,9 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
       const source=visible.find(m=>Number(m.id)===item.id);
       if(!source||source.kind!=="text"||source.encryptionVersion==null) return item;
       const senderId=Number(source.senderId),deviceId=String(source.senderDeviceId??"");
-      const key=(deviceId&&deviceKeys.get(senderId+":"+deviceId))||activeUserKeys.get(senderId)||null;
+      const key=senderId===currentId
+        ? friendKey
+        : ((deviceId&&deviceKeys.get(senderId+":"+deviceId))||activeUserKeys.get(senderId)||null);
       return key?{...item,encryptionPublicKey:key}:item;
     });
     return res.json({
