@@ -115,7 +115,7 @@ export default function BottomNav({
           label={t("home")}
           active={isActive("/")}
           compact
-          onClick={location === "/" ? onHomePress : undefined}
+          onClick={onHomePress}
         >
           <div className="relative">
             <Home size={25} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.25 : 1.7} />
