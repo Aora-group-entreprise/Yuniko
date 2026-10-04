@@ -164,7 +164,31 @@ export default function SearchPage() {
           </div>
         </div>
         {(tab==="forYou"||tab==="people")&&query.length>=2&&!isSearching&&filteredUsers.length===0&&<p className="py-10 text-center text-white/40 text-sm">No registered users found.</p>}
-        {(tab==="forYou"||tab==="hashtags")&&filteredHashtags.length>0&&<div className="mt-3">{filteredHashtags.map(h=><button key={h.tag} onClick={()=>setLocation(`/hashtag/${h.tag}`)} className="w-full flex items-center gap-3 py-3 border-b border-white/[0.06] text-left"><div className="w-11 h-11 rounded-full flex items-center justify-center" style={{background:"rgba(255,20,147,.1)",border:"1px solid rgba(255,20,147,.25)"}}><Hash size={18} className="text-[#FF3D9A]"/></div><div><p className="font-bold text-sm">#{h.tag}</p><p className="text-white/45 text-xs">{formatCount(h.posts)} posts</p></div></button>)}</div>}
+        {(tab === "forYou" || tab === "hashtags") && filteredHashtags.length > 0 && (
+          <div className="mt-3">
+            {filteredHashtags.map((h) => (
+              <button
+                key={h.tag}
+                onClick={() => setLocation(`/hashtag/${h.tag}`)}
+                className="w-full flex items-center gap-3 py-3 border-b border-white/[0.06] text-left"
+              >
+                <div
+                  className="w-11 h-11 rounded-full flex items-center justify-center"
+                  style={{
+                    background: "rgba(255,20,147,.1)",
+                    border: "1px solid rgba(255,20,147,.25)",
+                  }}
+                >
+                  <Hash size={18} className="text-[#FF3D9A]" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm">#{h.tag}</p>
+                  <p className="text-white/45 text-xs">{formatCount(h.posts)} posts</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
         {filteredUsers.length===0&&filteredPosts.length===0&&filteredHashtags.length===0&&!isSearching&&query.length>=2&&<div className="py-16 text-center"><div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center" style={{background:"rgba(255,20,147,.08)",border:"1px solid rgba(255,20,147,.22)"}}><Search size={27} className="text-[#FF3D9A]"/></div><p className="text-white/40 text-sm mt-4">{t("noResults")}</p></div>}
       </div>}
       <BottomNav />
