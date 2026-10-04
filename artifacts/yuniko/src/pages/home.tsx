@@ -24,6 +24,13 @@ type FeedMemoryCache = {
 
 let feedMemoryCache: FeedMemoryCache | null = null;
 
+type FeedViewState = {
+  userId: number;
+  scrollTop: number;
+};
+
+let feedViewState: FeedViewState | null = null;
+
 function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   useEffect(() => {
@@ -165,34 +172,49 @@ export default function Home() {
     }
 
     let frame = 0;
+    let restoreFrame = 0;
     let attempts = 0;
-    if (!shouldInitialRefresh) {
-      const restoreFeedPosition = () => {
-        attempts += 1;
-        let savedPosition = 0;
-        try {
-          savedPosition = Math.max(0, Number(sessionStorage.getItem(FEED_SCROLL_POSITION_KEY) ?? "0") || 0);
-        } catch {}
-
-        const scrollElement = scrollRef.current;
-        if (!scrollElement || savedPosition <= 0) return;
-
-        const canReachPosition = scrollElement.scrollHeight - scrollElement.clientHeight >= savedPosition;
-        if (canReachPosition || attempts >= 12) {
-          scrollElement.scrollTo({ top: savedPosition, behavior: "auto" });
-          return;
-        }
-        frame = window.requestAnimationFrame(restoreFeedPosition);
-      };
-
-      frame = window.requestAnimationFrame(restoreFeedPosition);
-    }
 
     const scrollElement = scrollRef.current;
+    const savedMemoryPosition =
+      feedViewState?.userId === Number(user.id) ? Math.max(0, feedViewState.scrollTop) : 0;
+
+    const readSavedPosition = () => {
+      if (savedMemoryPosition > 0) return savedMemoryPosition;
+      try {
+        return Math.max(0, Number(sessionStorage.getItem(FEED_SCROLL_POSITION_KEY) ?? "0") || 0);
+      } catch {
+        return 0;
+      }
+    };
+
+    const restoreFeedPosition = () => {
+      if (!scrollElement || shouldInitialRefresh) return;
+      const savedPosition = readSavedPosition();
+      if (savedPosition <= 0) return;
+
+      attempts += 1;
+      const maxReachablePosition = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+      if (maxReachablePosition >= savedPosition || attempts >= 30) {
+        scrollElement.scrollTop = Math.min(savedPosition, maxReachablePosition);
+        return;
+      }
+
+      restoreFrame = window.requestAnimationFrame(restoreFeedPosition);
+    };
+
+    if (!shouldInitialRefresh && scrollElement) {
+      restoreFrame = window.requestAnimationFrame(() => {
+        restoreFrame = window.requestAnimationFrame(restoreFeedPosition);
+      });
+    }
+
     const saveFeedPosition = () => {
       if (!scrollElement) return;
+      const scrollTop = Math.max(0, scrollElement.scrollTop);
+      feedViewState = { userId: Number(user.id), scrollTop };
       try {
-        sessionStorage.setItem(FEED_SCROLL_POSITION_KEY, String(Math.max(0, scrollElement.scrollTop)));
+        sessionStorage.setItem(FEED_SCROLL_POSITION_KEY, String(scrollTop));
       } catch {}
     };
     scrollElement?.addEventListener("scroll", saveFeedPosition, { passive: true });
@@ -233,6 +255,7 @@ export default function Home() {
 
     return () => {
       window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(restoreFrame);
       saveFeedPosition();
       scrollElement?.removeEventListener("scroll", saveFeedPosition);
       window.clearInterval(interval);
