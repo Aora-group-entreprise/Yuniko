@@ -245,7 +245,7 @@ export default function Profile({ userId }: ProfilePageProps) {
   return (
     <div className="relative w-full max-w-[430px] mx-auto min-h-screen overflow-x-hidden bg-[#050509] pb-24 text-white">
       <section className="relative">
-        <div className="relative h-[210px] overflow-hidden">
+        <div className="relative h-[185px] overflow-hidden">
           {user.coverPhoto ? (
             <img src={user.coverPhoto} alt="" className="absolute inset-0 h-full w-full object-cover"/>
           ) : (
@@ -262,30 +262,30 @@ export default function Profile({ userId }: ProfilePageProps) {
           </button>}
         </div>
 
-        <div className="relative -mt-[57px] px-4">
+        <div className="relative -mt-[52px] px-4">
           <div className="flex justify-center">
-            <button onClick={()=>setShowPhotoViewer(true)} className="h-[114px] w-[114px] rounded-full p-[3px]" style={{background:"linear-gradient(135deg,#FF1493 0%,#C13CFF 48%,#008CFF 100%)",boxShadow:"0 0 26px rgba(255,20,147,.38),0 0 34px rgba(0,140,255,.22)"}} data-testid="btn-profile-photo">
+            <button onClick={()=>setShowPhotoViewer(true)} className="h-[104px] w-[104px] rounded-full p-[3px]" style={{background:"linear-gradient(135deg,#FF1493 0%,#C13CFF 48%,#008CFF 100%)",boxShadow:"0 0 26px rgba(255,20,147,.38),0 0 34px rgba(0,140,255,.22)"}} data-testid="btn-profile-photo">
               <span className="block h-full w-full rounded-full bg-[#050509] p-[3px]">
                 <img src={user.avatar} alt={user.displayName} className="h-full w-full rounded-full object-cover"/>
               </span>
             </button>
           </div>
 
-          <div className="pt-5 text-center">
+          <div className="pt-4 text-center">
             <div className="flex items-center justify-center gap-1.5">
-              <h1 className="text-[25px] font-extrabold leading-none tracking-[-0.035em]">{user.displayName}</h1>
+              <h1 className="text-[24px] font-extrabold leading-none tracking-[-0.035em]">{user.displayName}</h1>
               {user.verified&&<BadgeCheck size={17} className="text-blue-400 fill-blue-400"/>}
             </div>
-            <p className="mt-2 text-[16px] font-semibold" style={{color:"#B77BFF"}}>@{user.username}</p>
-            {user.bio&&<p className="mx-auto mt-3 max-w-[350px] text-[14px] leading-5 text-white/55">{user.bio}</p>}
-            {user.location&&<div className="mt-2.5 flex items-center justify-center gap-1.5 text-[14px] text-white/65"><MapPin size={15} className="text-[#C14BFF]"/><span>{user.location}</span></div>}
-            {user.website&&<div className="mt-1 flex items-center justify-center gap-1 text-[12px] text-blue-300/80"><Link2 size={13}/><span>{user.website}</span></div>}
+            <p className="mt-1.5 text-[14px] font-semibold" style={{color:"#B77BFF"}}>@{user.username}</p>
+            {user.bio&&<div className="mx-auto mt-3 max-w-[340px] rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3"><p className="text-[13px] leading-[1.55] text-white/60 whitespace-pre-line">{user.bio}</p></div>}
+            {user.location&&<div className="mt-2 flex items-center justify-center gap-1.5 text-[13px] text-white/65"><MapPin size={15} className="text-[#C14BFF]"/><span>{user.location}</span></div>}
+            {user.website&&<div className="mt-1.5 flex items-center justify-center gap-1 text-[12px] text-blue-300/80"><Link2 size={13}/><span>{user.website}</span></div>}
           </div>
 
-          <div className="mt-7 grid grid-cols-3">
+          <div className="mt-5 grid grid-cols-3 border-t border-white/[0.06] pt-5">
             {statItems.map(stat=><button key={stat.label} onClick={stat.onClick} className="flex flex-col items-center active:opacity-70" data-testid={`stat-${stat.label.toLowerCase()}`}>
               <span className="text-[22px] font-extrabold leading-none">{stat.value}</span>
-              <span className="mt-2 text-[12px] font-medium text-white/55">{stat.label}</span>
+              <span className="mt-1.5 text-[12px] font-medium text-white/55">{stat.label}</span>
             </button>)}
           </div>
 
@@ -296,8 +296,8 @@ export default function Profile({ userId }: ProfilePageProps) {
         </div>
       </section>
 
-      <div className="mt-7 grid grid-cols-3 border-b border-white/[0.08]">
-        {[{id:"grid",label:"Post"},...(isOwn?[{id:"saved",label:"Saved"},{id:"analytics",label:"Statistique"}]:[])].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as typeof tab)} className="relative h-[60px] flex items-center justify-center bg-[#07070b] text-[15px] font-bold" style={{color:tab===tabItem.id?"#fff":"rgba(255,255,255,.43)"}} data-testid={`tab-${tabItem.id}`}>
+      <div className="mt-5 grid grid-cols-3 border-b border-white/[0.08]">
+        {[{id:"grid",label:"Post"},...(isOwn?[{id:"saved",label:"Saved"},{id:"analytics",label:"Statistique"}]:[])].map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id as typeof tab)} className="relative h-[56px] flex items-center justify-center bg-[#07070b] text-[15px] font-bold" style={{color:tab===tabItem.id?"#fff":"rgba(255,255,255,.43)"}} data-testid={`tab-${tabItem.id}`}>
           {tab===tabItem.id&&<span className="absolute inset-x-3 bottom-0 h-[3px] rounded-full" style={{background:"linear-gradient(90deg,#FF1493,#008CFF)",boxShadow:"0 0 11px rgba(255,20,147,.55)"}}/>}
           {tabItem.label}
         </button>)}
