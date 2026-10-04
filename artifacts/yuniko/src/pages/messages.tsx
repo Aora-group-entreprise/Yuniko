@@ -56,7 +56,7 @@ export default function Messages(){
       const data=await apiJson<{conversations:Conversation[]}>("/messages/conversations");
       const decrypted=await Promise.all((data.conversations??[]).map(async conversation=>({
         ...conversation,
-        lastMessage:conversation.lastMessageEncryptionPublicKey
+        lastMessage:(conversation.lastMessage.startsWith("enc2.")||conversation.lastMessageEncryptionPublicKey)
           ? await decryptFromPublicKey(conversation.lastMessageEncryptionPublicKey,conversation.lastMessage).catch(()=>conversation.lastMessage)
           : conversation.lastMessage,
       })));

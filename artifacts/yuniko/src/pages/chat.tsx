@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Phone, Video, MoreHorizontal, Image as ImageIcon, Smile, Mic, Send, Camera, BadgeCheck } from "lucide-react";
 import { t } from "@/lib/i18n";
 import ScreenPortal from "@/components/ScreenPortal";
-import {deviceInfo,encryptForPublicKey,decryptFromPublicKey} from "@/lib/e2e";
+import {deviceInfo,encryptForDevices,encryptForPublicKey,decryptFromPublicKey} from "@/lib/e2e";
 import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
@@ -17,7 +17,7 @@ type Message={
   replyToMessageId?:number|null;forwardedFromMessageId?:number|null;reactions:Reaction[];
   type:"text"|"image"|"audio"|"video"|"file"|"sticker";
 };
-type ChatUser={id:number;username:string;displayName:string;avatarUrl:string|null;verified:boolean;encryptionPublicKey?:string|null};
+type ChatUser={id:number;username:string;displayName:string;avatarUrl:string|null;verified:boolean;encryptionPublicKey?:string|null;encryptionDevices?:{deviceId:string;publicKey:string}[]};
 const GRADIENT="linear-gradient(135deg,#FF1493 0%,#008CFF 100%)";
 
 function formatTime(value:string|null){
@@ -79,7 +79,7 @@ export default function Chat(){
     try{
       const data=await fetchSessionJson<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null;settings?:{readReceiptsEnabled?:boolean;nickname?:string}}>("/messages/conversations/"+userId);
       setUser(data.user);
-      setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&m.encryptionPublicKey?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));
+      setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&(m.text.startsWith("enc2.")||m.encryptionPublicKey)?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));
       setReadReceiptsEnabled(data.settings?.readReceiptsEnabled!==false);
       setNickname(data.settings?.nickname??"");
       setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
@@ -101,7 +101,7 @@ export default function Chat(){
         if(data.messages?.length){
           const fresh=await Promise.all(data.messages.map(async m=>({
             ...m,
-            text:m.text&&m.encryptionPublicKey?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text,
+            text:m.text&&(m.text.startsWith("enc2.")||m.encryptionPublicKey)?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text,
           })));
           setMessages(current=>{
             const known=new Set(current.map(m=>m.id));
@@ -140,7 +140,11 @@ export default function Chat(){
     if(!text||sending||!user||editingMessage)return;
     setSending(true);setError(null);
     try{
-      const device=await deviceInfo();const payload=user.encryptionPublicKey?await encryptForPublicKey(user.encryptionPublicKey,text):text;const data=await apiJson<{message:Message}>("/messages/conversations/"+user.id,{method:"POST",body:JSON.stringify({text:payload,replyToMessageId:replyingTo?.id??null,encryptionVersion:user.encryptionPublicKey?1:null,senderDeviceId:device.deviceId})});
+      const device=await deviceInfo();
+      const targets=(user.encryptionDevices??[]).concat([{deviceId:device.deviceId,publicKey:device.publicKey}]);
+      const payload=targets.length>0?await encryptForDevices(targets,text):user.encryptionPublicKey?await encryptForPublicKey(user.encryptionPublicKey,text):text;
+      const encryptionVersion=payload.startsWith("enc2.")?2:payload.startsWith("enc1.")?1:null;
+      const data=await apiJson<{message:Message}>("/messages/conversations/"+user.id,{method:"POST",body:JSON.stringify({text:payload,replyToMessageId:replyingTo?.id??null,encryptionVersion,senderDeviceId:device.deviceId})});
       setMessages(current=>current.concat({...data.message,text}));
       lastMessageIdRef.current=Math.max(lastMessageIdRef.current,data.message.id);
       setInputText("");setReplyingTo(null);invalidateSessionCache(cacheKey);void sendTyping(false);

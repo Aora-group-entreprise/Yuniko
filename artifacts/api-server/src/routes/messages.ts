@@ -340,6 +340,7 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
     }));
     const friendDevices=await selectRows("message_devices",{filters:[eq("userId",friendId)],limit:20});
     const friendKey=friendDevices.find(r=>!r.revokedAt)?.publicKey??null;
+    const encryptionDevices=friendDevices.filter(r=>!r.revokedAt&&String(r.deviceId??"")&&String(r.publicKey??"")).map(r=>({deviceId:String(r.deviceId),publicKey:String(r.publicKey)}));
     const messageDeviceRows=await selectRows("message_devices",{limit:5000});
     const deviceKeys=new Map(messageDeviceRows.map(r=>[String(r.userId)+":"+String(r.deviceId),String(r.publicKey??"")]));
     const activeUserKeys=new Map<number,string>();
@@ -358,7 +359,7 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
     });
     return res.json({
       conversationId,
-      user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified",encryptionPublicKey:friendKey},
+      user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified",encryptionPublicKey:friendKey,encryptionDevices},
       messages:encryptedMessages,
       otherTyping:Boolean(otherMember?.typingAt&&Date.now()-new Date(String(otherMember.typingAt)).getTime()<5000),
       otherActiveAt:dateValue(otherMember?.lastActiveAt),
