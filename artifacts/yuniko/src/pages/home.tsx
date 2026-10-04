@@ -30,6 +30,7 @@ type FeedViewState = {
 };
 
 let feedViewState: FeedViewState | null = null;
+let activeFeedScrollElement: HTMLDivElement | null = null;
 
 function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -176,6 +177,7 @@ export default function Home() {
     let attempts = 0;
 
     const scrollElement = scrollRef.current;
+    if (scrollElement) activeFeedScrollElement = scrollElement;
     const savedMemoryPosition =
       feedViewState?.userId === Number(user.id) ? Math.max(0, feedViewState.scrollTop) : 0;
 
@@ -210,7 +212,7 @@ export default function Home() {
     }
 
     const saveFeedPosition = () => {
-      if (!scrollElement) return;
+      if (!scrollElement || activeFeedScrollElement !== scrollElement) return;
       const scrollTop = Math.max(0, scrollElement.scrollTop);
       feedViewState = { userId: Number(user.id), scrollTop };
       try {
@@ -256,7 +258,10 @@ export default function Home() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.cancelAnimationFrame(restoreFrame);
-      saveFeedPosition();
+      if (activeFeedScrollElement === scrollElement) {
+        saveFeedPosition();
+        activeFeedScrollElement = null;
+      }
       scrollElement?.removeEventListener("scroll", saveFeedPosition);
       window.clearInterval(interval);
       window.clearInterval(notificationInterval);
