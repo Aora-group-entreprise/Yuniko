@@ -14,7 +14,15 @@ import { apiJson } from "@/lib/api";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
 const FEED_SCROLL_POSITION_KEY = "yuniko_feed_scroll_top";
-let feedInitializedUserId: number | null = null;
+
+type FeedMemoryCache = {
+  userId: number;
+  posts: any[];
+  stories: LiveStory[];
+  snapshotAt: string;
+};
+
+let feedMemoryCache: FeedMemoryCache | null = null;
 
 function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -64,8 +72,14 @@ export default function Home() {
   const isOnline = useOnlineStatus();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const cachedFeed = getSessionCache<{ posts?: any[] }>("/posts/feed");
-  const cachedStories = getSessionCache<{ stories?: LiveStory[] }>("/stories");
+  const currentUserId = Number(user?.id);
+  const memoryFeed = feedMemoryCache?.userId === currentUserId ? feedMemoryCache : null;
+  const cachedFeed = memoryFeed
+    ? { posts: memoryFeed.posts }
+    : getSessionCache<{ posts?: any[] }>("/posts/feed");
+  const cachedStories = memoryFeed
+    ? { stories: memoryFeed.stories }
+    : getSessionCache<{ stories?: LiveStory[] }>("/stories");
 
   const convertPosts = (items: any[]): LiveFeedPost[] =>
     items.map((p) => ({
@@ -111,14 +125,25 @@ export default function Home() {
       const storiesPromise = apiJson<{ stories?: LiveStory[] }>("/stories");
 
       const feedData = await feedPromise;
+      const snapshotAt = feedData.feedSnapshotAt ?? new Date().toISOString();
       setLivePosts(convertPosts(feedData.posts ?? []));
-      feedSnapshotRef.current = feedData.feedSnapshotAt ?? new Date().toISOString();
-      try { sessionStorage.setItem("yuniko_feed_snapshot_at", feedSnapshotRef.current); } catch {}
+      feedSnapshotRef.current = snapshotAt;
+      feedMemoryCache = {
+        userId: Number(user.id),
+        posts: feedData.posts ?? [],
+        stories: feedMemoryCache?.userId === Number(user.id) ? feedMemoryCache.stories : [],
+        snapshotAt,
+      };
+      try { sessionStorage.setItem("yuniko_feed_snapshot_at", snapshotAt); } catch {}
       setNewPostsCount(0);
       setFeedLoading(false);
 
       void storiesPromise.then((storiesData) => {
-        setLiveStories(storiesData.stories ?? []);
+        const stories = storiesData.stories ?? [];
+        setLiveStories(stories);
+        if (feedMemoryCache?.userId === Number(user.id)) {
+          feedMemoryCache = { ...feedMemoryCache, stories };
+        }
       }).catch(() => {});
     } catch {
       setFeedLoading(false);
@@ -130,12 +155,13 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
 
-    const currentUserId = Number(user.id);
-    const shouldInitialRefresh = feedInitializedUserId !== currentUserId;
+    const hasMemoryFeed = feedMemoryCache?.userId === Number(user.id);
+    const shouldInitialRefresh = !hasMemoryFeed;
 
     if (shouldInitialRefresh) {
-      feedInitializedUserId = currentUserId;
       void refreshFeed();
+    } else if (feedMemoryCache) {
+      feedSnapshotRef.current = feedMemoryCache.snapshotAt;
     }
 
     let frame = 0;
