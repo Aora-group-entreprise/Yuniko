@@ -107,16 +107,19 @@ export default function Home() {
     if (!user || feedRefreshInFlightRef.current) return;
     feedRefreshInFlightRef.current = true;
     try {
-      const [feedData, storiesData] = await Promise.all([
-        apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed"),
-        apiJson<{ stories?: LiveStory[] }>("/stories"),
-      ]);
+      const feedPromise = apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed");
+      const storiesPromise = apiJson<{ stories?: LiveStory[] }>("/stories");
+
+      const feedData = await feedPromise;
       setLivePosts(convertPosts(feedData.posts ?? []));
-      setLiveStories(storiesData.stories ?? []);
       feedSnapshotRef.current = feedData.feedSnapshotAt ?? new Date().toISOString();
       try { sessionStorage.setItem("yuniko_feed_snapshot_at", feedSnapshotRef.current); } catch {}
       setNewPostsCount(0);
       setFeedLoading(false);
+
+      void storiesPromise.then((storiesData) => {
+        setLiveStories(storiesData.stories ?? []);
+      }).catch(() => {});
     } catch {
       setFeedLoading(false);
     } finally {
