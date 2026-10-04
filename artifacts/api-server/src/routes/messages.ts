@@ -325,10 +325,24 @@ messagesRouter.get("/messages/conversations/:userId",authMiddleware,async(req:Au
     }));
     const friendDevices=await selectRows("message_devices",{filters:[eq("userId",friendId)],limit:20});
     const friendKey=friendDevices.find(r=>!r.revokedAt)?.publicKey??null;
+    const messageDeviceRows=await selectRows("message_devices",{limit:5000});
+    const deviceKeys=new Map(messageDeviceRows.map(r=>[String(r.userId)+":"+String(r.deviceId),String(r.publicKey??"")]));
+    const activeUserKeys=new Map<number,string>();
+    for(const row of messageDeviceRows){
+      const user=Number(row.userId),key=String(row.publicKey??"");
+      if(key&&!row.revokedAt&&!activeUserKeys.has(user)) activeUserKeys.set(user,key);
+    }
+    const encryptedMessages=mediaPayload.map(item=>{
+      const source=visible.find(m=>Number(m.id)===item.id);
+      if(!source||source.kind!=="text"||source.encryptionVersion==null) return item;
+      const senderId=Number(source.senderId),deviceId=String(source.senderDeviceId??"");
+      const key=(deviceId&&deviceKeys.get(senderId+":"+deviceId))||activeUserKeys.get(senderId)||null;
+      return key?{...item,encryptionPublicKey:key}:item;
+    });
     return res.json({
       conversationId,
       user:{id:friendId,username:friend.username,displayName:friend.displayName,avatarUrl:friend.avatarUrl??null,verified:String(friend.verificationStatus??"")==="verified",encryptionPublicKey:friendKey},
-      messages:mediaPayload,
+      messages:encryptedMessages,
       otherTyping:Boolean(otherMember?.typingAt&&Date.now()-new Date(String(otherMember.typingAt)).getTime()<5000),
       otherActiveAt:dateValue(otherMember?.lastActiveAt),
       settings:{readReceiptsEnabled,nickname:currentMember?.nickname??""},
@@ -387,7 +401,8 @@ messagesRouter.post("/messages/conversations/:userId",authMiddleware,async(req:A
     const message=await insertRow("messages",{conversationId,senderId:currentId,kind:"text",body:text,mediaUrl:null,durationMs:null,deliveredAt:null,readAt:null,replyToMessageId:replyTo,forwardedFromMessageId:null,editedAt:null,deletedAt:null,createdAt:now,encryptionVersion:req.body?.encryptionVersion??null,senderDeviceId:req.body?.senderDeviceId??null});
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
     await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
-    await createNotification(friendId,currentId,"message",text,{url:`/messages?userId=${currentId}`});
+    const notificationText=req.body?.encryptionVersion? "Vous avez reçu un nouveau message.":text;
+    await createNotification(friendId,currentId,"message",notificationText,{url:`/messages?userId=${currentId}`});
     return res.status(201).json({message:{id:Number(message.id),senderId:currentId,text,timestamp:dateValue(message.createdAt),read:false,delivered:false,edited:false,deleted:false,replyToMessageId:replyTo,forwardedFromMessageId:null,reactions:[],type:"text"}});
   }catch(err){return supabaseError(res,err);}
 });

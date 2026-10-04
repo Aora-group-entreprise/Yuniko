@@ -11,7 +11,7 @@ import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUs
 
 type Reaction={reaction:string;count:number;reacted:boolean};
 type Message={
-  id:number;senderId:number;text?:string;imageUrl?:string;audioUrl?:string;videoUrl?:string;fileUrl?:string;
+  id:number;senderId:number;text?:string;encryptionPublicKey?:string|null;imageUrl?:string;audioUrl?:string;videoUrl?:string;fileUrl?:string;
   fileName?:string|null;fileSize?:number|null;mediaMimeType?:string|null;durationMs?:number|null;
   timestamp:string|null;read:boolean;delivered?:boolean;edited?:boolean;deleted?:boolean;
   replyToMessageId?:number|null;forwardedFromMessageId?:number|null;reactions:Reaction[];
@@ -79,7 +79,7 @@ export default function Chat(){
     try{
       const data=await fetchSessionJson<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null;settings?:{readReceiptsEnabled?:boolean;nickname?:string}}>("/messages/conversations/"+userId);
       setUser(data.user);
-      setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&data.user.encryptionPublicKey?await decryptFromPublicKey(data.user.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));
+      setMessages(await Promise.all((data.messages??[]).map(async m=>({...m,text:m.text&&m.encryptionPublicKey&&Number(m.senderId)!==Number(authUser?.id)?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text}))));
       setReadReceiptsEnabled(data.settings?.readReceiptsEnabled!==false);
       setNickname(data.settings?.nickname??"");
       setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
@@ -101,7 +101,7 @@ export default function Chat(){
         if(data.messages?.length){
           const fresh=await Promise.all(data.messages.map(async m=>({
             ...m,
-            text:m.text&&user?.encryptionPublicKey?await decryptFromPublicKey(user.encryptionPublicKey,m.text).catch(()=>m.text):m.text,
+            text:m.text&&m.encryptionPublicKey&&Number(m.senderId)!==Number(authUser?.id)?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text,
           })));
           setMessages(current=>{
             const known=new Set(current.map(m=>m.id));
