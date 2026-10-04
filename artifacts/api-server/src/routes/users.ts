@@ -1,33 +1,66 @@
 import { Router, type Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
-import { deleteRows, eq, ilike, insertRow, publicUser, selectRows, sortRows, supabaseError, updateRows } from "../lib/supabase";
+import { deleteRows, eq, insertRow, publicUser, selectRows, sortRows, supabaseError, updateRows } from "../lib/supabase";
 
 const usersRouter = Router();
 type AuthenticatedRequest = Request & { userId?: number };
 
-usersRouter.get("/users/search", authMiddleware, async (req, res) => {
+usersRouter.get("/users/search", authMiddleware, async (req: AuthenticatedRequest, res) => {
   const query = String(req.query["q"] ?? "").trim();
-  if (query.length < 2) return res.json({ users: [] });
-
   try {
-    const pattern = `%${query.toLowerCase()}%`;
-    const [byUsername, byDisplayName] = await Promise.all([
-      selectRows("users", {
-        select: "id,username,display_name,avatar_url,bio,country_flag",
-        filters: [ilike("username", pattern)],
-        limit: 20,
-      }),
-      selectRows("users", {
-        select: "id,username,display_name,avatar_url,bio,country_flag",
-        filters: [ilike("displayName", pattern)],
-        limit: 20,
-      }),
-    ]);
-    const users = sortRows(
-      Array.from(new Map([...byUsername, ...byDisplayName].map((user) => [user.id, user])).values()),
-      "displayName",
-    ).slice(0, 20);
-    return res.json({ users });
+    const allUsers = await selectRows("users", {
+      select: "id,username,display_name,avatar_url,bio,country_flag",
+      limit: 1000,
+    });
+    const normalized = query.toLowerCase();
+    const users = (normalized.length < 2 ? [] : allUsers.filter((user) => {
+      const username = String(user.username ?? "").toLowerCase();
+      const displayName = String(user.displayName ?? "").toLowerCase();
+      const bio = String(user.bio ?? "").toLowerCase();
+      return username.includes(normalized) || displayName.includes(normalized) || bio.includes(normalized);
+    })).slice(0, 30);
+
+    const allPosts = await selectRows("posts", {
+      order: { column: "createdAt", ascending: false },
+      limit: 1000,
+    });
+    const byId = new Map(allUsers.map((user) => [Number(user.id), user]));
+    const blocked = await selectRows("blocked_users", { limit: 5000 }).catch(() => []);
+    const blockedIds = new Set<number>();
+    for (const row of blocked) {
+      const blocker = Number(row.blockerId);
+      const blockedUser = Number(row.blockedId);
+      if (blocker === req.userId!) blockedIds.add(blockedUser);
+      if (blockedUser === req.userId!) blockedIds.add(blocker);
+    }
+
+    const matchingPosts = allPosts.filter((post) => {
+      const authorId = Number(post.userId);
+      if (blockedIds.has(authorId) || Boolean(post.deletedAt)) return false;
+      if (normalized.length < 2) return true;
+      const haystack = [
+        post.caption,
+        post.hashtags,
+        post.location,
+      ].map((value) => String(value ?? "").toLowerCase()).join(" ");
+      return haystack.includes(normalized);
+    }).slice(0, 30).map((post) => ({
+      ...post,
+      author: publicUser(byId.get(Number(post.userId)) ?? {}),
+    }));
+
+    const hashtagCounts = new Map<string, number>();
+    for (const post of allPosts) {
+      const tags = String(post.hashtags ?? "").toLowerCase().split(/[,\\s#]+/).filter(Boolean);
+      for (const tag of tags) hashtagCounts.set(tag, (hashtagCounts.get(tag) ?? 0) + 1);
+    }
+    const hashtags = Array.from(hashtagCounts.entries())
+      .filter(([tag]) => normalized.length < 2 || tag.includes(normalized))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([tag, count]) => ({ tag, posts: count }));
+
+    return res.json({ users, posts: matchingPosts, hashtags });
   } catch (err) {
     return supabaseError(res, err);
   }
