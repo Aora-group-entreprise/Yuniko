@@ -108,6 +108,7 @@ function AnimatedRoutes() {
       <AnimatePresence mode="popLayout" initial={false} custom={direction}>
         <motion.div
           key={location}
+          className="no-scrollbar"
           variants={slideVariants}
           initial={getInitial()}
           animate="center"
