@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, UserPlus, Reply, AtSign, Tag, Bell, Mail } from "lucide-react";
+import { Heart, MessageCircle, UserPlus, Reply, AtSign, Tag, Bell, Mail, Share2, Bookmark, Users, Phone, Info, Check } from "lucide-react";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import { apiJson } from "@/lib/api";
@@ -14,6 +14,7 @@ interface NotificationItem {
   text: string;
   read: boolean;
   postId: number | null;
+  storyId: number | null;
   createdAt: string;
   actor: {
     id: number;
@@ -29,6 +30,7 @@ function mapNotification(notification: any): NotificationItem {
     text: String(notification.text ?? ""),
     read: Boolean(notification.read),
     postId: notification.postId == null ? null : Number(notification.postId),
+    storyId: notification.storyId == null ? null : Number(notification.storyId),
     createdAt: String(notification.createdAt),
     actor: {
       id: Number(notification.actorId),
@@ -81,6 +83,11 @@ function typeIcon(type: string) {
     case "message": return <Mail size={14} />;
     case "message_request": return <Mail size={14} />;
     case "story_reaction": return <Heart size={14} fill="currentColor" />;
+    case "share": return <Share2 size={14} />;
+    case "save": return <Bookmark size={14} fill="currentColor" />;
+    case "friend": return <Users size={14} />;
+    case "call": return <Phone size={14} />;
+    case "system": return <Info size={14} />;
     default: return <Heart size={14} fill="currentColor" />;
   }
 }
@@ -96,6 +103,11 @@ function typeClass(type: string): string {
     case "message": return "text-cyan-400";
     case "message_request": return "text-blue-400";
     case "story_reaction": return "text-rose-400";
+    case "share": return "text-violet-400";
+    case "save": return "text-amber-300";
+    case "friend": return "text-green-400";
+    case "call": return "text-cyan-400";
+    case "system": return "text-white/60";
     default: return "text-pink-400";
   }
 }
@@ -112,8 +124,22 @@ function cleanText(notif: NotificationItem): string {
     case "message": return "sent you a message";
     case "message_request": return "sent you a message request";
     case "story_reaction": return "reacted to your story";
+    case "share": return "shared your post";
+    case "save": return "saved your post";
+    case "friend": return "became your friend";
+    case "call": return "called you";
+    case "system": return "sent you an update";
     default: return "interacted with you";
   }
+}
+
+type NotificationFilter = "all" | "posts" | "people" | "messages" | "stories";
+
+function notificationCategory(type: string): Exclude<NotificationFilter, "all"> {
+  if (type === "message" || type === "message_request" || type === "call") return "messages";
+  if (type === "story_reply" || type === "story_reaction") return "stories";
+  if (type === "follow" || type === "friend" || type === "mention" || type === "tag") return "people";
+  return "posts";
 }
 
 function NotificationCard({
@@ -208,6 +234,7 @@ export default function Notifications() {
   const [, setLocation] = useLocation();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<NotificationFilter>("all");
 
   useEffect(() => {
     let alive = true;
@@ -260,6 +287,10 @@ export default function Notifications() {
   };
 
   const unreadCount = items.filter((item) => !item.read).length;
+  const filteredItems = useMemo(
+    () => filter === "all" ? items : items.filter((item) => notificationCategory(item.type) === filter),
+    [items, filter],
+  );
 
   const grouped = useMemo(() => {
     const groups: Record<"new" | "today" | "earlier", NotificationItem[]> = {
@@ -267,15 +298,21 @@ export default function Notifications() {
       today: [],
       earlier: [],
     };
-    for (const item of items) groups[groupFor(item.createdAt)].push(item);
+    for (const item of filteredItems) groups[groupFor(item.createdAt)].push(item);
     return groups;
-  }, [items]);
+  }, [filteredItems]);
 
   const openNotification = (notif: NotificationItem) => {
-    if (notif.postId) {
+    if (notif.type === "message_request") {
+      setLocation("/message-requests");
+    } else if (notif.type === "message" || notif.type === "story_reply") {
+      setLocation(`/chat/${notif.actor.id}`);
+    } else if (notif.type === "call") {
+      setLocation("/call-history");
+    } else if (notif.postId) {
       setLocation(`/post/live_${notif.postId}`);
-    } else if (notif.type === "message" || notif.type === "message_request" || notif.type === "story_reply") {
-      setLocation(`/messages?userId=${notif.actor.id}`);
+    } else if (notif.type === "story_reaction") {
+      setLocation(`/story/${notif.actor.id}`);
     } else {
       setLocation(`/user/${notif.actor.id}`);
     }
@@ -376,6 +413,36 @@ export default function Notifications() {
         </div>
       </header>
 
+      <div className="relative z-20 shrink-0 overflow-x-auto px-5 pb-3 pt-1 no-scrollbar">
+        <div className="flex min-w-max gap-2">
+          {([
+            ["all", "All"],
+            ["posts", "Posts"],
+            ["people", "People"],
+            ["messages", "Messages"],
+            ["stories", "Stories"],
+          ] as Array<[NotificationFilter, string]>).map(([value, label]) => {
+            const active = filter === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFilter(value)}
+                className="rounded-full px-4 py-2 text-[13px] font-extrabold transition-transform active:scale-95"
+                style={{
+                  color: active ? "#fff" : "rgba(255,255,255,.58)",
+                  background: active ? GRADIENT : "rgba(255,255,255,.055)",
+                  border: active ? "0" : "1px solid rgba(255,255,255,.08)",
+                  boxShadow: active ? "0 5px 18px rgba(255,20,147,.18)" : "none",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <main
         className="relative z-10 flex-1 min-h-0 overflow-y-auto px-5 pb-28 pt-1"
         data-testid="notifications-list"
@@ -401,7 +468,7 @@ export default function Notifications() {
             >
               <Bell size={34} style={{ color: "#C86BFF" }} />
             </div>
-            <p className="text-sm font-medium text-white/40">{t("noNotifications")}</p>
+            <p className="text-sm font-medium text-white/40">{filteredItems.length === 0 && items.length > 0 ? "Nothing here yet" : t("noNotifications")}</p>
           </div>
         ) : (
           <>
