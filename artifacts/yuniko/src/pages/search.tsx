@@ -144,26 +144,70 @@ export default function SearchPage() {
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3">
           {tabs.map(tabItem=><button key={tabItem.id} onClick={()=>setTab(tabItem.id)} className="shrink-0 px-4 py-2 rounded-full text-xs font-semibold" style={{background:tab===tabItem.id?"linear-gradient(135deg,#FF1493,#008CFF)":"rgba(255,255,255,.05)",color:tab===tabItem.id?"white":"rgba(255,255,255,.55)",border:tab===tabItem.id?"none":"1px solid rgba(255,255,255,.1)"}}>{tabItem.label}</button>)}
         </div>
-        {(tab==="forYou"||tab==="people")&&filteredUsers.length>0&&<div>
-          <p className="text-white/45 text-xs font-bold uppercase tracking-wider mb-2">{t("people")}</p>
-          {filteredUsers.map(u=>{const isFollowing=followStates[u.id]??u.isFollowing;return <div key={u.id} className="flex items-center gap-3 py-3 border-b border-white/[0.06]">
-            <button onClick={()=>setLocation(`/user/${u.id}`)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><img src={u.avatar} alt={u.displayName} className="w-12 h-12 rounded-full object-cover border-2 border-pink-400/50"/><div className="min-w-0"><p className="font-bold text-sm truncate">{u.displayName}</p><p className="text-white/45 text-xs truncate">@{u.username}</p></div></button>
-            <button onClick={(e)=>toggleFollow(u.id,e)} className="px-4 py-2 rounded-full text-xs font-bold" style={{background:isFollowing?"rgba(255,255,255,.08)":"linear-gradient(135deg,#FF1493,#008CFF)",border:isFollowing?"1px solid rgba(255,255,255,.15)":"none"}}>{isFollowing?t("following"):t("follow")}</button>
-          </div>})}
-        </div>}
-        {(tab==="forYou"||tab==="hashtags")&&filteredPosts.length>0&&<div className="mt-5">
-          <p className="text-white/45 text-xs font-bold uppercase tracking-wider mb-2">Posts</p>
-          <div className="space-y-2">
-            {filteredPosts.slice(0,12).map(post=><button key={post.id} onClick={()=>setLocation(`/post/live_${post.id}`)} className="w-full flex items-center gap-3 rounded-2xl p-2.5 text-left bg-white/[0.035] border border-white/[0.06]">
-              <img src={post.mediaUrl || "https://picsum.photos/seed/yuniko-"+post.id+"/160/160"} alt="" className="w-16 h-16 rounded-xl object-cover shrink-0"/>
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-sm line-clamp-2">{post.caption || "Photo on Yuniko"}</p>
-                <p className="text-white/40 text-xs mt-1 truncate">@{post.author?.username || "yuniko"} · ♥ {formatCount(Number(post.likes||0))}</p>
-              </div>
-            </button>)}
+        {(tab === "forYou" || tab === "people") && filteredUsers.length > 0 && (
+          <div>
+            <p className="text-white/45 text-xs font-bold uppercase tracking-wider mb-2">{t("people")}</p>
+            {filteredUsers.map((u) => {
+              const isFollowing = followStates[u.id] ?? u.isFollowing;
+              return (
+                <div key={u.id} className="flex items-center gap-3 py-3 border-b border-white/[0.06]">
+                  <button
+                    onClick={() => setLocation(`/user/${u.id}`)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <img src={u.avatar} alt={u.displayName} className="w-12 h-12 rounded-full object-cover border-2 border-pink-400/50" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm truncate">{u.displayName}</p>
+                      <p className="text-white/45 text-xs truncate">@{u.username}</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => toggleFollow(u.id, e)}
+                    className="px-4 py-2 rounded-full text-xs font-bold"
+                    style={{
+                      background: isFollowing ? "rgba(255,255,255,.08)" : "linear-gradient(135deg,#FF1493,#008CFF)",
+                      border: isFollowing ? "1px solid rgba(255,255,255,.15)" : "none",
+                    }}
+                  >
+                    {isFollowing ? t("following") : t("follow")}
+                  </button>
+                </div>
+              );
+            })}
           </div>
-        </div>
-        {(tab==="forYou"||tab==="people")&&query.length>=2&&!isSearching&&filteredUsers.length===0&&<p className="py-10 text-center text-white/40 text-sm">No registered users found.</p>}
+        )}
+        {(tab === "forYou" || tab === "hashtags") && filteredPosts.length > 0 && (
+          <div className="mt-5">
+            <p className="text-white/45 text-xs font-bold uppercase tracking-wider mb-2">Posts</p>
+            <div className="space-y-2">
+              {filteredPosts.slice(0, 12).map((post) => (
+                <button
+                  key={post.id}
+                  onClick={() => setLocation(`/post/live_${post.id}`)}
+                  className="w-full flex items-center gap-3 rounded-2xl p-2.5 text-left bg-white/[0.035] border border-white/[0.06]"
+                >
+                  <img
+                    src={post.mediaUrl || "https://picsum.photos/seed/yuniko-" + post.id + "/160/160"}
+                    alt=""
+                    className="w-16 h-16 rounded-xl object-cover shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm line-clamp-2">{post.caption || "Photo on Yuniko"}</p>
+                    <p className="text-white/40 text-xs mt-1 truncate">
+                      @{post.author?.username || "yuniko"} · ♥ {formatCount(Number(post.likes || 0))}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {(tab === "forYou" || tab === "people") &&
+          query.length >= 2 &&
+          !isSearching &&
+          filteredUsers.length === 0 && (
+            <p className="py-10 text-center text-white/40 text-sm">No registered users found.</p>
+          )}
         {(tab === "forYou" || tab === "hashtags") && filteredHashtags.length > 0 && (
           <div className="mt-3">
             {filteredHashtags.map((h) => (
