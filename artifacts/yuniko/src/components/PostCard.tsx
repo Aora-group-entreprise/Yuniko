@@ -45,6 +45,9 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
 
   const [liked, setLiked] = useState(post.isLiked);
   const [saved, setSaved] = useState(post.isSaved);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareCount, setShareCount] = useState(post.shares);
   const [following, setFollowing] = useState(Boolean(author?.isFollowing));
   const [followLoading, setFollowLoading] = useState(false);
 
@@ -123,6 +126,82 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
       setFollowLoading(false);
     }
   }, [author?.userId, followLoading, following]);
+
+  const postShareUrl = useCallback(() => {
+    if (typeof window === "undefined") return `/post/${post.id}`;
+    return `${window.location.origin}/post/${post.id}`;
+  }, [post.id]);
+
+  const registerShare = async (channel: "native" | "copy_link") => {
+    if (!livePostId || shareLoading) return;
+    setShareLoading(true);
+    try {
+      const result = await apiJson(`/posts/${livePostId}/share`, {
+        method: "POST",
+        body: JSON.stringify({ channel }),
+      }) as { shared: boolean; shares: number };
+      setShareCount(Number(result.shares ?? shareCount + 1));
+    } catch {
+      // Sharing itself may still succeed outside Yuniko.
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const shareNow = useCallback(async () => {
+    const url = postShareUrl();
+    const title = `${author.displayName} sur Yuniko`;
+    const text = post.caption?.trim() || "Découvre cette publication sur Yuniko.";
+
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ title, text, url });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = url;
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        input.remove();
+      }
+      await registerShare("native");
+      setShareOpen(false);
+    } catch {
+      // A cancelled native share must not increment the Yuniko counter.
+    }
+  }, [author.displayName, post.caption, postShareUrl, registerShare]);
+
+  const copyShareLink = useCallback(async () => {
+    const url = postShareUrl();
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = url;
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        input.remove();
+      }
+      await registerShare("copy_link");
+      setShareOpen(false);
+    } catch {
+      // Keep the sheet open if copying failed.
+    }
+  }, [postShareUrl, registerShare]);
+
+  const handleShare = useCallback(() => {
+    setShareOpen(true);
+  }, []);
 
   const handleSave = useCallback(async () => {
     const nextSaved = !saved;
@@ -401,7 +480,7 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
         <div className="flex items-center gap-6">
           <ActionBtn icon={<Heart size={25} className={liked ? "fill-[#FF2FA4] text-[#FF2FA4]" : "text-white/90"} strokeWidth={1.8} />} label={formatCount(likeCount)} onClick={handleLike} testId="btn-like" active={liked} />
           <ActionBtn icon={<MessageCircle size={25} className="text-white/90" strokeWidth={1.8} />} label={formatCount(post.comments)} onClick={() => void openComments(false)} testId="btn-comment" />
-          <ActionBtn icon={<Share2 size={25} className="text-white/90" strokeWidth={1.8} />} label={formatCount(post.shares)} onClick={() => {}} testId="btn-share" />
+          <ActionBtn icon={<Share2 size={25} className="text-white/90" strokeWidth={1.8} />} label={formatCount(shareCount)} onClick={handleShare} testId="btn-share" />
         </div>
         <ActionBtn icon={<Bookmark size={25} className={saved ? "fill-[#FF2FA4] text-[#FF2FA4]" : "text-white/90"} strokeWidth={1.8} />} label={formatCount(post.saves)} onClick={handleSave} testId="btn-save" active={saved} />
       </div>
@@ -414,6 +493,17 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
           View all {formatCount(post.comments)} comments · {post.timestamp}
         </button>
       </div>
+
+      {shareOpen && (
+        <ShareSheet
+          post={post}
+          author={author}
+          loading={shareLoading}
+          onShareNow={() => void shareNow()}
+          onCopyLink={() => void copyShareLink()}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       {(viewerOpen || commentsOpen) && (
         <PostViewer
@@ -431,7 +521,7 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
           }}
           onLike={handleLike}
           onComment={() => void openComments(true)}
-          onShare={() => {}}
+          onShare={handleShare}
           onSave={handleSave}
           optionsOpen={viewerOptionsOpen}
           onToggleOptions={() => setViewerOptionsOpen((open) => !open)}
@@ -485,6 +575,82 @@ function ActionBtn({
   );
 }
 
+
+function ShareSheet({
+  post,
+  author,
+  loading,
+  onShareNow,
+  onCopyLink,
+  onClose,
+}: {
+  post: Post;
+  author: LiveAuthor;
+  loading: boolean;
+  onShareNow: () => void;
+  onCopyLink: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <ScreenPortal>
+      <div className="fixed inset-0 z-[100] bg-black/50 pointer-events-auto" onClick={onClose}>
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-label="Share"
+          className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[430px] rounded-t-[26px] overflow-hidden border border-white/10 bg-[#16131d] shadow-[0_-18px_55px_rgba(0,0,0,.65)]"
+          style={{ paddingBottom: "env(safe-area-inset-bottom,0px)" }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="px-4 pt-3 pb-2">
+            <button type="button" onClick={onClose} className="mx-auto mb-3 flex h-7 w-16 items-center justify-center" aria-label="Close share">
+              <span className="block h-1 w-10 rounded-full bg-white/25" />
+            </button>
+            <h2 className="text-center text-base font-semibold text-white">Partager</h2>
+          </div>
+
+          <div className="mx-4 mb-4 flex items-center gap-3 rounded-2xl bg-white/[0.045] p-3 border border-white/[0.07]">
+            <img src={post.imageUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover bg-black" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">{author.displayName}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-white/50">{post.caption || "Publication Yuniko"}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 px-4 pb-3">
+            <button
+              type="button"
+              onClick={onShareNow}
+              disabled={loading}
+              className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-2xl bg-white/[0.06] border border-white/[0.08] text-white active:bg-white/10 disabled:opacity-60"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-blue-500">
+                <Share2 size={21} />
+              </span>
+              <span className="text-xs font-semibold">{loading ? "Partage…" : "Partager maintenant"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onCopyLink}
+              disabled={loading}
+              className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-2xl bg-white/[0.06] border border-white/[0.08] text-white active:bg-white/10 disabled:opacity-60"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10">
+                <ExternalLink size={21} />
+              </span>
+              <span className="text-xs font-semibold">Copier le lien</span>
+            </button>
+          </div>
+
+          <button type="button" onClick={onClose} className="w-full border-t border-white/[0.07] py-4 text-sm font-semibold text-white/55">
+            Annuler
+          </button>
+        </section>
+      </div>
+    </ScreenPortal>
+  );
+}
 
 function PostViewer({
   post,

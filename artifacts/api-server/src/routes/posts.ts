@@ -285,6 +285,52 @@ postsRouter.get("/posts/:postId", authMiddleware, async (req: Request & { userId
   }
 });
 
+postsRouter.post("/posts/:postId/share", authMiddleware, async (req: Request & { userId?: number }, res) => {
+  const postId = Number(req.params.postId);
+  const userId = Number(req.userId);
+  const channel = req.body?.channel === "copy_link" ? "copy_link" : "native";
+  if (!Number.isInteger(postId) || postId <= 0) return res.status(400).json({ error: "Invalid post id" });
+
+  try {
+    const [post] = await selectRows("posts", {
+      select: "id,user_id",
+      filters: [eq("id", postId)],
+      limit: 1,
+    });
+    if (!post) return res.status(404).json({ error: "Post not found" });
+
+    await insertRow("shares", {
+      postId,
+      userId,
+      channel,
+      createdAt: new Date(),
+    });
+
+    const shares = await selectRows("shares", {
+      select: "id",
+      filters: [eq("postId", postId)],
+      limit: 10000,
+    });
+
+    try {
+      const { createNotification } = await import("../lib/notifications");
+      await createNotification(
+        Number(post.userId),
+        userId,
+        "share",
+        "Quelqu’un a partagé votre publication.",
+        { postId, url: `/post/live_${postId}` },
+      );
+    } catch (error) {
+      console.error("[YUNIKO SHARE] notification failed", error);
+    }
+
+    return res.json({ shared: true, shares: shares.length });
+  } catch (err) {
+    return supabaseError(res, err);
+  }
+});
+
 postsRouter.delete("/posts/:postId", authMiddleware, async (req: Request & { userId?: number }, res) => {
   const postId = Number(req.params.postId);
   if (!Number.isInteger(postId) || postId <= 0) return res.status(400).json({ error: "Invalid post id" });
