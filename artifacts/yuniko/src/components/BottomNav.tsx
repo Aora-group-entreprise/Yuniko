@@ -2,7 +2,9 @@ import { useLocation, Link } from "wouter";
 import { Home, Search, Plus, MessageCircle, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { t } from "@/lib/i18n";
+import { apiJson } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
+import { useEffect, useState } from "react";
 
 const ACTIVE_COLOR = "#FF2FA4";
 const INACTIVE_COLOR = "rgba(255,255,255,0.48)";
@@ -15,7 +17,48 @@ export default function BottomNav({
   onHomePress?: () => void;
 }) {
   const [location] = useLocation();
+  const [globalNewPostsCount, setGlobalNewPostsCount] = useState(newPostsCount);
   const isActive = (path: string) => path === "/" ? location === "/" : location.startsWith(path);
+
+  useEffect(() => {
+    if (location === "/") {
+      setGlobalNewPostsCount(newPostsCount);
+      return;
+    }
+
+    let cancelled = false;
+    const getSnapshot = () => {
+      try {
+        const stored = sessionStorage.getItem("yuniko_feed_snapshot_at");
+        if (stored) return stored;
+        const now = new Date().toISOString();
+        sessionStorage.setItem("yuniko_feed_snapshot_at", now);
+        return now;
+      } catch {
+        return new Date().toISOString();
+      }
+    };
+
+    const check = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const since = getSnapshot();
+        const data = await apiJson<{ newPostsCount?: number }>(
+          `/posts/feed/updates?since=${encodeURIComponent(since)}`,
+        );
+        if (!cancelled) setGlobalNewPostsCount(Math.max(0, Number(data.newPostsCount) || 0));
+      } catch {}
+    };
+
+    void check();
+    const interval = window.setInterval(check, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [location, newPostsCount]);
+
+  const displayedNewPostsCount = location === "/" ? newPostsCount : globalNewPostsCount;
 
   return (
     <ScreenPortal>
@@ -42,13 +85,13 @@ export default function BottomNav({
         >
           <div className="relative">
             <Home size={25} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.25 : 1.7} />
-            {newPostsCount > 0 && (
+            {displayedNewPostsCount > 0 && (
               <span
                 className="absolute -right-3 -top-2.5 min-w-4 h-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center"
                 style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.45)" }}
-                aria-label={`${newPostsCount} new posts`}
+                aria-label={`${displayedNewPostsCount} new posts`}
               >
-                {newPostsCount > 9 ? "9+" : newPostsCount}
+                {displayedNewPostsCount > 9 ? "9+" : displayedNewPostsCount}
               </span>
             )}
           </div>

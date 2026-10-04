@@ -136,19 +136,13 @@ async function feedRows(viewerId: number) {
   const topicPool=baseCandidates.filter(row=>!row.candidate.following&&row.candidate.affinity<=0&&row.topicMatch>0);
   const localPool=baseCandidates.filter(row=>!row.candidate.following&&row.candidate.affinity<=0&&row.topicMatch<=0&&row.candidate.local);
   const explorationPool=baseCandidates.filter(row=>!row.candidate.following&&row.candidate.affinity<=0&&row.topicMatch<=0&&!row.candidate.local);
-  const mixed=mixCandidateSources([
-    {rows:followingPool,quota:0.40},{rows:affinityPool,quota:0.15},{rows:topicPool,quota:0.20},{rows:localPool,quota:0.15},{rows:explorationPool,quota:0.10},
-  ],FEED_CANDIDATE_LIMIT);
-  const ranked=rankFeedCandidates(mixed.map(row=>row.candidate),viewerId%2===0?"B":"A");
-  const rankedById=new Map(ranked.map(row=>[row.id,row]));
-  const authorCounts=new Map<number,number>();
-  const maxPostsPerAuthor=coldStart?Number.POSITIVE_INFINITY:2;
-  return mixed.sort((a,b)=>(rankedById.get(b.id)?.score??0)-(rankedById.get(a.id)?.score??0)).filter(row=>{
-    const count=authorCounts.get(Number(row.userId))??0;
-    if(count>=maxPostsPerAuthor)return false;
-    authorCounts.set(Number(row.userId),count+1);
-    return true;
-  }).slice(0,FEED_LIMIT);
+  // Yuniko Feed display order: newest public posts first.
+  // Eligibility/privacy rules above still apply, but ranking must never push an older
+  // post above a newer one in the main chronological feed.
+  return baseCandidates
+    .slice()
+    .sort((a,b) => new Date(String(b.createdAt ?? 0)).getTime() - new Date(String(a.createdAt ?? 0)).getTime())
+    .slice(0,FEED_LIMIT);
 }
 function serializeFeedPost(
   row: FeedPostRow,

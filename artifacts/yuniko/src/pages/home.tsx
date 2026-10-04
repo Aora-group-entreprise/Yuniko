@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
 import { fetchSessionJson, getSessionCache, setSessionUser, warmSessionData } from "@/lib/session-cache";
+import { apiJson } from "@/lib/api";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
 
@@ -102,12 +103,13 @@ export default function Home() {
     feedRefreshInFlightRef.current = true;
     try {
       const [feedData, storiesData] = await Promise.all([
-        fetchSessionJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed"),
-        fetchSessionJson<{ stories?: LiveStory[] }>("/stories"),
+        apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed"),
+        apiJson<{ stories?: LiveStory[] }>("/stories"),
       ]);
       setLivePosts(convertPosts(feedData.posts ?? []));
       setLiveStories(storiesData.stories ?? []);
       feedSnapshotRef.current = feedData.feedSnapshotAt ?? new Date().toISOString();
+      try { sessionStorage.setItem("yuniko_feed_snapshot_at", feedSnapshotRef.current); } catch {}
       setNewPostsCount(0);
       setFeedLoading(false);
     } catch {
@@ -126,7 +128,7 @@ export default function Home() {
     const checkForNewPosts = async () => {
       if (document.visibilityState === "hidden") return;
       try {
-        const data = await fetchSessionJson<{ newPostsCount?: number }>(
+        const data = await apiJson<{ newPostsCount?: number }>(
           `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
         );
         const count = Math.max(0, Number(data.newPostsCount) || 0);
