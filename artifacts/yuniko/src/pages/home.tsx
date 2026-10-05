@@ -26,7 +26,8 @@ let feedMemoryCache: FeedMemoryCache | null = null;
 
 type FeedViewState = {
   userId: number;
-  scrollTop: number;
+  postId: string;
+  offsetTop: number;
 };
 
 let feedViewState: FeedViewState | null = null;
@@ -174,35 +175,65 @@ export default function Home() {
 
     let frame = 0;
     let restoreFrame = 0;
-    let attempts = 0;
+    let restoreAttempts = 0;
+    let restoreTarget: FeedViewState | null =
+      feedViewState?.userId === Number(user.id) ? feedViewState : null;
 
     const scrollElement = scrollRef.current;
     if (scrollElement) activeFeedScrollElement = scrollElement;
-    const savedMemoryPosition =
-      feedViewState?.userId === Number(user.id) ? Math.max(0, feedViewState.scrollTop) : 0;
 
-    const readSavedPosition = () => {
-      if (savedMemoryPosition > 0) return savedMemoryPosition;
+    const readSavedAnchor = (): FeedViewState | null => {
+      if (restoreTarget) return restoreTarget;
       try {
-        return Math.max(0, Number(sessionStorage.getItem(FEED_SCROLL_POSITION_KEY) ?? "0") || 0);
+        const raw = sessionStorage.getItem(FEED_SCROLL_POSITION_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Partial<FeedViewState>;
+        if (
+          parsed.userId !== Number(user.id) ||
+          typeof parsed.postId !== "string" ||
+          typeof parsed.offsetTop !== "number"
+        ) return null;
+        restoreTarget = {
+          userId: Number(user.id),
+          postId: parsed.postId,
+          offsetTop: parsed.offsetTop,
+        };
+        return restoreTarget;
       } catch {
-        return 0;
+        return null;
       }
     };
 
     const restoreFeedPosition = () => {
       if (!scrollElement || shouldInitialRefresh) return;
-      const savedPosition = readSavedPosition();
-      if (savedPosition <= 0) return;
 
-      attempts += 1;
-      const maxReachablePosition = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
-      if (maxReachablePosition >= savedPosition || attempts >= 30) {
-        scrollElement.scrollTop = Math.min(savedPosition, maxReachablePosition);
+      const target = readSavedAnchor();
+      if (!target) return;
+
+      restoreAttempts += 1;
+      const postElement = scrollElement.querySelector<HTMLElement>(
+        `[data-testid="feed-post-${target.postId}"]`,
+      );
+
+      if (postElement) {
+        const containerTop = scrollElement.getBoundingClientRect().top;
+        const postTop = postElement.getBoundingClientRect().top;
+        const delta = postTop - containerTop - target.offsetTop;
+        if (Math.abs(delta) > 1) {
+          scrollElement.scrollTop = Math.max(
+            0,
+            Math.min(
+              scrollElement.scrollTop + delta,
+              Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight),
+            ),
+          );
+        }
         return;
       }
 
-      restoreFrame = window.requestAnimationFrame(restoreFeedPosition);
+      if (restoreAttempts < 120) {
+        restoreFrame = window.requestAnimationFrame(restoreFeedPosition);
+      }
     };
 
     if (!shouldInitialRefresh && scrollElement) {
@@ -213,12 +244,33 @@ export default function Home() {
 
     const saveFeedPosition = () => {
       if (!scrollElement || activeFeedScrollElement !== scrollElement) return;
-      const scrollTop = Math.max(0, scrollElement.scrollTop);
-      feedViewState = { userId: Number(user.id), scrollTop };
+
+      const containerTop = scrollElement.getBoundingClientRect().top;
+      const posts = Array.from(
+        scrollElement.querySelectorAll<HTMLElement>('[data-testid^="feed-post-"]'),
+      );
+      const visiblePost = posts.find((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.bottom > containerTop + 8;
+      });
+
+      if (!visiblePost) return;
+
+      const postId = visiblePost.getAttribute("data-testid")?.replace("feed-post-", "");
+      if (!postId) return;
+
+      const offsetTop = visiblePost.getBoundingClientRect().top - containerTop;
+      feedViewState = {
+        userId: Number(user.id),
+        postId,
+        offsetTop,
+      };
+
       try {
-        sessionStorage.setItem(FEED_SCROLL_POSITION_KEY, String(scrollTop));
+        sessionStorage.setItem(FEED_SCROLL_POSITION_KEY, JSON.stringify(feedViewState));
       } catch {}
     };
+
     scrollElement?.addEventListener("scroll", saveFeedPosition, { passive: true });
 
     window.setTimeout(() => warmSessionData(Number(user.id)), 0);
