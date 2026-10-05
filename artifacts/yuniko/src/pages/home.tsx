@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment as ReactFragment } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, Fragment as ReactFragment } from "react";
 import { useLocation } from "wouter";
 import { Bell, UserPlus, Globe, Bookmark, Share2, Flag, EyeOff, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -161,6 +161,30 @@ export default function Home() {
     }
   };
 
+  useLayoutEffect(() => {
+    if (!user) return;
+
+    const hasMemoryFeed = feedMemoryCache?.userId === Number(user.id);
+    if (!hasMemoryFeed) return;
+
+    const scrollElement = scrollRef.current;
+    const target = feedViewState?.userId === Number(user.id) ? feedViewState : null;
+    if (!scrollElement || !target) return;
+
+    const postElement = scrollElement.querySelector<HTMLElement>(
+      `[data-testid="feed-post-${target.postId}"]`,
+    );
+    if (!postElement) return;
+
+    const containerTop = scrollElement.getBoundingClientRect().top;
+    const postTop = postElement.getBoundingClientRect().top;
+    const desiredTop = Math.max(0, postTop - containerTop - target.offsetTop);
+    scrollElement.scrollTop = Math.min(
+      desiredTop,
+      Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight),
+    );
+  }, [user, livePosts.length]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -174,73 +198,9 @@ export default function Home() {
     }
 
     let frame = 0;
-    let restoreFrame = 0;
-    let restoreAttempts = 0;
-    let restoreTarget: FeedViewState | null =
-      feedViewState?.userId === Number(user.id) ? feedViewState : null;
 
     const scrollElement = scrollRef.current;
     if (scrollElement) activeFeedScrollElement = scrollElement;
-
-    const readSavedAnchor = (): FeedViewState | null => {
-      if (restoreTarget) return restoreTarget;
-      try {
-        const raw = sessionStorage.getItem(FEED_SCROLL_POSITION_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw) as Partial<FeedViewState>;
-        if (
-          parsed.userId !== Number(user.id) ||
-          typeof parsed.postId !== "string" ||
-          typeof parsed.offsetTop !== "number"
-        ) return null;
-        restoreTarget = {
-          userId: Number(user.id),
-          postId: parsed.postId,
-          offsetTop: parsed.offsetTop,
-        };
-        return restoreTarget;
-      } catch {
-        return null;
-      }
-    };
-
-    const restoreFeedPosition = () => {
-      if (!scrollElement || shouldInitialRefresh) return;
-
-      const target = readSavedAnchor();
-      if (!target) return;
-
-      restoreAttempts += 1;
-      const postElement = scrollElement.querySelector<HTMLElement>(
-        `[data-testid="feed-post-${target.postId}"]`,
-      );
-
-      if (postElement) {
-        const containerTop = scrollElement.getBoundingClientRect().top;
-        const postTop = postElement.getBoundingClientRect().top;
-        const delta = postTop - containerTop - target.offsetTop;
-        if (Math.abs(delta) > 1) {
-          scrollElement.scrollTop = Math.max(
-            0,
-            Math.min(
-              scrollElement.scrollTop + delta,
-              Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight),
-            ),
-          );
-        }
-        return;
-      }
-
-      if (restoreAttempts < 120) {
-        restoreFrame = window.requestAnimationFrame(restoreFeedPosition);
-      }
-    };
-
-    if (!shouldInitialRefresh && scrollElement) {
-      restoreFrame = window.requestAnimationFrame(() => {
-        restoreFrame = window.requestAnimationFrame(restoreFeedPosition);
-      });
-    }
 
     const saveFeedPosition = () => {
       if (!scrollElement || activeFeedScrollElement !== scrollElement) return;
@@ -309,7 +269,6 @@ export default function Home() {
 
     return () => {
       window.cancelAnimationFrame(frame);
-      window.cancelAnimationFrame(restoreFrame);
       if (activeFeedScrollElement === scrollElement) {
         saveFeedPosition();
         activeFeedScrollElement = null;
