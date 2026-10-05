@@ -293,8 +293,6 @@ export default function Home() {
         style={{
           height: "72px",
           background: "rgba(5,5,9,0.92)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
           borderBottom: "1px solid rgba(255,255,255,0.035)",
         }}
         data-testid="home-header"

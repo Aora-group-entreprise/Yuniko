@@ -1,6 +1,5 @@
 import { useLocation, Link } from "wouter";
 import { Home, Search, Plus, MessageCircle, User } from "lucide-react";
-import { motion } from "framer-motion";
 import { t } from "@/lib/i18n";
 import { apiJson } from "@/lib/api";
 import ScreenPortal from "@/components/ScreenPortal";
@@ -100,9 +99,7 @@ export default function BottomNav({
       className="fixed inset-x-0 z-40 w-full"
       style={{
         bottom: "calc(var(--yuniko-keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px))",
-        background: "rgba(5,5,9,0.94)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
+        background: "rgba(5,5,9,0.97)",
         borderTop: "1px solid rgba(255,20,147,0.30)",
         boxShadow: "0 -6px 28px rgba(0,0,0,.38)",
         paddingBottom: "env(safe-area-inset-bottom,0px)",
@@ -135,17 +132,15 @@ export default function BottomNav({
         </NavItem>
         <div className="flex items-center justify-center min-w-0">
           <Link href="/create">
-            <motion.button
+            <button
               data-testid="nav-create"
-              className="flex items-center justify-center rounded-full -mt-3"
               style={{
                 width: "58px",
                 height: "58px",
                 background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)",
                 boxShadow: "0 0 25px rgba(255,20,147,.45), 0 0 34px rgba(0,140,255,.28), 0 4px 16px rgba(0,0,0,.3)",
               }}
-              whileTap={{ scale: 0.88 }}
-              whileHover={{ scale: 1.05 }}
+              className="flex items-center justify-center rounded-full -mt-3 active:scale-95 transition-transform duration-75"
             >
               <Plus size={31} className="text-white" strokeWidth={2.7} />
             </motion.button>
@@ -187,9 +182,8 @@ function NavItem({ href, label, active, children, compact = false, onClick }: {
 }) {
   return (
     <Link href={href} className="min-w-0 w-full" onClick={onClick}>
-      <motion.button
-        className={`flex w-full min-w-0 flex-col items-center justify-center relative ${compact ? "h-14" : "gap-0.5 py-1"}`}
-        whileTap={{ scale: 0.88 }}
+      <button
+        className={`flex w-full min-w-0 flex-col items-center justify-center relative active:scale-[0.96] transition-transform duration-75 ${compact ? "h-14" : "gap-0.5 py-1"}`}
       >
         {children}
         {!compact && (
@@ -200,7 +194,7 @@ function NavItem({ href, label, active, children, compact = false, onClick }: {
         {!compact && (
           <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full" style={{ background: ACTIVE_COLOR, opacity: active ? 1 : 0, transform: "translateX(-50%) scale(" + (active ? 1 : 0) + ")", transition: "opacity 0.15s ease, transform 0.15s ease" }} />
         )}
-      </motion.button>
+      </button>
     </Link>
   );
 }

@@ -101,7 +101,7 @@ function AnimatedRoutes() {
     return direction === "forward" ? "exitForward" : "exitBack";
   };
 
-  const transitionDuration = direction === "instant" ? 0 : 0.22;
+  const transitionDuration = direction === "instant" ? 0 : 0.14;
 
   return (
     <div className="relative h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
