@@ -16,6 +16,7 @@ export default function BottomNav({
   onHomePress?: () => void;
 }) {
   const [location] = useLocation();
+  const isStoryViewer = location === "/story" || location.startsWith("/story/");
   const [globalNewPostsCount, setGlobalNewPostsCount] = useState(newPostsCount);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [messagesBadgeCleared, setMessagesBadgeCleared] = useState(false);
@@ -92,6 +93,8 @@ export default function BottomNav({
     };
   }, [location]);
 
+
+  if (isStoryViewer) return null;
 
   return (
     <ScreenPortal>
