@@ -124,28 +124,54 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const [notificationBadgeCleared, setNotificationBadgeCleared] = useState(false);
   const feedSnapshotRef = useRef<string>(new Date().toISOString());
   const feedRefreshInFlightRef = useRef(false);
+  const pendingFeedDataRef = useRef<{ posts?: any[]; feedSnapshotAt?: string } | null>(null);
+  const pendingFeedPromiseRef = useRef<Promise<{ posts?: any[]; feedSnapshotAt?: string }> | null>(null);
   const notificationCheckRef = useRef(false);
+
+  const prefetchLatestFeed = () => {
+    if (!user || pendingFeedPromiseRef.current) return pendingFeedPromiseRef.current;
+    const promise = apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed")
+      .then((data) => {
+        pendingFeedDataRef.current = data;
+        return data;
+      })
+      .catch(() => {
+        pendingFeedDataRef.current = null;
+        throw new Error("Feed prefetch failed");
+      })
+      .finally(() => {
+        pendingFeedPromiseRef.current = null;
+      });
+    pendingFeedPromiseRef.current = promise;
+    return promise;
+  };
+
+  const applyFeedData = (feedData: { posts?: any[]; feedSnapshotAt?: string }) => {
+    const snapshotAt = feedData.feedSnapshotAt ?? new Date().toISOString();
+    setLivePosts(convertPosts(feedData.posts ?? []));
+    feedSnapshotRef.current = snapshotAt;
+    feedMemoryCache = {
+      userId: Number(user!.id),
+      posts: feedData.posts ?? [],
+      stories: feedMemoryCache?.userId === Number(user!.id) ? feedMemoryCache.stories : [],
+      snapshotAt,
+    };
+    try { sessionStorage.setItem("yuniko_feed_snapshot_at", snapshotAt); } catch {}
+    setNewPostsCount(0);
+    setFeedLoading(false);
+    pendingFeedDataRef.current = null;
+  };
 
   const refreshFeed = async () => {
     if (!user || feedRefreshInFlightRef.current) return;
+    feedRefreshInFlightRef.current = true;
     feedRefreshInFlightRef.current = true;
     try {
       const feedPromise = apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed");
       const storiesPromise = apiJson<{ stories?: LiveStory[] }>("/stories");
 
-      const feedData = await feedPromise;
-      const snapshotAt = feedData.feedSnapshotAt ?? new Date().toISOString();
-      setLivePosts(convertPosts(feedData.posts ?? []));
-      feedSnapshotRef.current = snapshotAt;
-      feedMemoryCache = {
-        userId: Number(user.id),
-        posts: feedData.posts ?? [],
-        stories: feedMemoryCache?.userId === Number(user.id) ? feedMemoryCache.stories : [],
-        snapshotAt,
-      };
-      try { sessionStorage.setItem("yuniko_feed_snapshot_at", snapshotAt); } catch {}
-      setNewPostsCount(0);
-      setFeedLoading(false);
+      const feedData = pendingFeedDataRef.current ?? await feedPromise;
+      applyFeedData(feedData);
 
       void storiesPromise.then((storiesData) => {
         const stories = storiesData.stories ?? [];
@@ -242,7 +268,10 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
           `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
         );
         const count = Math.max(0, Number(data.newPostsCount) || 0);
-        if (count > 0) setNewPostsCount(count);
+        if (count > 0) {
+          setNewPostsCount(count);
+          void prefetchLatestFeed().catch(() => {});
+        }
       } catch {}
     };
 
@@ -395,12 +424,23 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
           if (location !== "/") return;
           feedViewState = null;
           try { sessionStorage.removeItem(FEED_SCROLL_POSITION_KEY); } catch {}
-          void refreshFeed().then(() => {
+          const pendingFeed = pendingFeedDataRef.current;
+          if (pendingFeed) {
+            applyFeedData(pendingFeed);
             const scrollElement = scrollRef.current;
             if (scrollElement) {
               scrollElement.scrollTo({ top: 0, behavior: "auto" });
             }
-          });
+            return;
+          }
+
+          void (pendingFeedPromiseRef.current ?? prefetchLatestFeed()).then((feedData) => {
+            applyFeedData(feedData);
+            const scrollElement = scrollRef.current;
+            if (scrollElement) {
+              scrollElement.scrollTo({ top: 0, behavior: "auto" });
+            }
+          }).catch(() => {});
         }}
       />
 
