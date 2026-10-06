@@ -182,28 +182,39 @@ function NavItem({ href, label, active, children, compact = false, onClick, prev
   onClick?: () => void;
   preventNavigation?: boolean;
 }) {
-  return (
-    <Link
-      href={href}
-      className="min-w-0 w-full"
-      onClick={(event) => {
-        if (preventNavigation) event.preventDefault();
-        onClick?.();
-      }}
-    >
+  const content = (
+    <>
+      {children}
+      {!compact && (
+        <span className="max-w-full truncate px-1 text-[clamp(8px,2.3vw,10px)] font-medium" style={{ color: active ? ACTIVE_COLOR : "rgba(255,255,255,0.38)" }}>
+          {label}
+        </span>
+      )}
+      {!compact && (
+        <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full" style={{ background: ACTIVE_COLOR, opacity: active ? 1 : 0, transform: "translateX(-50%) scale(" + (active ? 1 : 0) + ")", transition: "opacity 0.15s ease, transform 0.15s ease" }} />
+      )}
+    </>
+  );
+
+  const className = `flex w-full min-w-0 flex-col items-center justify-center relative active:scale-[0.96] transition-transform duration-75 ${compact ? "h-14" : "gap-0.5 py-1"}`;
+
+  if (preventNavigation) {
+    return (
       <button
-        className={`flex w-full min-w-0 flex-col items-center justify-center relative active:scale-[0.96] transition-transform duration-75 ${compact ? "h-14" : "gap-0.5 py-1"}`}
+        type="button"
+        className={className}
+        onClick={() => onClick?.()}
       >
-        {children}
-        {!compact && (
-          <span className="max-w-full truncate px-1 text-[clamp(8px,2.3vw,10px)] font-medium" style={{ color: active ? ACTIVE_COLOR : "rgba(255,255,255,0.38)" }}>
-            {label}
-          </span>
-        )}
-        {!compact && (
-          <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full" style={{ background: ACTIVE_COLOR, opacity: active ? 1 : 0, transform: "translateX(-50%) scale(" + (active ? 1 : 0) + ")", transition: "opacity 0.15s ease, transform 0.15s ease" }} />
-        )}
+        {content}
       </button>
+    );
+  }
+
+  return (
+    <Link href={href} className="min-w-0 w-full" onClick={() => onClick?.()}>
+      <span className={className}>
+        {content}
+      </span>
     </Link>
   );
 }
