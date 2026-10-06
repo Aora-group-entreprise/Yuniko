@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
-import { X, Send, Pause, Volume2, VolumeX, Heart, MapPin, BadgeCheck, Eye } from "lucide-react";
+import { X, Send, Heart, Share2, MoreVertical, MapPin, BadgeCheck, Eye } from "lucide-react";
 import { stories, getUserById } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import { apiFetch } from "@/lib/api";
@@ -117,8 +117,6 @@ export default function StoryViewer() {
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [muted, setMuted] = useState(true);
   const [replyText, setReplyText] = useState("");
   const [liked, setLiked] = useState(false);
   const [reactionShown, setReactionShown] = useState(false);
@@ -132,7 +130,7 @@ export default function StoryViewer() {
   const STORY_DURATION = 5000;
   const segmentCount = Math.max(5, userStories.length);
   const isOwnStory = Boolean(authUser && liveStory && Number(liveStory.userId) === Number(authUser.id));
-  const reactionOptions = ["❤️","😂","😢","😡","😮"];
+  const reactionOptions = ["❤️","👍","😂","😢","😮"];
 
   useEffect(() => {
     if (!isOwnStory || !liveStory) return;
@@ -145,7 +143,7 @@ export default function StoryViewer() {
   }, [currentIndex, userStories]);
 
   useEffect(() => {
-    if (paused || userStories.length === 0) return;
+    if (userStories.length === 0) return;
 
     intervalRef.current = setInterval(() => {
       setProgress((prev) => {
@@ -164,7 +162,7 @@ export default function StoryViewer() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [currentIndex, paused, userStories.length, setLocation]);
+  }, [currentIndex, userStories.length, setLocation]);
 
   const goNext = () => {
     if (currentIndex < userStories.length - 1) {
@@ -216,13 +214,13 @@ export default function StoryViewer() {
 
   return (
     <div
-      className="min-h-screen w-full overflow-hidden bg-black"
+      className="fixed inset-0 z-[100] h-[var(--yuniko-vh)] w-full overflow-hidden bg-black"
       style={{
         backgroundImage: "radial-gradient(ellipse 42% 75% at 0% 50%, rgba(255,20,147,.20), transparent 72%), radial-gradient(ellipse 42% 75% at 100% 50%, rgba(0,140,255,.20), transparent 72%)",
       }}
       data-testid="story-viewer"
     >
-      <div className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col overflow-hidden bg-[#07060b] shadow-[0_0_70px_rgba(0,0,0,.7)] md:min-h-[96vh] md:rounded-[28px]">
+      <div className="relative mx-auto flex h-full w-full max-w-[430px] flex-col overflow-hidden bg-black md:max-w-[520px] md:shadow-[0_0_70px_rgba(0,0,0,.7)]">
         <div className="absolute inset-0 z-0 bg-black" data-testid="story-media">
           <img src={currentStory.imageUrl} alt="Story" className="h-full w-full object-cover" />
         </div>
@@ -243,7 +241,7 @@ export default function StoryViewer() {
               const width = !isRealSegment ? "0%" : i < currentIndex ? "100%" : i === currentIndex ? `${progress}%` : "0%";
               return (
                 <div key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-white/[.07] ring-1 ring-white/20">
-                  <div className="h-full rounded-full" style={{ width, background: "linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)", boxShadow: "0 0 9px rgba(255,20,147,.4)", transition: "width .1s linear" }} />
+                  <div className="h-full rounded-full" style={{ width, background: "rgba(255,255,255,.98)", boxShadow: "0 0 8px rgba(255,255,255,.25)", transition: "width .1s linear" }} />
                 </div>
               );
             })}
@@ -263,15 +261,12 @@ export default function StoryViewer() {
               </div>
             </button>
 
-            <div className="flex shrink-0 items-center gap-[clamp(.4rem,1.5vw,.7rem)]">
-              <button onClick={() => setPaused((value) => !value)} className="flex size-[clamp(2.75rem,7vw,3.5rem)] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md" aria-label={paused ? "Resume story" : "Pause story"} data-testid="btn-story-pause">
-                {paused ? <span className="text-lg font-black">▶</span> : <Pause size={21} strokeWidth={2.2} />}
-              </button>
-              <button onClick={() => setMuted((value) => !value)} className="flex size-[clamp(2.75rem,7vw,3.5rem)] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md" aria-label={muted ? "Unmute story" : "Mute story"} data-testid="btn-story-mute">
-                {muted ? <VolumeX size={22} strokeWidth={2.1} /> : <Volume2 size={22} strokeWidth={2.1} />}
-              </button>
-              <button onClick={() => setLocation("/")} className="flex size-[clamp(2.75rem,7vw,3.5rem)] items-center justify-center rounded-full bg-[#34364b]/90 text-white shadow-lg backdrop-blur-md" aria-label="Close story" data-testid="btn-close-story">
-                <X size={24} strokeWidth={2} />
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="flex size-10 items-center justify-center rounded-full text-white/95" aria-hidden="true">
+                <MoreVertical size={25} strokeWidth={2.4} />
+              </span>
+              <button onClick={() => setLocation("/")} className="flex size-10 items-center justify-center rounded-full text-white/95" aria-label="Close story" data-testid="btn-close-story">
+                <X size={30} strokeWidth={2.2} />
               </button>
             </div>
           </div>
@@ -290,38 +285,21 @@ export default function StoryViewer() {
           </div>
         )}
 
-        {!isOwnStory && <div className="absolute inset-x-0 bottom-0 z-30 px-[clamp(1rem,4vw,2rem)] pb-[clamp(1rem,3vw,1.5rem)]">
-          <div
-            className="mx-auto flex min-w-0 w-full max-w-[690px] items-center gap-2 rounded-full px-[clamp(.75rem,3vw,1.25rem)] py-1.5"
-            style={{
-              background: "rgba(20,18,31,.90)",
-              border: "2px solid transparent",
-              backgroundImage: "linear-gradient(rgba(20,18,31,.92),rgba(20,18,31,.92)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)",
-              backgroundOrigin: "border-box",
-              backgroundClip: "padding-box,border-box",
-              boxShadow: "0 0 18px rgba(255,20,147,.18), 0 0 24px rgba(0,140,255,.12)",
-              backdropFilter: "blur(16px)",
-            }}
-          >
-            <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder={`Reply to ${storyUser.displayName}...`} className="min-w-0 flex-1 bg-transparent text-[clamp(.9rem,2.7vw,1.05rem)] font-medium text-white outline-none placeholder:text-white/55" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} data-testid="input-story-reply" />
-            <button onClick={(e) => { e.stopPropagation(); setShowReactions(v => !v); }} className="flex size-[clamp(2.7rem,7vw,3.25rem)] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90" aria-label="Story reaction" data-testid="btn-story-heart">
-              {selectedReaction ? <span className="text-[23px]">{selectedReaction}</span> : <Heart size={24} strokeWidth={2} style={{ color: "#BFA8FF" }} />}
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); void sendStoryReply(); }} className="flex size-[clamp(2.7rem,7vw,3.25rem)] shrink-0 items-center justify-center rounded-full bg-[#34364b]/90" aria-label="Send reply" data-testid="btn-send-reply">
-              <Send size={24} strokeWidth={2.2} style={{ color: "#B26CFF", filter: "drop-shadow(0 0 6px rgba(0,140,255,.45))" }} />
-            </button>
-          </div>
-
-          {showReactions && !isOwnStory && <div className="absolute bottom-[calc(100%+10px)] left-1/2 flex -translate-x-1/2 gap-1 rounded-full border border-white/10 bg-[#171522]/95 px-2 py-2 shadow-2xl backdrop-blur-xl">{reactionOptions.map(reaction=><button key={reaction} onClick={()=>chooseReaction(reaction)} className="flex size-10 items-center justify-center rounded-full text-[22px]">{reaction}</button>)}</div>}
-
-          {currentStory.location && (
-            <div className="mx-[clamp(0rem,4vw,.5rem)] mt-3 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[clamp(.85rem,2.5vw,1rem)] font-semibold text-white" style={{ border: "2px solid transparent", backgroundImage: "linear-gradient(rgba(20,18,31,.86),rgba(20,18,31,.86)),linear-gradient(90deg,#FF1493,#8B5CF6,#008CFF)", backgroundOrigin: "border-box", backgroundClip: "padding-box,border-box", boxShadow: "0 0 16px rgba(255,20,147,.14)", backdropFilter: "blur(12px)" }}>
-              <MapPin size={19} strokeWidth={2} style={{ color: "#FF5BB7" }} />
-              <span>{currentStory.location}</span>
+        {!isOwnStory && <div className="absolute inset-x-0 bottom-0 z-30 px-3 pb-3">
+          <div className="mx-auto flex w-full items-center gap-2">
+            <button onClick={async (e) => { e.stopPropagation(); try { if (navigator.share) await navigator.share({ title: storyUser.displayName, text: `Story de ${storyUser.displayName}`, url: window.location.href }); else await navigator.clipboard?.writeText(window.location.href); } catch {} }} className="flex size-12 shrink-0 items-center justify-center rounded-full border border-white/65 bg-black/25 text-white backdrop-blur-sm" aria-label="Share story" data-testid="btn-story-share"><Share2 size={23} strokeWidth={2.2} /></button>
+            <div className="flex min-w-0 flex-1 items-center rounded-full border border-white/65 bg-black/25 px-4 py-2.5 backdrop-blur-sm">
+              <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Envoyez un message..." className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-white outline-none placeholder:text-white/90" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} data-testid="input-story-reply" />
+              {replyText.trim() && <button onClick={(e) => { e.stopPropagation(); void sendStoryReply(); }} className="ml-2 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-white" aria-label="Send reply" data-testid="btn-send-reply"><Send size={17} strokeWidth={2.2} /></button>}
             </div>
-          )}
+            <div className="flex shrink-0 items-center gap-1">{reactionOptions.slice(0,3).map((reaction)=><button key={reaction} onClick={(e)=>{e.stopPropagation();chooseReaction(reaction)}} className="flex size-11 items-center justify-center rounded-full bg-white/10 text-[24px]" aria-label={`React ${reaction}`}>{reaction}</button>)}</div>
+          </div>
+          {currentStory.location && <div className="mx-1 mb-2 inline-flex items-center gap-2 rounded-full bg-black/35 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-md"><MapPin size={16} strokeWidth={2}/><span>{currentStory.location}</span></div>}
         </div>}
-        {isOwnStory && <button onClick={()=>void openViewers()} className="absolute bottom-[clamp(5.5rem,14vw,7rem)] left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-white backdrop-blur-md"><Eye size={19}/><span className="text-sm font-semibold">{viewCount} views</span></button>}
+        {isOwnStory && <div className="absolute inset-x-0 bottom-3 z-40 flex items-center gap-2 px-3">
+          <button onClick={async (e)=>{e.stopPropagation();try{if(navigator.share)await navigator.share({title:storyUser.displayName,url:window.location.href});else await navigator.clipboard?.writeText(window.location.href)}catch{}}} className="flex size-12 shrink-0 items-center justify-center rounded-full border border-white/65 bg-black/25 text-white backdrop-blur-sm" aria-label="Share story" data-testid="btn-story-share"><Share2 size={23} strokeWidth={2.2}/></button>
+          <button onClick={()=>void openViewers()} className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/65 bg-black/25 px-4 py-3 text-white backdrop-blur-sm" aria-label="View story viewers"><Eye size={19}/><span className="text-sm font-semibold">{viewCount} views</span></button>
+        </div>}
         {showViewers && isOwnStory && <div className="absolute inset-0 z-[60] flex items-end justify-center bg-black/55 backdrop-blur-sm" onClick={()=>setShowViewers(false)}><div className="max-h-[72%] w-full max-w-[430px] overflow-hidden rounded-t-[28px] bg-[#0d0c14] p-5" onClick={e=>e.stopPropagation()}><div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20"/><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-white">{viewCount} views</h2><button onClick={()=>setShowViewers(false)} className="p-2 text-white/60"><X size={20}/></button></div><div className="max-h-[52vh] space-y-2 overflow-y-auto">{viewers.length===0?<p className="py-8 text-center text-white/45">No viewers yet.</p>:viewers.map(v=><div key={v.userId} className="flex items-center gap-3 rounded-2xl px-2 py-2.5"><img src={v.avatarUrl??`https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(v.displayName)}&backgroundColor=FF006E`} alt="" className="size-11 rounded-full object-cover ring-2 ring-fuchsia-500/70"/><div className="min-w-0 flex-1"><p className="truncate font-semibold text-white">{v.displayName}</p><p className="truncate text-xs text-white/45">@{v.username}</p></div><span className="text-2xl">{v.reaction??""}</span></div>)}</div></div></div>}
       </div>
     </div>
