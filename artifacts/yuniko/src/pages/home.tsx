@@ -392,14 +392,14 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
       <BottomNav
         newPostsCount={newPostsCount}
         onHomePress={() => {
-          if (location !== "/" || newPostsCount <= 0) return;
+          if (location !== "/") return;
+          feedViewState = null;
+          try { sessionStorage.removeItem(FEED_SCROLL_POSITION_KEY); } catch {}
           void refreshFeed().then(() => {
             const scrollElement = scrollRef.current;
             if (scrollElement) {
               scrollElement.scrollTo({ top: 0, behavior: "auto" });
             }
-            feedViewState = null;
-            try { sessionStorage.removeItem(FEED_SCROLL_POSITION_KEY); } catch {}
           });
         }}
       />
