@@ -286,6 +286,23 @@ postsRouter.get("/posts/:postId", authMiddleware, async (req: Request & { userId
   }
 });
 
+postsRouter.post("/posts/:postId/report", authMiddleware, async (req: Request & { userId?: number }, res) => {
+  const postId = Number(req.params.postId);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  if (!Number.isInteger(postId) || postId <= 0) return res.status(400).json({ error: "Invalid post id" });
+  if (reason.length < 2 || reason.length > 100) return res.status(400).json({ error: "Invalid report reason" });
+  try {
+    const [post] = await selectRows("posts", { select: "id,reports", filters: [eq("id", postId)], limit: 1 });
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    const existing = await selectRows("reports", { select: "id", filters: [eq("reporterId", req.userId!), eq("targetType", "post"), eq("targetId", postId)], limit: 1 });
+    if (existing.length) return res.json({ reported: true, duplicate: true });
+    await insertRow("reports", { reporterId: req.userId!, targetType: "post", targetId: postId, reason, status: "pending" });
+    const reports = Number(post.reports ?? 0) + 1;
+    await updateRows("posts", { reports }, [eq("id", postId)]);
+    return res.status(201).json({ reported: true, reports });
+  } catch (err) { return supabaseError(res, err); }
+});
+
 postsRouter.post("/posts/:postId/share", authMiddleware, async (req: Request & { userId?: number }, res) => {
   const postId = Number(req.params.postId);
   const userId = Number(req.userId);

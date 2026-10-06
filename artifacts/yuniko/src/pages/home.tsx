@@ -120,6 +120,15 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const [liveStories, setLiveStories] = useState<LiveStory[]>(() => cachedStories?.stories ?? []);
   const [feedLoading, setFeedLoading] = useState(!cachedFeed);
   const [newPostsCount, setNewPostsCount] = useState(0);
+  const [hiddenPostIds, setHiddenPostIds] = useState<string[]>(() => {
+    try {
+      const raw = sessionStorage.getItem("yuniko_hidden_feed_posts");
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch { return []; }
+  });
+  const [hiddenNotice, setHiddenNotice] = useState<{ postId: string; message: string } | null>(null);
+  const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [notificationBadgeCleared, setNotificationBadgeCleared] = useState(false);
   const feedSnapshotRef = useRef<string>(new Date().toISOString());
@@ -327,8 +336,45 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     };
   }, [user, location]);
 
+  const hiddenPostSet = new Set(hiddenPostIds);
   const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> =
-    livePosts.map(({ post, author }) => ({ post, author }));
+    livePosts.filter(({ post }) => !hiddenPostSet.has(post.id)).map(({ post, author }) => ({ post, author }));
+
+  const hidePost = (postId: string) => {
+    setHiddenPostIds((prev) => {
+      const next = prev.includes(postId) ? prev : [...prev, postId];
+      try { sessionStorage.setItem("yuniko_hidden_feed_posts", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setOptionsPostId(null);
+    setHiddenNotice({ postId, message: "Publication masquée" });
+    window.setTimeout(() => setHiddenNotice((current) => current?.postId === postId ? null : current), 5000);
+  };
+
+  const undoHidePost = (postId: string) => {
+    setHiddenPostIds((prev) => {
+      const next = prev.filter((id) => id !== postId);
+      try { sessionStorage.setItem("yuniko_hidden_feed_posts", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setHiddenNotice(null);
+  };
+
+  const submitReport = async (postId: string, reason: string) => {
+    if (reportSubmitting) return;
+    setReportSubmitting(true);
+    try {
+      await apiJson(`/posts/${postId.replace("live_", "")}/report`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      setReportingPostId(null);
+      setOptionsPostId(null);
+      setHiddenNotice({ postId, message: "Merci. Ton signalement a été envoyé." });
+      window.setTimeout(() => setHiddenNotice((current) => current?.postId === postId ? null : current), 5000);
+    } catch {}
+    finally { setReportSubmitting(false); }
+  };
 
   return (
     <div
@@ -449,15 +495,39 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
       <AnimatePresence>
         {optionsPostId && (
           <ScreenPortal>
-            <motion.div key="options-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/65" onClick={() => setOptionsPostId(null)} />
+            <motion.div key="options-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/65" onClick={() => { setOptionsPostId(null); setReportingPostId(null); }} />
             <motion.div key="options-sheet" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 340 }} className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden" style={{ background: "rgba(8,8,13,0.98)", border: "1px solid rgba(255,255,255,0.08)" }}>
               <div className="w-10 h-1 rounded-full bg-white/18 mx-auto mt-3 mb-4" />
-              {[{ icon: <Bookmark size={18} />, label: t("savePost") }, { icon: <Share2 size={18} />, label: t("sharePost") }, { icon: <EyeOff size={18} />, label: t("hide") }, { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span> }].map((item, i) => (
-                <button key={i} onClick={() => setOptionsPostId(null)} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{item.icon}{item.label}</button>
-              ))}
-              <button onClick={() => setOptionsPostId(null)} className="w-full py-4 text-white/45 text-sm font-medium">{t("cancel")}</button>
+              {reportingPostId === optionsPostId ? (
+                <>
+                  <div className="px-5 pb-3">
+                    <p className="text-white text-base font-bold">Pourquoi signalez-vous cette publication ?</p>
+                    <p className="mt-1 text-xs text-white/45">Le signalement sera examiné selon les règles de Yuniko.</p>
+                  </div>
+                  {["Spam ou contenu trompeur", "Harcèlement ou comportement abusif", "Contenu inapproprié", "Fausse information", "Autre"].map((reason) => (
+                    <button key={reason} disabled={reportSubmitting} onClick={() => void submitReport(optionsPostId, reason)} className="w-full flex items-center gap-3 px-5 py-4 text-left text-white/85 text-sm font-medium disabled:opacity-50" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>{reason}</button>
+                  ))}
+                  <button onClick={() => setReportingPostId(null)} className="w-full py-4 text-white/45 text-sm font-medium">Retour</button>
+                </>
+              ) : (
+                <>
+                  {[{ icon: <Bookmark size={18} />, label: t("savePost"), action: () => setOptionsPostId(null) }, { icon: <Share2 size={18} />, label: t("sharePost"), action: () => setOptionsPostId(null) }, { icon: <EyeOff size={18} />, label: "Masquer la publication", action: () => hidePost(optionsPostId) }, { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">Signaler la publication</span>, action: () => setReportingPostId(optionsPostId) }].map((item, i) => (
+                    <button key={i} onClick={item.action} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{item.icon}{item.label}</button>
+                  ))}
+                  <button onClick={() => setOptionsPostId(null)} className="w-full py-4 text-white/45 text-sm font-medium">{t("cancel")}</button>
+                </>
+              )}
             </motion.div>
           </ScreenPortal>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {hiddenNotice && (
+          <motion.div key="hidden-notice" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed bottom-[82px] left-1/2 z-[70] flex w-[calc(100%-28px)] max-w-[402px] -translate-x-1/2 items-center justify-between gap-3 rounded-xl px-4 py-3 shadow-2xl" style={{ background: "rgba(25,25,31,.97)", border: "1px solid rgba(255,255,255,.1)" }}>
+            <span className="text-sm font-medium text-white">{hiddenNotice.message}</span>
+            {hiddenNotice.message === "Publication masquée" && <button onClick={() => undoHidePost(hiddenNotice.postId)} className="shrink-0 text-sm font-bold" style={{ color: "#42A5FF" }}>Annuler</button>}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
