@@ -423,15 +423,20 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         newPostsCount={newPostsCount}
         onHomePress={() => {
           if (location !== "/") return;
+
           feedViewState = null;
           try { sessionStorage.removeItem(FEED_SCROLL_POSITION_KEY); } catch {}
+
+          const scrollElement = scrollRef.current;
+          if (scrollElement) {
+            scrollElement.scrollTo({ top: 0, behavior: "auto" });
+          }
+
+          setNewPostsCount(0);
+
           const pendingFeed = pendingFeedDataRef.current;
           if (pendingFeed) {
             applyFeedData(pendingFeed);
-            const scrollElement = scrollRef.current;
-            if (scrollElement) {
-              scrollElement.scrollTo({ top: 0, behavior: "auto" });
-            }
             return;
           }
 
@@ -439,10 +444,6 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
           if (pendingFeedPromise) {
             void pendingFeedPromise.then((feedData) => {
               applyFeedData(feedData);
-              const scrollElement = scrollRef.current;
-              if (scrollElement) {
-                scrollElement.scrollTo({ top: 0, behavior: "auto" });
-              }
             }).catch(() => {});
           }
         }}
