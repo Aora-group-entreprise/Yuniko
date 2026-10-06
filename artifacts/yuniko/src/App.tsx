@@ -84,6 +84,8 @@ function PersistentTabViews() {
     }
   };
 
+  if (!isTabRoot(location)) return null;
+
   return (
     <div className="relative h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
       {[...visitedTabs].map((path) => (
