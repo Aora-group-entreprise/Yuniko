@@ -143,7 +143,7 @@ export default function BottomNav({
               className="flex items-center justify-center rounded-full -mt-3 active:scale-95 transition-transform duration-75"
             >
               <Plus size={31} className="text-white" strokeWidth={2.7} />
-            </motion.button>
+            </button>
           </Link>
         </div>
         <NavItem href="/messages" label={t("messages")} active={isActive("/messages")} compact onClick={() => {

@@ -43,16 +43,25 @@ export async function fetchSessionJson<T>(path: string): Promise<T> {
 }
 
 export function warmSessionData(userId: number): void {
-  const warm = () => {
-    void fetchSessionJson(`/users/${userId}`).catch(() => {});
-    void fetchSessionJson("/messages/conversations").catch(() => {});
-  };
+  const warm = [
+    "/stories",
+    "/messages/conversations",
+    `/users/${userId}`,
+    "/posts/mine",
+    "/posts/saved",
+    "/notifications",
+    "/settings",
+  ];
+  for (const path of warm) void fetchSessionJson(path).catch(() => {});
 
-  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-    (window as Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
-    }).requestIdleCallback?.(warm, { timeout: 1200 });
-  } else {
-    window.setTimeout(warm, 250);
-  }
+  void fetchSessionJson<{ conversations?: Array<{ user?: { id?: number } }> }>(
+    "/messages/conversations",
+  ).then((data) => {
+    for (const conversation of (data.conversations ?? []).slice(0, 6)) {
+      const id = conversation.user?.id;
+      if (Number.isInteger(id) && Number(id) > 0) {
+        void fetchSessionJson(`/messages/conversations/${id}`).catch(() => {});
+      }
+    }
+  }).catch(() => {});
 }
