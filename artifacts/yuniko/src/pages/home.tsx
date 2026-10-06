@@ -239,16 +239,15 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     }
 
     let frame = 0;
+    let captureTimer: number | null = null;
+    let lastPositionCaptureAt = 0;
+    let lastPositionStorageWriteAt = 0;
 
     const scrollElement = scrollRef.current;
     if (scrollElement) activeFeedScrollElement = scrollElement;
 
-    const saveFeedPosition = () => {
+    const captureFeedPosition = (forcePersist = false) => {
       if (!scrollElement || activeFeedScrollElement !== scrollElement) return;
-      if (suppressFeedPositionSaveRef.current) {
-        suppressFeedPositionSaveRef.current = false;
-        return;
-      }
 
       const containerTop = scrollElement.getBoundingClientRect().top;
       const posts = Array.from(
@@ -271,9 +270,37 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         offsetTop,
       };
 
+      const now = performance.now();
+      if (!forcePersist && now - lastPositionStorageWriteAt < 500) return;
       try {
         sessionStorage.setItem(FEED_SCROLL_POSITION_KEY, JSON.stringify(feedViewState));
+        lastPositionStorageWriteAt = now;
       } catch {}
+    };
+
+    const saveFeedPosition = () => {
+      if (!scrollElement || activeFeedScrollElement !== scrollElement) return;
+      if (suppressFeedPositionSaveRef.current) {
+        suppressFeedPositionSaveRef.current = false;
+        return;
+      }
+
+      const scheduleCapture = () => {
+        captureTimer = null;
+        if (frame || activeFeedScrollElement !== scrollElement) return;
+        frame = window.requestAnimationFrame(() => {
+          frame = 0;
+          lastPositionCaptureAt = performance.now();
+          captureFeedPosition();
+        });
+      };
+
+      const remaining = 120 - (performance.now() - lastPositionCaptureAt);
+      if (remaining <= 0) {
+        if (!frame) scheduleCapture();
+      } else if (captureTimer === null) {
+        captureTimer = window.setTimeout(scheduleCapture, remaining);
+      }
     };
 
     scrollElement?.addEventListener("scroll", saveFeedPosition, { passive: true });
@@ -325,8 +352,13 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
     return () => {
       window.cancelAnimationFrame(frame);
+      if (captureTimer !== null) window.clearTimeout(captureTimer);
       if (activeFeedScrollElement === scrollElement) {
-        saveFeedPosition();
+        if (suppressFeedPositionSaveRef.current) {
+          suppressFeedPositionSaveRef.current = false;
+        } else {
+          captureFeedPosition(true);
+        }
         activeFeedScrollElement = null;
       }
       scrollElement?.removeEventListener("scroll", saveFeedPosition);
@@ -487,7 +519,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
                 {allFeedItems.map(({ post, author }, index) => (
                   <ReactFragment key={post.id}>
                     <article className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
-                      <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
+                      <PostCard post={post} liveAuthor={author} deferImage={index > 0} priority={index === 0} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
                     </article>
                     {(index + 1) % 11 === 0 && index + 1 < allFeedItems.length && <StoryCardRail stories={liveStories.filter((story) => Number(story.userId) !== Number(user?.id))} ownStory={liveStories.find((story) => Number(story.userId) === Number(user?.id))} />}
                   </ReactFragment>

@@ -65,9 +65,9 @@ function coldStartIsActive(posts: Array<Record<string, any>>, stats: Array<Recor
 async function feedRows(viewerId: number) {
   const [posts, users, settings, following, blocked, stats, engagements, affinities, topics, distributions] = await Promise.all([
     selectRows("posts", { filters: [eq("isWorldFeed", true)], order: { column: "createdAt", ascending: false }, limit: FEED_CANDIDATE_LIMIT }),
-    selectRows("users", { limit: 1000 }),
+    selectRows("users", { select: "id,display_name,username,avatar_url,country", limit: 1000 }),
     selectRows("user_settings", { limit: 1000 }).catch(() => []),
-    selectRows("follows", { filters: [eq("followerId", viewerId)], limit: 5000 }).catch(() => []),
+    selectRows("follows", { select: "following_id", filters: [eq("followerId", viewerId)], limit: 5000 }).catch(() => []),
     selectRows("blocked_users", { limit: 5000 }).catch(() => []),
     selectRows("post_stats", { limit: FEED_CANDIDATE_LIMIT }).catch(() => []),
     selectRows("post_engagements", { filters: [eq("userId", viewerId)], limit: FEED_CANDIDATE_LIMIT }).catch(() => []),
@@ -139,10 +139,13 @@ async function feedRows(viewerId: number) {
   // Yuniko Feed display order: newest public posts first.
   // Eligibility/privacy rules above still apply, but ranking must never push an older
   // post above a newer one in the main chronological feed.
-  return baseCandidates
-    .slice()
-    .sort((a,b) => new Date(String(b.createdAt ?? 0)).getTime() - new Date(String(a.createdAt ?? 0)).getTime())
-    .slice(0,FEED_LIMIT);
+  return {
+    candidates: baseCandidates
+      .slice()
+      .sort((a,b) => new Date(String(b.createdAt ?? 0)).getTime() - new Date(String(a.createdAt ?? 0)).getTime())
+      .slice(0,FEED_LIMIT),
+    followingIds,
+  };
 }
 function serializeFeedPost(
   row: FeedPostRow,
@@ -212,11 +215,11 @@ postsRouter.get("/posts/mine", authMiddleware, async (req: Request & { userId?: 
 
 postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: number }, res) => {
   try {
-    const [[viewer], candidates] = await Promise.all([
+    const [[viewer], feed] = await Promise.all([
       selectRows("users", { select: "country", filters: [eq("id", req.userId!)], limit: 1 }),
       feedRows(req.userId!),
     ]);
-    const followingIds=new Set((await selectRows("follows",{select:"following_id",filters:[eq("followerId",req.userId!)],limit:5000}).catch(()=>[])).map(row=>Number(row.followingId)));
+    const { candidates, followingIds } = feed;
     const [likes,saves]=await Promise.all([
       selectRows("likes",{select:"post_id",filters:[eq("userId",req.userId!)]}).catch(()=>[]),
       selectRows("saves",{select:"post_id",filters:[eq("userId",req.userId!)]}).catch(()=>[]),

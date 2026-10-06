@@ -21,11 +21,13 @@ interface PostCardProps {
   post: Post;
   onOptions?: () => void;
   liveAuthor?: LiveAuthor;
+  deferImage?: boolean;
+  priority?: boolean;
   initialViewer?: boolean;
   onViewerClose?: () => void;
 }
 
-export default function PostCard({ post, onOptions, liveAuthor, initialViewer = false, onViewerClose }: PostCardProps) {
+export default function PostCard({ post, onOptions, liveAuthor, deferImage = false, priority = false, initialViewer = false, onViewerClose }: PostCardProps) {
   const [, setLocation] = useLocation();
   const { user: authUser } = useAuth();
   const postRecord = post as Post & {
@@ -459,7 +461,15 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
       </div>
 
       <div className="relative w-full overflow-hidden rounded-[20px] bg-black" style={{ aspectRatio: "1 / 1", boxShadow: post.isSponsored ? "0 8px 30px rgba(255,20,147,.15)" : "0 5px 24px rgba(0,0,0,.34)" }}>
-        <img src={post.imageUrl} alt={post.caption} className="absolute inset-0 block h-full w-full object-cover" onClick={handleImageTap} loading="eager" decoding="auto" />
+        <img
+          src={post.imageUrl}
+          alt={post.caption}
+          className="absolute inset-0 block h-full w-full object-cover"
+          onClick={handleImageTap}
+          loading={deferImage ? "lazy" : "eager"}
+          fetchPriority={priority ? "high" : "auto"}
+          decoding={deferImage ? "async" : "auto"}
+        />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(to top,rgba(0,0,0,.22),transparent)" }} />
         <AnimatePresence>
           {heartBurst && (
