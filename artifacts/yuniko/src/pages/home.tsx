@@ -94,7 +94,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     items.map((p) => ({
       post: {
         id: `live_${p.id}`,
-        userId: `live_${p.userId}`,
+        userId: String(p.userId),
         imageUrl: p.mediaUrl ?? `https://picsum.photos/seed/live${p.id}/600/900`,
         caption: p.caption ?? "",
         hashtags: p.hashtags ? p.hashtags.split(/[\s,]+/).filter(Boolean) : [],
@@ -407,6 +407,8 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
             suppressFeedPositionSaveRef.current = true;
             scrollElement.scrollTo({ top: 0, behavior: "auto" });
           }
+
+          if (newPostsCount <= 0) return;
 
           setNewPostsCount(0);
 
