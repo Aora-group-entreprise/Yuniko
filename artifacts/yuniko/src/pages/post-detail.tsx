@@ -753,34 +753,9 @@ function CommentSheet({
                         </span>
                       </div>
                       <div className="flex items-center gap-4 mt-1.5">
-                        <span className="text-white/35 text-xs">
-                          {comment.timestamp}
-                        </span>
-                        <button
-                          onClick={() => onLike(comment.id)}
-                          className={comment.liked ? "text-pink-400 text-xs" : "text-white/40 text-xs"}
-                        >
-                          {comment.likes} {t("like")}
-                        </button>
-                        <button className="text-white/40 text-xs">
-                          {t("replyTo")}
-                        </button>
+                        <span className="text-white/35 text-xs">{comment.timestamp}</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => onLike(comment.id)}
-                      className="shrink-0 pt-1"
-                    >
-                      <Heart
-                        size={15}
-                        strokeWidth={1.8}
-                        style={{
-                          color: comment.liked ? "#FF006E" : undefined,
-                          fill: comment.liked ? "#FF006E" : undefined,
-                        }}
-                        className={comment.liked ? "" : "text-white/35"}
-                      />
-                    </button>
                   </div>
                 );
               })
