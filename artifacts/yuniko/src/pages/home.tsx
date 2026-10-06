@@ -408,22 +408,41 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
             scrollElement.scrollTo({ top: 0, behavior: "auto" });
           }
 
-          if (newPostsCount <= 0) return;
+          const refreshIfNeeded = async () => {
+            let count = newPostsCount;
 
-          setNewPostsCount(0);
+            if (count <= 0) {
+              try {
+                const data = await apiJson<{ newPostsCount?: number }>(
+                  `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
+                );
+                count = Math.max(0, Number(data.newPostsCount) || 0);
+                if (count > 0) setNewPostsCount(count);
+              } catch {
+                return;
+              }
+            }
 
-          const pendingFeed = pendingFeedDataRef.current;
-          if (pendingFeed) {
-            applyFeedData(pendingFeed);
-            return;
-          }
+            if (count <= 0) return;
 
-          const pendingFeedPromise = pendingFeedPromiseRef.current ?? prefetchLatestFeed();
-          if (pendingFeedPromise) {
-            void pendingFeedPromise.then((feedData) => {
-              applyFeedData(feedData);
-            }).catch(() => {});
-          }
+            setNewPostsCount(0);
+
+            const pendingFeed = pendingFeedDataRef.current;
+            if (pendingFeed) {
+              applyFeedData(pendingFeed);
+              return;
+            }
+
+            const pendingFeedPromise = pendingFeedPromiseRef.current ?? prefetchLatestFeed();
+            if (pendingFeedPromise) {
+              try {
+                const feedData = await pendingFeedPromise;
+                applyFeedData(feedData);
+              } catch {}
+            }
+          };
+
+          void refreshIfNeeded();
         }}
       />
 
