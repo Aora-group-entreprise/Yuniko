@@ -192,7 +192,7 @@ export default function AddFriends() {
 
   const activeSearchResults = useMemo(() => searchResults, [searchResults]);
 
-    const displayedSuggestions = suggestions;
+  const displayedSuggestions = suggestions;
   return (
     <div className="relative min-h-[var(--yuniko-vh)] w-full overflow-x-hidden bg-[#050509] pb-28 text-white">
       <div className="pointer-events-none fixed inset-y-0 left-0 right-0 mx-auto w-full max-w-[430px]" style={{background:"radial-gradient(ellipse 55% 35% at 0% 38%,rgba(255,20,147,.18),transparent 70%),radial-gradient(ellipse 55% 38% at 100% 56%,rgba(0,140,255,.18),transparent 70%)"}} />
@@ -248,7 +248,7 @@ export default function AddFriends() {
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)",boxShadow:"0 0 18px rgba(255,20,147,.28)"}}><Share2 size={30} /></div>
               <div className="min-w-0 flex-1"><p className="text-[20px] font-bold">Invite friends</p><p className="mt-1 text-sm text-white/45">Facebook, TikTok, Instagram, Messenger and more</p></div>
               <span className="rounded-xl px-4 py-2 text-sm font-bold" style={{border:"1px solid rgba(255,70,180,.7)",color:"#C56CFF"}}>Invite</span>
-            </button>n>
+            </button>
           </section>
         )}
       </main>
