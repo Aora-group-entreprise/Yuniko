@@ -68,7 +68,7 @@ export default function StoryViewer() {
           const data = await response.json() as { story?: LiveStory };
           selected = data.story ?? selected;
           if (selected) void apiFetch(`/stories/${selected.id}/view`, { method: "POST" }).catch(() => {});
-        } else if (Number.isInteger(requestedUserId) && requestedUserId > 0) {
+        } else if (requestedUserId !== null && Number.isInteger(requestedUserId) && requestedUserId > 0) {
           const response = await apiFetch("/stories");
           if (!response.ok) throw new Error("Stories unavailable");
           const data = await response.json() as { stories?: LiveStory[] };
