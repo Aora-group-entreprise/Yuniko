@@ -103,6 +103,8 @@ function AnimatedRoutes() {
 
   const transitionDuration = direction === "instant" ? 0 : 0.14;
 
+  if (location === "/") return null;
+
   return (
     <div className="relative h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
       <AnimatePresence mode="popLayout" initial={false} custom={direction}>
@@ -280,7 +282,10 @@ function AppContent() {
   }, [user]);
 
   return (
-    <AnimatedRoutes />
+    <>
+      {user && <Home />}
+      <AnimatedRoutes />
+    </>
   );
 }
 

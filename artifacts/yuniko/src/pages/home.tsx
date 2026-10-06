@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, Fragment as ReactFragment } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useRef, Fragment as ReactFragment } from "react";
 import { useLocation } from "wouter";
 import { Bell, UserPlus, Globe, Bookmark, Share2, Flag, EyeOff, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -73,7 +73,7 @@ function relativeTime(iso: string): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-export default function Home() {
+function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   setSessionUser(Number(user?.id));
@@ -314,12 +314,12 @@ export default function Home() {
           <motion.button whileTap={{ scale: 0.84 }} onClick={() => {
             setUnreadNotifications(0); setNotificationBadgeCleared(true);
             try { sessionStorage.setItem("yuniko_notifications_badge_cleared", "1"); } catch {}
-            setLocation("/notifications");
+            navigate("/notifications");
           }} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("notifications")}>
             <Bell size={25} strokeWidth={1.7} style={{ color: "rgba(255,210,235,0.88)" }} />
             {!notificationBadgeCleared && unreadNotifications > 0 && <span className="absolute -right-2 -top-1 min-w-4 h-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center" style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.45)" }} aria-label="Nouvelles notifications">1+</span>}
           </motion.button>
-          <motion.button whileTap={{ scale: 0.84 }} onClick={() => setLocation("/add-friends")} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("addFriends")}>
+          <motion.button whileTap={{ scale: 0.84 }} onClick={() => navigate("/add-friends")} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("addFriends")}>
             <UserPlus size={25} strokeWidth={1.75} style={{ color: "rgba(255,210,235,0.92)" }} />
           </motion.button>
         </div>
@@ -359,7 +359,7 @@ export default function Home() {
                 <p className="font-semibold text-white">Your feed is empty</p>
                 <p className="mt-1 text-sm text-white/45">Be the first to share something with the Yuniko community.</p>
                 <button
-                  onClick={() => setLocation("/create")}
+                  onClick={() => navigate("/create")}
                   className="mt-5 rounded-full px-5 py-2.5 text-sm font-semibold text-white"
                   style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 6px 22px rgba(255,20,147,.22)" }}
                 >
@@ -683,3 +683,10 @@ function LiveStoryAvatar({ story, isOwn = false }: { story: LiveStory; isOwn?: b
     </motion.button>
   );
 }
+
+const Home = memo(function Home() {
+  const [, navigate] = useLocation();
+  return <HomeContent navigate={navigate} />;
+});
+
+export default Home;
