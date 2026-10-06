@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
-import { X, Image as ImageIcon, Video, MapPin, Hash, Globe, AlertCircle, Camera, Sparkles, Music2, Smile, Type, Send, Clock3, PlusCircle } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import ScreenPortal from "@/components/ScreenPortal";
-import { t } from "@/lib/i18n";
+import { X, Image as ImageIcon, MapPin, Hash, Globe, Camera, Sparkles, Smile, Type, Send, Clock3 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import BottomNav from "@/components/BottomNav";
 import { apiFetch } from "@/lib/api";
@@ -38,6 +36,43 @@ async function processImage(file: File): Promise<string> {
   });
 }
 
+async function applyImageFilter(dataUrl: string, filter: "Original" | "Warm" | "Cool" | "Moody"): Promise<string> {
+  if (filter === "Original") return dataUrl;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas error")); return; }
+      const filters = { Warm: "saturate(1.12) sepia(0.16) brightness(1.04)", Cool: "saturate(1.05) hue-rotate(8deg) brightness(1.03)", Moody: "contrast(1.14) saturate(0.78) brightness(0.88)" } as const;
+      ctx.filter = filters[filter]; ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg", 0.84));
+    };
+    img.onerror = reject; img.src = dataUrl;
+  });
+}
+
+async function applyStorySticker(dataUrl: string, sticker: string | null): Promise<string> {
+  if (!sticker) return dataUrl;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas error")); return; }
+      ctx.drawImage(img, 0, 0);
+      const size = Math.max(48, Math.round(Math.min(canvas.width, canvas.height) * 0.16));
+      ctx.font = `${size}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = Math.max(4, Math.round(size * 0.12));
+      ctx.fillText(sticker, canvas.width / 2, canvas.height / 2);
+      resolve(canvas.toDataURL("image/jpeg", 0.84));
+    };
+    img.onerror = reject; img.src = dataUrl;
+  });
+}
+
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -65,12 +100,14 @@ export default function Create() {
   const [caption, setCaption] = useState("");
   const [isWorldFeed, setIsWorldFeed] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  const [mediaFilter, setMediaFilter] = useState<"Original" | "Warm" | "Cool" | "Moody">("Original");
+  const [storySticker, setStorySticker] = useState<string | null>(null);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [locationText, setLocationText] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [posted, setPosted] = useState(false);
-  const [showVideoModal, setShowVideoModal] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,6 +126,7 @@ export default function Create() {
     try {
       const dataUrl = await processImage(file);
       setSelectedMedia(dataUrl);
+      setMediaFilter("Original"); setStorySticker(null); setShowStickerPicker(false);
       setError("");
     } catch {
       setError("Could not process image. Please try another.");
@@ -108,11 +146,13 @@ export default function Create() {
     setLoading(true);
     setError("");
     try {
+      const filteredMedia = selectedMedia ? await applyImageFilter(selectedMedia, mediaFilter) : null;
+      const mediaForSubmit = filteredMedia ? await applyStorySticker(filteredMedia, activeTab === "story" ? storySticker : null) : null;
       if (activeTab === "story") {
         const r = await apiFetch("/stories", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mediaUrl: selectedMedia, caption: caption.trim() }),
+          body: JSON.stringify({ mediaUrl: mediaForSubmit, caption: caption.trim() }),
         });
         const d = await r.json() as { story?: any; error?: string };
         if (!r.ok) { setError(d.error ?? "Failed to post story"); return; }
@@ -126,7 +166,7 @@ export default function Create() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             caption: caption.trim(),
-            mediaUrl: selectedMedia,
+            mediaUrl: mediaForSubmit,
             location: locationText.trim() || undefined,
             hashtags: hashtags.trim() || undefined,
             isWorldFeed,
@@ -235,7 +275,7 @@ export default function Create() {
             style={{ minHeight: activeTab === "story" ? "360px" : "245px", background:"linear-gradient(145deg,rgba(255,20,147,.09),rgba(0,140,255,.08))", border:"1px solid rgba(255,20,147,.35)", boxShadow:"0 0 22px rgba(255,20,147,.10),inset 0 0 30px rgba(0,140,255,.035)" }}
           >
             {selectedMedia ? (
-              <img src={selectedMedia} alt="Selected media" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={selectedMedia} alt="Selected media" className="absolute inset-0 h-full w-full object-cover" style={{filter:mediaFilter==="Warm"?"saturate(1.12) sepia(.16) brightness(1.04)":mediaFilter==="Cool"?"saturate(1.05) hue-rotate(8deg) brightness(1.03)":mediaFilter==="Moody"?"contrast(1.14) saturate(.78) brightness(.88)":"none"}} />{storySticker && activeTab==="story" && <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-6xl drop-shadow-[0_4px_12px_rgba(0,0,0,.45)]">{storySticker}</div>}
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/45">
                 <ImageIcon size={42} />
@@ -244,7 +284,7 @@ export default function Create() {
             )}
             {selectedMedia && (
               <button
-                onClick={(e) => { e.stopPropagation(); setSelectedMedia(null); }}
+                onClick={(e) => { e.stopPropagation(); setSelectedMedia(null); setMediaFilter("Original"); setStorySticker(null); setShowStickerPicker(false); }}
                 className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60"
                 aria-label="Remove photo"
               >
@@ -256,14 +296,27 @@ export default function Create() {
 
         <section className="mb-5 flex gap-2.5 overflow-x-auto no-scrollbar">
           {(activeTab === "post"
-            ? [{label:"Original",icon:<Sparkles size={18}/>},{label:"Warm",icon:<Sparkles size={18}/>},{label:"Cool",icon:<Sparkles size={18}/>},{label:"Moody",icon:<Sparkles size={18}/>}]
-            : [{label:"Text",icon:<Type size={18}/>},{label:"Music",icon:<Music2 size={18}/>},{label:"Stickers",icon:<Smile size={18}/>},{label:"Filters",icon:<Sparkles size={18}/>}]
+            ? [
+                {label:"Original",icon:<Sparkles size={18}/>,filter:"Original" as const},
+                {label:"Warm",icon:<Sparkles size={18}/>,filter:"Warm" as const},
+                {label:"Cool",icon:<Sparkles size={18}/>,filter:"Cool" as const},
+                {label:"Moody",icon:<Sparkles size={18}/>,filter:"Moody" as const},
+              ]
+            : [
+                {label:"Text",icon:<Type size={18}/>,filter:undefined,sticker:false,filterTool:false},
+                {label:"Stickers",icon:<Smile size={18}/>,filter:undefined,sticker:true,filterTool:false},
+                {label:"Filters",icon:<Sparkles size={18}/>,filter:undefined,sticker:false,filterTool:true},
+              ]
           ).map((tool,index) => (
-            <button key={tool.label} className="flex h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-semibold" style={{ background:index===0?"linear-gradient(135deg,#FF1493,#008CFF)":"rgba(255,255,255,.08)", border:index===0?"none":"1px solid rgba(255,255,255,.10)", color:"#fff" }}>
+            <button key={tool.label} onClick={() => {
+              if (tool.filter) setMediaFilter(tool.filter);
+              else if (tool.label === "Text") document.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+              else if (tool.sticker) setShowStickerPicker((value) => !value);
+              else if (tool.filterTool) setMediaFilter(mediaFilter === "Original" ? "Warm" : "Original");
+            }} className="flex h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-semibold" style={{background:(tool.filter === mediaFilter || (tool.sticker && showStickerPicker))?"linear-gradient(135deg,#FF1493,#008CFF)":"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.10)",color:"#fff"}}>
               {tool.icon}{tool.label}
             </button>
-          ))}
-        </section>
+          ))}       </section>
 
         <section className="rounded-[22px] p-4 mb-5" style={{ background:"rgba(8,8,14,.78)", border:"1px solid rgba(255,20,147,.24)", boxShadow:"0 0 18px rgba(0,140,255,.06)" }}>
           <div className="flex items-start gap-3">
@@ -292,11 +345,6 @@ export default function Create() {
               <Hash size={20} className="text-blue-400" />
               <input value={hashtags} onChange={(e)=>setHashtags(e.target.value)} placeholder="#hashtags" className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/35" />
             </div>
-            <button className="flex w-full items-center gap-3 px-4 py-3.5 text-left" style={{ borderBottom:"1px solid rgba(255,255,255,.06)" }}>
-              <PlusCircle size={20} style={{color:"#8B5CFF"}} />
-              <span className="flex-1 text-sm text-white/80">Add to your post</span>
-              <span className="text-white/30">›</span>
-            </button>
             <div className="flex items-center gap-3 px-4 py-3.5">
               <Globe size={20} style={{color:"#FF43B0"}} />
               <span className="flex-1 text-sm text-white/80">World Feed</span>
@@ -315,13 +363,11 @@ export default function Create() {
               <div className="flex h-full w-full items-center justify-center rounded-full bg-[#050509] text-center text-sm font-bold">15s</div>
             </div>
             <p className="mt-3 text-center text-sm text-white/45">Story disappears after 24h</p>
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              {[["Filters",<Sparkles size={22}/>],["Stickers",<Smile size={22}/>],["Text",<Type size={22}/>]].map(([label,icon])=>(
-                <button key={String(label)} className="flex h-20 flex-col items-center justify-center gap-2 rounded-2xl text-sm font-semibold" style={{background:"rgba(255,20,147,.05)",border:"1px solid rgba(139,92,255,.35)",color:"#FF7AC7"}}>
-                  {icon}{label}
-                </button>
-              ))}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button onClick={() => setMediaFilter(mediaFilter === "Original" ? "Warm" : "Original")} className="flex h-20 flex-col items-center justify-center gap-2 rounded-2xl text-sm font-semibold" style={{background:mediaFilter !== "Original" ? "linear-gradient(135deg,rgba(255,20,147,.35),rgba(0,140,255,.25))" : "rgba(255,20,147,.05)",border:"1px solid rgba(139,92,255,.35)",color:"#FF7AC7"}}><Sparkles size={22}/>Filters</button>
+              <button onClick={() => setShowStickerPicker((value) => !value)} className="flex h-20 flex-col items-center justify-center gap-2 rounded-2xl text-sm font-semibold" style={{background:showStickerPicker ? "linear-gradient(135deg,rgba(255,20,147,.35),rgba(0,140,255,.25))" : "rgba(255,20,147,.05)",border:"1px solid rgba(139,92,255,.35)",color:"#FF7AC7"}}><Smile size={22}/>Stickers</button>
             </div>
+            {showStickerPicker && <div className="mt-3 flex items-center justify-center gap-3 rounded-2xl p-3" style={{background:"rgba(8,8,14,.82)",border:"1px solid rgba(139,92,255,.25)"}}>{["❤️","✨","🌍","😊","🔥"].map((sticker)=><button key={sticker} onClick={()=>{setStorySticker(storySticker===sticker?null:sticker);setShowStickerPicker(false)}} className="flex h-11 w-11 items-center justify-center rounded-xl text-2xl hover:bg-white/10" aria-label={sticker}>{sticker}</button>)}</div>}
           </section>
         )}
 
@@ -340,21 +386,7 @@ export default function Create() {
       </main>
 
       <BottomNav />
-      <AnimatePresence>
-        {showVideoModal && (
-          <ScreenPortal>
-            <>
-              <motion.div key="video-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 bg-black/70" onClick={()=>setShowVideoModal(false)} />
-              <motion.div key="video-modal" initial={{opacity:0,scale:.88,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:.88,y:20}} transition={{type:"spring",damping:22,stiffness:300}} className="fixed left-1/2 top-1/2 z-50 w-72 -translate-x-1/2 -translate-y-1/2 rounded-3xl p-6 text-center" style={{background:"rgba(16,12,28,.98)",border:"1px solid rgba(255,61,154,.25)",boxShadow:"0 20px 60px rgba(0,0,0,.7)"}}>
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style={{background:"rgba(255,0,110,.12)",border:"1px solid rgba(255,0,110,.25)"}}><AlertCircle size={28} style={{color:"#FF3D9A"}} /></div>
-                <h3 className="mb-2 text-base font-bold text-white">Not Available Yet</h3>
-                <p className="mb-5 text-sm leading-relaxed text-white/55">Video uploads are coming soon. Stay tuned!</p>
-                <motion.button whileTap={{scale:.95}} onClick={()=>setShowVideoModal(false)} className="w-full rounded-2xl py-3 text-sm font-semibold text-white" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)"}}>Got it</motion.button>
-              </motion.div>
-            </>
-          </ScreenPortal>
-        )}
-      </AnimatePresence>
+
     </div>
   );
 }
