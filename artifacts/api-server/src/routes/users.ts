@@ -241,12 +241,28 @@ usersRouter.get("/friends/suggestions", authMiddleware, async (req: Authenticate
       if (followerId === req.userId!) related.add(followingId);
       if (followingId === req.userId!) related.add(followerId);
     }
+    const currentUser = allUsers.find((user) => Number(user.id) === req.userId!);
+    const currentAge = Number(currentUser?.age);
+    const hasCurrentAge = Number.isFinite(currentAge) && currentAge > 0;
+
     const suggestions = allUsers
       .filter((user) => {
         const id = Number(user.id);
-        return id > 0 && id !== req.userId! && !related.has(id);
+        const candidateAge = Number(user.age);
+        const hasCandidateAge = Number.isFinite(candidateAge) && candidateAge > 0;
+        const closeInAge = !hasCurrentAge || !hasCandidateAge || Math.abs(candidateAge - currentAge) <= 3;
+        return id > 0 && id !== req.userId! && !related.has(id) && closeInAge;
       })
-      .sort((a, b) => (counts.get(Number(b.id)) ?? 0) - (counts.get(Number(a.id)) ?? 0))
+      .sort((a, b) => {
+        if (hasCurrentAge) {
+          const ageA = Number(a.age);
+          const ageB = Number(b.age);
+          const distanceA = Number.isFinite(ageA) ? Math.abs(ageA - currentAge) : 99;
+          const distanceB = Number.isFinite(ageB) ? Math.abs(ageB - currentAge) : 99;
+          if (distanceA !== distanceB) return distanceA - distanceB;
+        }
+        return (counts.get(Number(b.id)) ?? 0) - (counts.get(Number(a.id)) ?? 0);
+      })
       .slice(0, 20)
       .map((user) => mapFriendUser(user, counts.get(Number(user.id)) ?? 0));
     return res.json({ users: suggestions });
