@@ -130,7 +130,10 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const suppressFeedPositionSaveRef = useRef(false);
 
   const prefetchLatestFeed = () => {
-    if (!user || pendingFeedPromiseRef.current) return pendingFeedPromiseRef.current;
+    if (!user || feedRefreshInFlightRef.current || pendingFeedPromiseRef.current) {
+      return pendingFeedPromiseRef.current;
+    }
+
     const promise = apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed")
       .then((data) => {
         pendingFeedDataRef.current = data;
@@ -143,6 +146,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
       .finally(() => {
         pendingFeedPromiseRef.current = null;
       });
+
     pendingFeedPromiseRef.current = promise;
     return promise;
   };
@@ -166,12 +170,13 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const refreshFeed = async () => {
     if (!user || feedRefreshInFlightRef.current) return;
     feedRefreshInFlightRef.current = true;
-    feedRefreshInFlightRef.current = true;
     try {
-      const feedPromise = apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed");
+      const pendingFeed = pendingFeedDataRef.current;
+      const pendingPromise = pendingFeedPromiseRef.current;
+      const feedPromise = pendingPromise ?? apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed");
       const storiesPromise = apiJson<{ stories?: LiveStory[] }>("/stories");
 
-      const feedData = pendingFeedDataRef.current ?? await feedPromise;
+      const feedData = pendingFeed ?? await feedPromise;
       applyFeedData(feedData);
 
       void storiesPromise.then((storiesData) => {
@@ -268,16 +273,17 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
     const checkForNewPosts = async () => {
       if (location !== "/" || document.visibilityState === "hidden") return;
-      const prefetchPromise = prefetchLatestFeed();
-      if (prefetchPromise) {
-        void prefetchPromise.catch(() => {});
-      }
+
       try {
         const data = await apiJson<{ newPostsCount?: number }>(
           `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
         );
         const count = Math.max(0, Number(data.newPostsCount) || 0);
-        if (count > 0) setNewPostsCount(count);
+        if (count <= 0) return;
+
+        setNewPostsCount(count);
+        const prefetchPromise = prefetchLatestFeed();
+        if (prefetchPromise) void prefetchPromise.catch(() => {});
       } catch {}
     };
 
@@ -333,24 +339,10 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         data-testid="home-header"
       >
         <button onClick={() => { if (window.location.pathname !== "/") navigate("/"); }} className="shrink-0" aria-label="Yuniko home">
-          <span
-            className="text-[clamp(31px,8vw,39px)] font-black tracking-[-0.055em] leading-none"
-            style={{
-              background: "linear-gradient(90deg, #FF1493 0%, #FF2FA4 42%, #008CFF 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            Yuniko
-          </span>
+          <span className="text-[clamp(31px,8vw,39px)] font-black tracking-[-0.055em] leading-none" style={{ background: "linear-gradient(90deg, #FF1493 0%, #FF2FA4 42%, #008CFF 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Yuniko</span>
         </button>
         <div className="flex items-center gap-5">
-          <motion.button whileTap={{ scale: 0.84 }} onClick={() => {
-            setUnreadNotifications(0); setNotificationBadgeCleared(true);
-            try { sessionStorage.setItem("yuniko_notifications_badge_cleared", "1"); } catch {}
-            navigate("/notifications");
-          }} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("notifications")}>
+          <motion.button whileTap={{ scale: 0.84 }} onClick={() => { setUnreadNotifications(0); setNotificationBadgeCleared(true); try { sessionStorage.setItem("yuniko_notifications_badge_cleared", "1"); } catch {} navigate("/notifications"); }} className="relative flex h-9 w-9 items-center justify-center" aria-label={t("notifications")}>
             <Bell size={25} strokeWidth={1.7} style={{ color: "rgba(255,210,235,0.88)" }} />
             {!notificationBadgeCleared && unreadNotifications > 0 && <span className="absolute -right-2 -top-1 min-w-4 h-4 rounded-full px-1 text-[9px] font-bold text-white flex items-center justify-center" style={{ background: "#FF1493", boxShadow: "0 0 8px rgba(255,20,147,.45)" }} aria-label="Nouvelles notifications">1+</span>}
           </motion.button>
@@ -362,30 +354,14 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
       <AnimatePresence>
         {!isOnline && (
-          <motion.div
-            key="offline-banner"
-            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="relative z-30 mx-4 flex items-center justify-center gap-1.5 rounded-xl py-1.5"
-            style={{ background: "rgba(239,68,68,0.88)", backdropFilter: "blur(8px)" }}
-          >
+          <motion.div key="offline-banner" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="relative z-30 mx-4 flex items-center justify-center gap-1.5 rounded-xl py-1.5" style={{ background: "rgba(239,68,68,0.88)", backdropFilter: "blur(8px)" }}>
             <WifiOff size={12} className="text-white" />
             <span className="text-white text-xs font-medium">Offline — showing cached posts</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <main
-        ref={scrollRef}
-        className="relative z-10 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-[clamp(10px,3.5vw,22px)] pb-24"
-        style={{
-          minHeight: 0,
-          paddingTop: "84px",
-          WebkitOverflowScrolling: "touch",
-          overscrollBehaviorY: "contain",
-          touchAction: "pan-y",
-        }}
-        data-testid="posts-feed"
-      >
+      <main ref={scrollRef} className="relative z-10 flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-[clamp(10px,3.5vw,22px)] pb-24" style={{ minHeight: 0, paddingTop: "84px", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain", touchAction: "pan-y" }} data-testid="posts-feed">
         {feedLoading ? <LoadingSkeleton variant="feed" /> : (
           <div className="mx-auto w-full max-w-[680px]">
             {allFeedItems.length === 0 ? (
@@ -393,30 +369,18 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
                 <Globe size={34} style={{ color: "#FF2FA4" }} className="mb-3" />
                 <p className="font-semibold text-white">Your feed is empty</p>
                 <p className="mt-1 text-sm text-white/45">Be the first to share something with the Yuniko community.</p>
-                <button
-                  onClick={() => navigate("/create")}
-                  className="mt-5 rounded-full px-5 py-2.5 text-sm font-semibold text-white"
-                  style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 6px 22px rgba(255,20,147,.22)" }}
-                >
-                  Create a post
-                </button>
+                <button onClick={() => navigate("/create")} className="mt-5 rounded-full px-5 py-2.5 text-sm font-semibold text-white" style={{ background: "linear-gradient(135deg,#FF1493,#008CFF)", boxShadow: "0 6px 22px rgba(255,20,147,.22)" }}>Create a post</button>
               </div>
             ) : (
               <>
-                <StoryRail
-                  stories={liveStories}
-                  ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id}
-                />
+                <StoryRail stories={liveStories} ownStoryId={liveStories.find((story) => Number(story.userId) === Number(user?.id))?.id} />
                 {allFeedItems.map(({ post, author }, index) => (
-              <ReactFragment key={post.id}>
-                <article className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
-                  <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
-                </article>
-                {(index + 1) % 11 === 0 && index + 1 < allFeedItems.length && <StoryCardRail
-  stories={liveStories.filter((story) => Number(story.userId) !== Number(user?.id))}
-  ownStory={liveStories.find((story) => Number(story.userId) === Number(user?.id))}
- />}
-              </ReactFragment>
+                  <ReactFragment key={post.id}>
+                    <article className="mb-7 w-full" data-testid={`feed-post-${post.id}`}>
+                      <PostCard post={post} liveAuthor={author} onOptions={post.isSponsored ? undefined : () => setOptionsPostId(post.id)} />
+                    </article>
+                    {(index + 1) % 11 === 0 && index + 1 < allFeedItems.length && <StoryCardRail stories={liveStories.filter((story) => Number(story.userId) !== Number(user?.id))} ownStory={liveStories.find((story) => Number(story.userId) === Number(user?.id))} />}
+                  </ReactFragment>
                 ))}
               </>
             )}
@@ -459,23 +423,10 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         {optionsPostId && (
           <ScreenPortal>
             <motion.div key="options-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/65" onClick={() => setOptionsPostId(null)} />
-            <motion.div
-              key="options-sheet"
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 340 }}
-              className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden"
-              style={{ background: "rgba(8,8,13,0.98)", border: "1px solid rgba(255,255,255,0.08)" }}
-            >
+            <motion.div key="options-sheet" initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 340 }} className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 rounded-t-2xl overflow-hidden" style={{ background: "rgba(8,8,13,0.98)", border: "1px solid rgba(255,255,255,0.08)" }}>
               <div className="w-10 h-1 rounded-full bg-white/18 mx-auto mt-3 mb-4" />
-              {[
-                { icon: <Bookmark size={18} />, label: t("savePost") },
-                { icon: <Share2 size={18} />, label: t("sharePost") },
-                { icon: <EyeOff size={18} />, label: t("hide") },
-                { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span> },
-              ].map((item, i) => (
-                <button key={i} onClick={() => setOptionsPostId(null)} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                  {item.icon}{item.label}
-                </button>
+              {[{ icon: <Bookmark size={18} />, label: t("savePost") }, { icon: <Share2 size={18} />, label: t("sharePost") }, { icon: <EyeOff size={18} />, label: t("hide") }, { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span> }].map((item, i) => (
+                <button key={i} onClick={() => setOptionsPostId(null)} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{item.icon}{item.label}</button>
               ))}
               <button onClick={() => setOptionsPostId(null)} className="w-full py-4 text-white/45 text-sm font-medium">{t("cancel")}</button>
             </motion.div>
@@ -487,33 +438,14 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 }
 
 function StoryRail({ stories, ownStoryId }: { stories: LiveStory[]; ownStoryId?: number }) {
-  const ownStory = ownStoryId
-    ? stories.find((story) => Number(story.id) === Number(ownStoryId))
-    : undefined;
-
+  const ownStory = ownStoryId ? stories.find((story) => Number(story.id) === Number(ownStoryId)) : undefined;
   return (
-    <section
-      className="relative mb-6 w-full rounded-[18px] px-3 py-2.5"
-      style={{
-        background: "rgba(5,5,9,0.9)",
-        border: "1px solid rgba(255,255,255,0.045)",
-        boxShadow: "0 8px 24px rgba(0,0,0,.16)",
-      }}
-      data-testid="stories-section"
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-[18px] font-bold tracking-[-0.02em] text-white">Stories</h2>
-      </div>
-      <div
-        className="flex items-start gap-[clamp(10px,2.6vw,16px)] overflow-x-auto no-scrollbar"
-        style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", overscrollBehaviorY: "auto", touchAction: "pan-x pan-y" }}
-        data-testid="stories-row"
-      >
+    <section className="relative mb-6 w-full rounded-[18px] px-3 py-2.5" style={{ background: "rgba(5,5,9,0.9)", border: "1px solid rgba(255,255,255,0.045)", boxShadow: "0 8px 24px rgba(0,0,0,.16)" }} data-testid="stories-section">
+      <div className="mb-2 flex items-center justify-between"><h2 className="text-[18px] font-bold tracking-[-0.02em] text-white">Stories</h2></div>
+      <div className="flex items-start gap-[clamp(10px,2.6vw,16px)] overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", overscrollBehaviorY: "auto", touchAction: "pan-x pan-y" }} data-testid="stories-row">
         <CreateStoryAvatar />
         {ownStory && <LiveStoryAvatar story={ownStory} isOwn />}
-        {stories.filter((story) => Number(story.id) !== Number(ownStoryId)).map((story) => (
-          <LiveStoryAvatar key={`ls_${story.id}`} story={story} />
-        ))}
+        {stories.filter((story) => Number(story.id) !== Number(ownStoryId)).map((story) => <LiveStoryAvatar key={`ls_${story.id}`} story={story} />)}
       </div>
     </section>
   );
@@ -521,29 +453,10 @@ function StoryRail({ stories, ownStoryId }: { stories: LiveStory[]; ownStoryId?:
 
 function CreateStoryAvatar() {
   const [, setLocation] = useLocation();
-
   return (
-    <motion.button
-      onClick={() => setLocation("/create?mode=story")}
-      className="flex flex-col items-center gap-1 flex-shrink-0"
-      style={{ minWidth: 64 }}
-      whileTap={{ scale: 0.9 }}
-      aria-label="Create story"
-      data-testid="create-story-avatar"
-    >
-      <div className="relative">
-        <div
-          className="w-[54px] h-[54px] rounded-full p-[2px]"
-          style={{ background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}
-        >
-          <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0D0B14] text-white">
-            <span className="text-[27px] font-light leading-none">+</span>
-          </div>
-        </div>
-      </div>
-      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">
-        Create
-      </span>
+    <motion.button onClick={() => setLocation("/create?mode=story")} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ minWidth: 64 }} whileTap={{ scale: 0.9 }} aria-label="Create story" data-testid="create-story-avatar">
+      <div className="relative"><div className="w-[54px] h-[54px] rounded-full p-[2px]" style={{ background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}><div className="flex h-full w-full items-center justify-center rounded-full bg-[#0D0B14] text-white"><span className="text-[27px] font-light leading-none">+</span></div></div></div>
+      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">Create</span>
     </motion.button>
   );
 }
@@ -551,56 +464,15 @@ function CreateStoryAvatar() {
 function StoryCardRail({ stories, ownStory }: { stories: LiveStory[]; ownStory?: LiveStory }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const touchRef = useRef({ x: 0, y: 0, active: false });
-
-  const onTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    const touch = event.touches[0];
-    touchRef.current = { x: touch.clientX, y: touch.clientY, active: true };
-  };
-
-  const onTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (!touchRef.current.active || !rowRef.current) return;
-
-    const touch = event.touches[0];
-    const dx = touch.clientX - touchRef.current.x;
-    const dy = touch.clientY - touchRef.current.y;
-
-    if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 4) return;
-
-    event.preventDefault();
-    rowRef.current.scrollLeft -= dx;
-    touchRef.current.x = touch.clientX;
-    touchRef.current.y = touch.clientY;
-  };
-
-  const onTouchEnd = () => {
-    touchRef.current.active = false;
-  };
-
+  const onTouchStart = (event: React.TouchEvent<HTMLDivElement>) => { const touch = event.touches[0]; touchRef.current = { x: touch.clientX, y: touch.clientY, active: true }; };
+  const onTouchMove = (event: React.TouchEvent<HTMLDivElement>) => { if (!touchRef.current.active || !rowRef.current) return; const touch = event.touches[0]; const dx = touch.clientX - touchRef.current.x; const dy = touch.clientY - touchRef.current.y; if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 4) return; event.preventDefault(); rowRef.current.scrollLeft -= dx; touchRef.current.x = touch.clientX; touchRef.current.y = touch.clientY; };
+  const onTouchEnd = () => { touchRef.current.active = false; };
   return (
-    <section
-      className="relative mb-7 w-full"
-      data-testid="stories-card-section"
-    >
-      <div
-        ref={rowRef}
-        className="flex items-start gap-2.5 overflow-x-auto no-scrollbar px-0.5"
-        style={{
-          WebkitOverflowScrolling: "touch",
-          overscrollBehaviorX: "contain",
-          overscrollBehaviorY: "auto",
-          touchAction: "pan-y",
-        }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onTouchCancel={onTouchEnd}
-        data-testid="stories-card-row"
-      >
+    <section className="relative mb-7 w-full" data-testid="stories-card-section">
+      <div ref={rowRef} className="flex items-start gap-2.5 overflow-x-auto no-scrollbar px-0.5" style={{ WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", overscrollBehaviorY: "auto", touchAction: "pan-y" }} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} data-testid="stories-card-row">
         <CreateStoryCard />
         {ownStory && <StoryCard key={`own_${ownStory.id}`} story={ownStory} label="Your story" />}
-        {stories.filter((story) => Number(story.id) !== Number(ownStory?.id)).map((story) => (
-          <StoryCard key={`sc_${story.id}`} story={story} />
-        ))}
+        {stories.filter((story) => Number(story.id) !== Number(ownStory?.id)).map((story) => <StoryCard key={`sc_${story.id}`} story={story} />)}
       </div>
     </section>
   );
@@ -608,142 +480,37 @@ function StoryCardRail({ stories, ownStory }: { stories: LiveStory[]; ownStory?:
 
 function CreateStoryCard() {
   const [, setLocation] = useLocation();
-
   return (
-    <div
-      className="relative shrink-0 overflow-hidden rounded-[15px] p-[1.5px]"
-      style={{
-        width: "clamp(108px, 28vw, 140px)",
-        aspectRatio: "9 / 16",
-        background: "linear-gradient(135deg,#FF1493 0%,#FF2B9A 38%,#008CFF 100%)",
-        boxShadow: "0 8px 22px rgba(0,0,0,.28), 0 0 14px rgba(255,20,147,.12)",
-      }}
-      data-testid="create-story-card"
-    >
-      <motion.button
-        onClick={() => setLocation("/create?mode=story")}
-        whileTap={{ scale: 0.97 }}
-        className="relative h-full w-full overflow-hidden rounded-[13.5px] text-left"
-        style={{ background: "linear-gradient(145deg,#171722 0%,#202034 55%,#11111a 100%)" }}
-        aria-label="Create story"
-      >
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 text-white">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10">
-            <span className="text-[30px] font-light leading-none">+</span>
-          </div>
-          <span className="text-[12px] font-bold">Create story</span>
-        </div>
+    <div className="relative shrink-0 overflow-hidden rounded-[15px] p-[1.5px]" style={{ width: "clamp(108px, 28vw, 140px)", aspectRatio: "9 / 16", background: "linear-gradient(135deg,#FF1493 0%,#FF2B9A 38%,#008CFF 100%)", boxShadow: "0 8px 22px rgba(0,0,0,.28), 0 0 14px rgba(255,20,147,.12)" }} data-testid="create-story-card">
+      <motion.button onClick={() => setLocation("/create?mode=story")} whileTap={{ scale: 0.97 }} className="relative h-full w-full overflow-hidden rounded-[13.5px] text-left" style={{ background: "linear-gradient(145deg,#171722 0%,#202034 55%,#11111a 100%)" }} aria-label="Create story">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 text-white"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10"><span className="text-[30px] font-light leading-none">+</span></div><span className="text-[12px] font-bold">Create story</span></div>
       </motion.button>
     </div>
   );
 }
 
-function StoryCard({
-  story,
-  isOwn = false,
-  storyId,
-  userId,
-  label,
-}: {
-  story?: LiveStory;
-  isOwn?: boolean;
-  storyId?: number;
-  userId?: string;
-  label?: string;
-}) {
+function StoryCard({ story, isOwn = false, storyId, userId, label }: { story?: LiveStory; isOwn?: boolean; storyId?: number; userId?: string; label?: string }) {
   const [, setLocation] = useLocation();
-
-  const displayName = isOwn
-    ? label ?? "Your story"
-    : story?.authorDisplayName ?? "Story";
-
-  const openStory = () => {
-    if (isOwn) {
-      setLocation(storyId ? `/story/live_${storyId}` : "/create?mode=story");
-      return;
-    }
-    if (story) setLocation(`/story/live_${story.id}`);
-  };
-
+  const displayName = isOwn ? label ?? "Your story" : story?.authorDisplayName ?? "Story";
+  const openStory = () => { if (isOwn) { setLocation(storyId ? `/story/live_${storyId}` : "/create?mode=story"); return; } if (story) setLocation(`/story/live_${story.id}`); };
   return (
-    <div
-      className="relative shrink-0 overflow-hidden rounded-[15px] p-[1.5px]"
-      style={{
-        width: "clamp(108px, 28vw, 140px)",
-        aspectRatio: "9 / 16",
-        background: "linear-gradient(135deg,#FF1493 0%,#FF2B9A 38%,#008CFF 100%)",
-        boxShadow: "0 8px 22px rgba(0,0,0,.28), 0 0 14px rgba(255,20,147,.12)",
-      }}
-      data-testid={`story-card-frame-${userId ?? story?.id ?? "story"}`}
-    >
-      <motion.button
-        onClick={openStory}
-        whileTap={{ scale: 0.97 }}
-        className="relative h-full w-full overflow-hidden rounded-[13.5px] text-left"
-        style={{ background: "#16161d" }}
-        aria-label={`Open ${displayName}`}
-        data-testid={`story-card-${userId ?? story?.id ?? "story"}`}
-      >
-        {story?.mediaUrl ? (
-          <img
-            src={story.mediaUrl}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div
-            className="absolute inset-0"
-            style={{
-              background: "linear-gradient(145deg,#171722 0%,#202034 55%,#11111a 100%)",
-            }}
-          />
-        )}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: "linear-gradient(180deg, rgba(0,0,0,.03) 35%, rgba(0,0,0,.84) 100%)",
-          }}
-        />
-        <span className="absolute bottom-2.5 left-2.5 right-2.5 truncate text-[12px] font-bold leading-tight text-white">
-          {displayName}
-        </span>
+    <div className="relative shrink-0 overflow-hidden rounded-[15px] p-[1.5px]" style={{ width: "clamp(108px, 28vw, 140px)", aspectRatio: "9 / 16", background: "linear-gradient(135deg,#FF1493 0%,#FF2B9A 38%,#008CFF 100%)", boxShadow: "0 8px 22px rgba(0,0,0,.28), 0 0 14px rgba(255,20,147,.12)" }} data-testid={`story-card-frame-${userId ?? story?.id ?? "story"}`}>
+      <motion.button onClick={openStory} whileTap={{ scale: 0.97 }} className="relative h-full w-full overflow-hidden rounded-[13.5px] text-left" style={{ background: "#16161d" }} aria-label={`Open ${displayName}`} data-testid={`story-card-${userId ?? story?.id ?? "story"}`}>
+        {story?.mediaUrl ? <img src={story.mediaUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" /> : <div className="absolute inset-0" style={{ background: "linear-gradient(145deg,#171722 0%,#202034 55%,#11111a 100%)" }} />}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,.03) 35%, rgba(0,0,0,.84) 100%)" }} />
+        <span className="absolute bottom-2.5 left-2.5 right-2.5 truncate text-[12px] font-bold leading-tight text-white">{displayName}</span>
       </motion.button>
     </div>
   );
 }
-
 
 function LiveStoryAvatar({ story, isOwn = false }: { story: LiveStory; isOwn?: boolean }) {
   const [, setLocation] = useLocation();
-  const avatarSrc =
-    story.authorAvatarUrl ??
-    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(story.authorDisplayName)}&backgroundColor=FF006E`;
-
+  const avatarSrc = story.authorAvatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(story.authorDisplayName)}&backgroundColor=FF006E`;
   return (
-    <motion.button
-      onClick={() => setLocation(`/story/live_${story.id}`)}
-      className="flex flex-col items-center gap-1 flex-shrink-0"
-      style={{ minWidth: 64 }}
-      whileTap={{ scale: 0.9 }}
-    >
-      <div className="relative">
-        <div
-          className="w-[54px] h-[54px] rounded-full p-[2px]"
-          style={{ background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}
-        >
-          <img
-            src={avatarSrc}
-            alt={story.authorDisplayName}
-            className="w-full h-full rounded-full object-cover"
-            style={{ border: "2px solid #0D0B14" }}
-            loading="lazy"
-          />
-        </div>
-      </div>
-      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">
-        {story.authorDisplayName}
-      </span>
+    <motion.button onClick={() => setLocation(`/story/live_${story.id}`)} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ minWidth: 64 }} whileTap={{ scale: 0.9 }}>
+      <div className="relative"><div className="w-[54px] h-[54px] rounded-full p-[2px]" style={{ background: "linear-gradient(135deg, #FF1493 0%, #008CFF 100%)", boxShadow: "0 0 10px rgba(255,0,110,0.35)" }}><img src={avatarSrc} alt={story.authorDisplayName} className="w-full h-full rounded-full object-cover" style={{ border: "2px solid #0D0B14" }} loading="lazy" /></div></div>
+      <span className="text-white/70 text-[10px] font-medium leading-tight text-center truncate max-w-[60px]">{story.authorDisplayName}</span>
     </motion.button>
   );
 }
