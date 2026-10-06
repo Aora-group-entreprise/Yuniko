@@ -270,7 +270,10 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         const count = Math.max(0, Number(data.newPostsCount) || 0);
         if (count > 0) {
           setNewPostsCount(count);
-          void prefetchLatestFeed().catch(() => {});
+          const prefetchPromise = prefetchLatestFeed();
+          if (prefetchPromise) {
+            void prefetchPromise.catch(() => {});
+          }
         }
       } catch {}
     };
@@ -434,13 +437,16 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
             return;
           }
 
-          void (pendingFeedPromiseRef.current ?? prefetchLatestFeed()).then((feedData) => {
-            applyFeedData(feedData);
-            const scrollElement = scrollRef.current;
-            if (scrollElement) {
-              scrollElement.scrollTo({ top: 0, behavior: "auto" });
-            }
-          }).catch(() => {});
+          const pendingFeedPromise = pendingFeedPromiseRef.current ?? prefetchLatestFeed();
+          if (pendingFeedPromise) {
+            void pendingFeedPromise.then((feedData) => {
+              applyFeedData(feedData);
+              const scrollElement = scrollRef.current;
+              if (scrollElement) {
+                scrollElement.scrollTo({ top: 0, behavior: "auto" });
+              }
+            }).catch(() => {});
+          }
         }}
       />
 
