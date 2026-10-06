@@ -262,7 +262,7 @@ export default function SearchPage() {
           <span className="text-[12px] font-bold" style={{color:"#C14BFF"}}>{apiHashtags.length} topics</span>
         </div>
         <div className="grid grid-cols-2 gap-3 pb-5">
-          {apiPosts.slice(0,8).map((post,index)=><button key={post.id} onClick={()=>setLocation(`/post/live_${post.id}`)} className="text-left overflow-hidden rounded-[20px] bg-[#101016] border border-white/[0.08] shadow-[0_8px_25px_rgba(0,0,0,.28)]" data-testid={`discover-post-${post.id}`}>
+          {apiPosts.slice(0,8).map((post,index)=><button key={post.id} onClick={()=>setLocation(`/post/${post.id}`)} className="text-left overflow-hidden rounded-[20px] bg-[#101016] border border-white/[0.08] shadow-[0_8px_25px_rgba(0,0,0,.28)]" data-testid={`discover-post-${post.id}`}>
             <div className="relative p-[2px] rounded-[18px]" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)"}}>
               <img src={post.mediaUrl || "https://picsum.photos/seed/yuniko-search-"+post.id+"/600/600"} alt={post.caption || "Yuniko post"} className="w-full aspect-[1.42] object-cover rounded-[16px]"/>
             </div>
@@ -320,7 +320,7 @@ export default function SearchPage() {
               {filteredPosts.slice(0, 12).map((post) => (
                 <button
                   key={post.id}
-                  onClick={() => setLocation(`/post/live_${post.id}`)}
+                  onClick={() => setLocation(`/post/${post.id}`)}
                   className="w-full flex items-center gap-3 rounded-2xl p-2.5 text-left bg-white/[0.035] border border-white/[0.06]"
                 >
                   <img

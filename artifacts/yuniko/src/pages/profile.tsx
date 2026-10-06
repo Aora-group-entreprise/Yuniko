@@ -4,7 +4,7 @@ import {
   ArrowLeft, Settings, Grid3X3, BookmarkIcon, BarChart2,
   BadgeCheck, MapPin, MoreHorizontal, MessageCircle, Phone, Share2, Link2, Trash2,
 } from "lucide-react";
-import { getUserById, getPostsByUser, formatCount } from "@/data/mockData";
+import { formatCount } from "@/data/mockData";
 import { useAuth, AuthUser } from "@/lib/auth-context";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
@@ -78,7 +78,7 @@ export default function Profile({ userId }: ProfilePageProps) {
     followers:remoteProfile.stats.followers, following:remoteProfile.stats.following, posts:remoteProfile.stats.posts,
     isOnline:true, isFollowing:remoteProfile.following, isFriend:false, website:remoteProfile.user.website ?? undefined,
   } : null;
-  const user = isDatabaseProfile ? (remoteUser ?? (isOwn && authUser ? authUserToDisplay(authUser) : null)) : getUserById(targetId);
+  const user = remoteUser ?? (isOwn && authUser ? authUserToDisplay(authUser) : null);
   const [following, setFollowing] = useState(user?.isFollowing ?? false);
   const [followLoading, setFollowLoading] = useState(false);
 
@@ -103,7 +103,7 @@ export default function Profile({ userId }: ProfilePageProps) {
       .then((data) => {
         setOwnPosts((data.posts ?? []).map((post) => ({
           id: String(post.id),
-          url: `/post/live_${post.id}`,
+          url: `/post/${post.id}`,
           imageUrl: post.mediaUrl ?? `https://api.dicebear.com/8.x/shapes/svg?seed=post-${post.id}`,
           caption: post.caption ?? "",
         })));
@@ -121,7 +121,7 @@ export default function Profile({ userId }: ProfilePageProps) {
       const data = await fetchSessionJson<{ posts?: Array<{id:number; caption:string; mediaUrl:string|null}> }>("/posts/saved");
       setSavedPosts((data.posts ?? []).map((post) => ({
         ...post,
-        url: `/post/live_${post.id}`,
+        url: `/post/${post.id}`,
       })));
     } catch (error) {
       setSavedPosts([]);
@@ -203,14 +203,11 @@ export default function Profile({ userId }: ProfilePageProps) {
     : remoteProfile
       ? remoteProfile.posts.map(post => ({
           id:String(post.id),
-          url:`/post/live_${post.id}`,
+          url:`/post/${post.id}`,
           imageUrl:post.mediaUrl ?? `https://api.dicebear.com/8.x/shapes/svg?seed=post-${post.id}`,
           caption:post.caption,
         }))
-      : getPostsByUser(user.id).map(post => ({
-          ...post,
-          url: `/post/live_${post.id}`,
-        }));
+      : [];
   const statItems = [
     {label:t("posts"),value:formatCount(user.posts),onClick:undefined},
     {label:t("followers"),value:formatCount(user.followers),onClick:()=>setLocation(`/followers/${user.id}`)},

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Star, Check } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { apiJson } from "@/lib/api";
 import BottomNav from "@/components/BottomNav";
 
 const CATEGORIES = ["Bug Report", "Feature Request", "Content Issue", "Account Problem", "Other"];
@@ -12,11 +13,25 @@ export default function Feedback() {
   const [message, setMessage] = useState("");
   const [rating, setRating] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = () => {
-    if (!message.trim()) return;
-    setSubmitted(true);
-    setTimeout(() => { setSubmitted(false); setLocation("/settings"); }, 2000);
+  const handleSubmit = async () => {
+    if (!message.trim() || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await apiJson("/feedback", {
+        method: "POST",
+        body: JSON.stringify({ category, message: message.trim(), rating }),
+      });
+      setSubmitted(true);
+      setTimeout(() => { setSubmitted(false); setLocation("/settings"); }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to send feedback.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -98,6 +113,8 @@ export default function Feedback() {
           />
         </div>
 
+        {error && <p className="text-red-400 text-sm" role="alert">{error}</p>}
+
         <button
           onClick={handleSubmit}
           className="w-full py-3.5 rounded-2xl text-white font-semibold text-sm"
@@ -106,9 +123,10 @@ export default function Feedback() {
             opacity: message.trim() ? 1 : 0.5,
             boxShadow: message.trim() ? "0 4px 20px rgba(255,0,110,0.4)" : "none",
           }}
+          disabled={submitting}
           data-testid="btn-submit-feedback"
         >
-          Send Feedback
+          {submitting ? "Sending…" : "Send Feedback"}
         </button>
       </div>
 

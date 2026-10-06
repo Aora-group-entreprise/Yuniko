@@ -12,6 +12,7 @@ import analyticsRouter from "./analytics";
 import messagesRouter from "./messages";
 import m5m6Router from "./m5m6";
 import pushRouter from "./push";
+import feedbackRouter from "./feedback";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,7 @@ router.use(selfTestRouter);
 router.use(authRouter);
 router.use(interactionsRouter);
 router.use(pushRouter);
+router.use(feedbackRouter);
 router.use(messagesRouter);
 router.use(m5m6Router);
 router.use(postsRouter);

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { X, Send, Heart, Share2, MoreVertical, MapPin, BadgeCheck, Eye } from "lucide-react";
-import { stories, getUserById } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -40,51 +39,54 @@ interface ViewerStory {
 export default function StoryViewer() {
   const [, setLocation] = useLocation();
   const params = useParams<{ userId: string }>();
-  const userId = params?.userId ?? "u1";
+  const userId = params?.userId ?? "";
   const { user: authUser } = useAuth();
   const isLiveStory = userId.startsWith("live_");
-  const mockUser = getUserById(userId);
+  const requestedUserId = isLiveStory ? null : Number(userId);
   const cachedStories = getSessionCache<{ stories?: LiveStory[] }>("/stories");
   const cachedLiveStory = isLiveStory
     ? cachedStories?.stories?.find((story) => story.id === Number(userId.slice("live_".length))) ?? null
     : null;
   const [liveStory, setLiveStory] = useState<LiveStory | null>(cachedLiveStory);
-  const [liveStoryLoading, setLiveStoryLoading] = useState(isLiveStory && !cachedLiveStory);
+  const [liveStoryLoading, setLiveStoryLoading] = useState(true);
 
   useEffect(() => {
-    if (!isLiveStory || !authUser) return;
-    const storyId = Number(userId.slice("live_".length));
-    if (!Number.isInteger(storyId) || storyId <= 0) {
+    if (!authUser) {
       setLiveStoryLoading(false);
       return;
     }
-
-    const cached = getSessionCache<{ stories?: LiveStory[] }>("/stories");
-    const cachedStory = cached?.stories?.find((story) => story.id === storyId);
-    if (cachedStory) {
-      setLiveStory(cachedStory);
-      setLiveStoryLoading(false);
-    }
-
-    fetch(`/api/stories/${storyId}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Story unavailable");
-        const data = (await response.json()) as { story?: LiveStory };
-        if (data.story) {
-          setLiveStory(data.story);
-          apiFetch(`/stories/${storyId}/view`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          }).catch(() => {});
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const cached = getSessionCache<{ stories?: LiveStory[] }>("/stories");
+        let selected: LiveStory | null = null;
+        if (isLiveStory) {
+          const storyId = Number(userId.slice("live_".length));
+          selected = cached?.stories?.find((story) => story.id === storyId) ?? null;
+          const response = await apiFetch(`/stories/${storyId}`);
+          if (!response.ok) throw new Error("Story unavailable");
+          const data = await response.json() as { story?: LiveStory };
+          selected = data.story ?? selected;
+          if (selected) void apiFetch(`/stories/${selected.id}/view`, { method: "POST" }).catch(() => {});
+        } else if (Number.isInteger(requestedUserId) && requestedUserId > 0) {
+          const response = await apiFetch("/stories");
+          if (!response.ok) throw new Error("Stories unavailable");
+          const data = await response.json() as { stories?: LiveStory[] };
+          selected = (data.stories ?? []).find((story) => Number(story.userId) === requestedUserId) ?? null;
+          if (selected) void apiFetch(`/stories/${selected.id}/view`, { method: "POST" }).catch(() => {});
         }
-      })
-      .catch(() => {
-        if (!cachedStory) setLiveStory(null);
-      })
-      .finally(() => setLiveStoryLoading(false));
-  }, [isLiveStory, authUser, userId]);
+        if (!cancelled) setLiveStory(selected);
+      } catch {
+        if (!cancelled) setLiveStory(null);
+      } finally {
+        if (!cancelled) setLiveStoryLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [authUser, isLiveStory, requestedUserId, userId]);
 
-  const storyUser = isLiveStory && liveStory
+  const storyUser = liveStory
     ? {
         id: String(liveStory.userId),
         displayName: liveStory.authorDisplayName,
@@ -93,27 +95,17 @@ export default function StoryViewer() {
           `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(liveStory.authorDisplayName)}&backgroundColor=FF006E`,
         verified: false,
       }
-    : mockUser;
+    : null;
 
-  const userStories: ViewerStory[] = isLiveStory
-    ? liveStory
-      ? [{
-          id: String(liveStory.id),
-          userId: String(liveStory.userId),
-          imageUrl: liveStory.mediaUrl,
-          timestamp: relativeTime(liveStory.createdAt),
-          location: liveStory.location ?? null,
-        }]
-      : []
-    : stories
-        .filter((s) => s.userId === userId)
-        .map((s) => ({
-          id: s.id,
-          userId: s.userId,
-          imageUrl: s.imageUrl,
-          timestamp: s.timestamp,
-          location: null,
-        }));
+  const userStories: ViewerStory[] = liveStory
+    ? [{
+        id: String(liveStory.id),
+        userId: String(liveStory.userId),
+        imageUrl: liveStory.mediaUrl,
+        timestamp: relativeTime(liveStory.createdAt),
+        location: liveStory.location ?? null,
+      }]
+    : [];
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);

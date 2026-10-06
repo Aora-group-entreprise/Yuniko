@@ -41,7 +41,6 @@ import SettingsAbout from "@/pages/settings-about";
 import Legal from "@/pages/legal";
 import Settings from "@/pages/settings";
 import Login from "@/pages/login";
-import Live from "@/pages/live";
 import NotFound from "@/pages/not-found";
 import Verification from "@/pages/verification";
 
@@ -214,9 +213,6 @@ function AnimatedRoutes() {
 
             {/* Stories */}
             <Route path="/story/:userId" component={Story} />
-
-            {/* Live */}
-            <Route path="/live" component={Live} />
 
             {/* Account */}
             <Route path="/blocked-users" component={BlockedUsers} />

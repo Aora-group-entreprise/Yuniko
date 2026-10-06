@@ -311,7 +311,7 @@ export default function Notifications() {
     } else if (notif.type === "call") {
       setLocation("/call-history");
     } else if (notif.postId) {
-      setLocation(`/post/live_${notif.postId}`);
+      setLocation(`/post/${notif.postId}`);
     } else if (notif.type === "story_reaction") {
       setLocation(`/story/${notif.actor.id}`);
     } else {

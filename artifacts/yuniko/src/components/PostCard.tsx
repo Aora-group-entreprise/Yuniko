@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import ScreenPortal from "@/components/ScreenPortal";
 import { Heart, MessageCircle, Share2, Bookmark, BadgeCheck, MoreHorizontal, MoreVertical, Sparkles, ExternalLink, X, Send, Download, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Post, getUserById, formatCount } from "@/data/mockData";
+import { Post, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { apiJson } from "@/lib/api";
@@ -28,17 +28,21 @@ interface PostCardProps {
 export default function PostCard({ post, onOptions, liveAuthor, initialViewer = false, onViewerClose }: PostCardProps) {
   const [, setLocation] = useLocation();
   const { user: authUser } = useAuth();
-  const mockUser = !liveAuthor ? getUserById(post.userId) : null;
-
-  // Resolve author from liveAuthor prop or fall back to mock data
+  const postRecord = post as Post & {
+    authorDisplayName?: string | null;
+    authorUsername?: string | null;
+    authorAvatarUrl?: string | null;
+    userId?: number | string;
+  };
   const author: LiveAuthor | null = liveAuthor ?? (
-    mockUser
+    postRecord.authorDisplayName
       ? {
-          displayName: mockUser.displayName,
-          username: (mockUser as any).username ?? mockUser.displayName,
-          avatarUrl: mockUser.avatar,
-          verified: mockUser.verified,
-          isFollowing: mockUser.isFollowing,
+          userId: Number(postRecord.userId ?? post.userId),
+          displayName: String(postRecord.authorDisplayName),
+          username: String(postRecord.authorUsername ?? ""),
+          avatarUrl: postRecord.authorAvatarUrl ?? null,
+          verified: false,
+          isFollowing: false,
         }
       : null
   );
@@ -78,7 +82,11 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
   const [commentText, setCommentText] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const livePostId = post.id.startsWith("live_") ? post.id.slice("live_".length) : null;
+  const livePostId = post.id.startsWith("live_")
+    ? post.id.slice("live_".length)
+    : /^\d+$/.test(String(post.id))
+      ? String(post.id)
+      : null;
   useEffect(() => {
     if (!livePostId) return;
     void apiJson(`/analytics/post/${livePostId}/impression`, { method: "POST" }).catch(() => {});
@@ -413,20 +421,6 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
     setCommentText("");
   }, [authUser?.avatarUrl, authUser?.displayName, authUser?.id, commentText, livePostId]);
 
-  const toggleCommentLike = useCallback((id: string) => {
-    setComments((prev) =>
-      prev.map((comment) =>
-        comment.id === id
-          ? {
-              ...comment,
-              liked: !comment.liked,
-              likes: Math.max(0, comment.likes + (comment.liked ? -1 : 1)),
-            }
-          : comment
-      )
-    );
-  }, []);
-
   return (
     <div className="relative w-full overflow-visible" data-testid={`post-card-${post.id}`}>
       {post.isSponsored && (
@@ -533,7 +527,6 @@ export default function PostCard({ post, onOptions, liveAuthor, initialViewer = 
           commentText={commentText}
           setCommentText={setCommentText}
           onSubmitComment={submitComment}
-          onLikeComment={toggleCommentLike}
           onCloseComments={() => setCommentsOpen(false)}
         />
       )}
@@ -674,7 +667,6 @@ function PostViewer({
   commentText,
   setCommentText,
   onSubmitComment,
-  onLikeComment,
   onCloseComments,
 }: {
   post: Post;
@@ -707,7 +699,6 @@ function PostViewer({
   commentText: string;
   setCommentText: (value: string) => void;
   onSubmitComment: () => void;
-  onLikeComment: (id: string) => void;
   onCloseComments: () => void;
 }) {
   return (
@@ -877,15 +868,10 @@ function PostViewer({
                       </div>
                       <div className="flex items-center gap-4 mt-1.5">
                         <span className="text-white/35 text-xs">{comment.timestamp}</span>
-                        <button onClick={() => onLikeComment(comment.id)} className={comment.liked ? "text-pink-400 text-xs" : "text-white/40 text-xs"}>
-                          {comment.likes} {t("like")}
-                        </button>
-                        <button className="text-white/40 text-xs">{t("replyTo")}</button>
+
                       </div>
                     </div>
-                    <button onClick={() => onLikeComment(comment.id)} className="shrink-0 pt-1">
-                      <Heart size={15} strokeWidth={1.8} className={comment.liked ? "fill-pink-500 text-pink-500" : "text-white/35"} />
-                    </button>
+
                   </div>
                 ))
               )}

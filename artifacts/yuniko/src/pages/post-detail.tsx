@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, Send, BadgeCheck, MoreHorizontal, Trash2, Flag, Copy } from "lucide-react";
-import { posts, getUserById, formatCount } from "@/data/mockData";
+import { formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import ScreenPortal from "@/components/ScreenPortal";
@@ -32,21 +32,19 @@ export default function PostDetail() {
   const params = useParams<{ postId: string }>();
   const postId = params?.postId ?? "";
   const { user: authUser } = useAuth();
-  const fallbackPost = posts.find((p) => p.id === postId) ?? null;
-  const fallbackUser = fallbackPost ? getUserById(fallbackPost.userId) : null;
-  const isLivePost = postId.startsWith("live_");
-  const livePostId = isLivePost ? postId.slice("live_".length) : null;
+  const isLegacyPostId = postId.startsWith("live_");
+  const livePostId = isLegacyPostId ? postId.slice("live_".length) : (/^\d+$/.test(postId) ? postId : null);
 
   const [remotePost, setRemotePost] = useState<any>(null);
   const [remoteUser, setRemoteUser] = useState<any>(null);
-  const [loadingRemotePost, setLoadingRemotePost] = useState(isLivePost);
+  const [loadingRemotePost, setLoadingRemotePost] = useState(Boolean(livePostId));
   const [livePostError, setLivePostError] = useState(false);
-  const [liked, setLiked] = useState(fallbackPost?.isLiked ?? false);
-  const [saved, setSaved] = useState(fallbackPost?.isSaved ?? false);
-  const [likeCount, setLikeCount] = useState(fallbackPost?.likes ?? 0);
+  const [liked, setLiked] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const [commentText, setCommentText] = useState("");
   const [showOptions, setShowOptions] = useState(false);
-  const [following, setFollowing] = useState(fallbackUser?.isFollowing ?? false);
+  const [following, setFollowing] = useState(false);
   const [localComments, setLocalComments] = useState<DetailComment[]>([]);
   const [commentInputVisible, setCommentInputVisible] = useState(false);
   const [commentsSheetOpen, setCommentsSheetOpen] = useState(false);
@@ -158,10 +156,10 @@ export default function PostDetail() {
     return () => {
       cancelled = true;
     };
-  }, [fallbackPost, livePostId]);
+  }, [livePostId]);
 
-  const post = remotePost ?? fallbackPost;
-  const user = remoteUser ?? fallbackUser;
+  const post = remotePost;
+  const user = remoteUser;
 
   const goBack = () => {
     if (window.history.length > 1) window.history.back();
@@ -289,12 +287,6 @@ export default function PostDetail() {
     setCommentText("");
   };
 
-  const toggleCommentLike = (id: string) => {
-    setLocalComments((prev) =>
-      prev.map((c) => c.id === id ? { ...c, liked: !c.liked, likes: c.liked ? c.likes - 1 : c.likes + 1 } : c)
-    );
-  };
-
   const toggleLike = async () => {
     const nextLiked = !liked;
     setLiked(nextLiked);
@@ -328,6 +320,30 @@ export default function PostDetail() {
     }
   };
 
+  const sharePost = async () => {
+    if (!post) return;
+    const url = window.location.origin + `/post/${post.id}`;
+    try {
+      if (navigator.share) await navigator.share({ title: `${user?.displayName ?? "Yuniko"} sur Yuniko`, text: post.caption || "Publication Yuniko", url });
+      else await navigator.clipboard?.writeText(url);
+      await apiJson(`/posts/${livePostId}/share`, { method: "POST", body: JSON.stringify({ channel: "native" }) });
+    } catch {}
+  };
+
+  const copyPostLink = async () => {
+    if (!post) return;
+    const url = window.location.origin + `/post/${post.id}`;
+    try { await navigator.clipboard?.writeText(url); } catch {}
+  };
+
+  const reportPost = async () => {
+    if (!livePostId) return;
+    const reason = window.prompt("Why are you reporting this post?", "Other")?.trim();
+    if (!reason) return;
+    try { await apiJson(`/posts/${livePostId}/report`, { method: "POST", body: JSON.stringify({ reason }) }); } catch {}
+    setShowOptions(false);
+  };
+
   const toggleFollow = async () => {
     if (!user) return;
     const numericId = Number(user.id);
@@ -347,7 +363,7 @@ export default function PostDetail() {
 
   if (loadingRemotePost) return <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background overflow-y-auto"><LoadingSkeleton variant="post" /></div>;
 
-  if (isLivePost && livePostError) {
+  if (livePostError) {
     return (
       <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-background flex flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-white/70">Post not found or already deleted.</p>
@@ -360,7 +376,7 @@ export default function PostDetail() {
 
   if (!post || !user) return null;
 
-  if (isLivePost) {
+  if (post && user && livePostId) {
     return (
       <div className="w-full max-w-[430px] mx-auto h-[var(--yuniko-vh)] min-h-0 bg-black overflow-hidden">
         <PostCard
@@ -467,7 +483,7 @@ export default function PostDetail() {
           <MessageCircle size={24} className="text-white/80" strokeWidth={1.8} />
           <span className="text-white/80 text-sm font-medium">{formatCount(post.comments + localComments.filter(c => c.id.startsWith("c") && !["c1","c2","c3","c4","c5"].includes(c.id)).length)}</span>
         </button>
-        <button className="flex items-center gap-1.5" data-testid="btn-share-detail">
+        <button onClick={() => void sharePost()} className="flex items-center gap-1.5" data-testid="btn-share-detail">
           <Share2 size={24} className="text-white/80" strokeWidth={1.8} />
           <span className="text-white/80 text-sm font-medium">{formatCount(post.shares)}</span>
         </button>
@@ -510,7 +526,7 @@ export default function PostDetail() {
         {localComments.map((comment) => {
           const cUser = comment.author ?? (comment.userId === "me"
             ? { id: "me", displayName: "You", avatar: "https://picsum.photos/seed/me/200/200", verified: false }
-            : getUserById(comment.userId));
+            : undefined);
           if (!cUser) return null;
           return (
             <div
@@ -530,18 +546,10 @@ export default function PostDetail() {
                 </div>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-white/35 text-xs">{comment.timestamp} {comment.timestamp !== "just now" ? t("ago") : ""}</span>
-                  <button className="text-white/35 text-xs">{comment.likes} {t("like")}</button>
-                  <button className="text-white/35 text-xs">{t("replyTo")}</button>
+
                 </div>
               </div>
-              <button onClick={() => toggleCommentLike(comment.id)} data-testid={`comment-like-${comment.id}`}>
-                <Heart
-                  size={14}
-                  strokeWidth={1.8}
-                  style={{ color: comment.liked ? "#FF006E" : undefined, fill: comment.liked ? "#FF006E" : undefined }}
-                  className={comment.liked ? "" : "text-white/40"}
-                />
-              </button>
+
             </div>
           );
         })}
@@ -573,7 +581,7 @@ export default function PostDetail() {
         data-testid="comment-input-bar"
       >
         <div className="flex min-w-0 items-center gap-[clamp(6px,2vw,10px)]">
-          <img src="https://picsum.photos/seed/me/200/200" alt="me" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+          <img src={authUser?.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "Yuniko")}&backgroundColor=FF006E`} alt="me" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
           <div
             className="flex-1 flex items-center gap-2 px-3 py-2 rounded-full"
             style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}
@@ -611,7 +619,6 @@ export default function PostDetail() {
           setCommentText={setCommentText}
           onClose={closeCommentsSheet}
           onSubmit={submitComment}
-          onLike={toggleCommentLike}
           keyboardOpen={keyboardOpen}
         />
       )}
@@ -630,9 +637,9 @@ export default function PostDetail() {
             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mt-3 mb-2" />
             {[
               { icon: <Bookmark size={18} className="text-white/70" />, label: saved ? t("unsavePost") : t("savePost"), action: () => { void toggleSave(); setShowOptions(false); } },
-              { icon: <Share2 size={18} className="text-white/70" />, label: t("sharePost"), action: () => setShowOptions(false) },
-              { icon: <Copy size={18} className="text-white/70" />, label: t("copyLink"), action: () => setShowOptions(false) },
-              { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span>, action: () => setShowOptions(false) },
+              { icon: <Share2 size={18} className="text-white/70" />, label: t("sharePost"), action: () => { setShowOptions(false); void sharePost(); } },
+              { icon: <Copy size={18} className="text-white/70" />, label: t("copyLink"), action: () => { setShowOptions(false); void copyPostLink(); } },
+              { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">{t("report")}</span>, action: () => void reportPost() },
             ].map((item, i) => (
               <button
                 key={i}
@@ -665,7 +672,6 @@ function CommentSheet({
   setCommentText,
   onClose,
   onSubmit,
-  onLike,
   keyboardOpen,
 }: {
   comments: DetailComment[];
@@ -674,7 +680,6 @@ function CommentSheet({
   setCommentText: (value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
-  onLike: (id: string) => void;
   keyboardOpen: boolean;
 }) {
   return (
@@ -720,10 +725,10 @@ function CommentSheet({
                     ? {
                         id: "me",
                         displayName: authUser?.displayName ?? "You",
-                        avatar: authUser?.avatarUrl ?? "https://picsum.photos/seed/me/200/200",
+                        avatar: authUser?.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "Yuniko")}&backgroundColor=FF006E`,
                         verified: false,
                       }
-                    : getUserById(comment.userId)
+                    : undefined
                 );
                 if (!cUser) return null;
 

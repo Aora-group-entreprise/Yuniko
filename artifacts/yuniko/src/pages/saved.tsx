@@ -61,7 +61,7 @@ export default function Saved() {
           {savedPosts.map((post) => (
             <button
               key={post.id}
-              onClick={() => setLocation(`/post/live_${post.id}`)}
+              onClick={() => setLocation(`/post/${post.id}`)}
               className="aspect-square overflow-hidden"
               data-testid={`saved-post-${post.id}`}
             >
