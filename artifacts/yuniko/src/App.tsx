@@ -84,19 +84,23 @@ function PersistentTabViews() {
     }
   };
 
-  if (!isTabRoot(location)) return null;
-
   return (
-    <div className="relative h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
-      {[...visitedTabs].map((path) => (
-        <div
-          key={path}
-          className={path === location ? "h-full w-full" : "hidden"}
-          aria-hidden={path !== location}
-        >
-          {renderTab(path)}
-        </div>
-      ))}
+    <div
+      className="pointer-events-none absolute inset-0 z-0 h-[var(--yuniko-vh)] overflow-hidden"
+      aria-hidden={!isTabRoot(location)}
+    >
+      {[...visitedTabs].map((path) => {
+        const active = path === location;
+        return (
+          <div
+            key={path}
+            className={active ? "pointer-events-auto h-full w-full overflow-y-auto overflow-x-hidden" : "hidden"}
+            aria-hidden={!active}
+          >
+            {renderTab(path)}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -143,7 +147,7 @@ function AnimatedRoutes() {
   if (isTabRoot(location)) return null;
 
   return (
-    <div className="relative h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
+    <div className="relative z-10 h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
       <AnimatePresence mode="popLayout" initial={false} custom={direction}>
         <motion.div
           key={location}
