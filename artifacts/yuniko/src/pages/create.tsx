@@ -275,7 +275,10 @@ export default function Create() {
             style={{ minHeight: activeTab === "story" ? "360px" : "245px", background:"linear-gradient(145deg,rgba(255,20,147,.09),rgba(0,140,255,.08))", border:"1px solid rgba(255,20,147,.35)", boxShadow:"0 0 22px rgba(255,20,147,.10),inset 0 0 30px rgba(0,140,255,.035)" }}
           >
             {selectedMedia ? (
-              <img src={selectedMedia} alt="Selected media" className="absolute inset-0 h-full w-full object-cover" style={{filter:mediaFilter==="Warm"?"saturate(1.12) sepia(.16) brightness(1.04)":mediaFilter==="Cool"?"saturate(1.05) hue-rotate(8deg) brightness(1.03)":mediaFilter==="Moody"?"contrast(1.14) saturate(.78) brightness(.88)":"none"}} />{storySticker && activeTab==="story" && <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-6xl drop-shadow-[0_4px_12px_rgba(0,0,0,.45)]">{storySticker}</div>}
+              <>
+                <img src={selectedMedia} alt="Selected media" className="absolute inset-0 h-full w-full object-cover" style={{filter:mediaFilter==="Warm"?"saturate(1.12) sepia(.16) brightness(1.04)":mediaFilter==="Cool"?"saturate(1.05) hue-rotate(8deg) brightness(1.03)":mediaFilter==="Moody"?"contrast(1.14) saturate(.78) brightness(.88)":"none"}} />
+                {storySticker && activeTab==="story" && <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-6xl drop-shadow-[0_4px_12px_rgba(0,0,0,.45)]">{storySticker}</div>}
+              </>
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/45">
                 <ImageIcon size={42} />
