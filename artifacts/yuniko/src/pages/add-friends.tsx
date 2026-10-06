@@ -4,6 +4,7 @@ import { ArrowLeft, Search, UserCheck, UserPlus, X, Link as LinkIcon, Share2 } f
 import { apiJson } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
+import ScreenPortal from "@/components/ScreenPortal";
 
 type Tab = "requests" | "suggested" | "search" | "sent";
 
@@ -256,7 +257,8 @@ export default function AddFriends() {
       <BottomNav />
 
       {inviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3 pb-3" onClick={() => setInviteOpen(false)}>
+        <ScreenPortal>
+          <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 px-3 pb-3" onClick={() => setInviteOpen(false)}>
           <div className="w-full max-w-[430px] rounded-[24px] p-5" onClick={(event) => event.stopPropagation()} style={{background:"rgba(12,11,18,.98)",border:"1px solid rgba(255,255,255,.1)",boxShadow:"0 -12px 50px rgba(0,0,0,.45)"}}>
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
             <div className="flex items-center justify-between">
@@ -274,7 +276,8 @@ export default function AddFriends() {
             </button>
             {inviteNotice && <p className="mt-3 text-center text-sm font-semibold text-[#7DB8FF]">{inviteNotice}</p>}
           </div>
-        </div>
+          </div>
+        </ScreenPortal>
       )}
     </div>
   );
