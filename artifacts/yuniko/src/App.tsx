@@ -64,6 +64,41 @@ const slideVariants = {
   instant:       { opacity: 1 },
 };
 
+function PersistentTabViews() {
+  const [location] = useLocation();
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set([isTabRoot(location) ? location : "/"]));
+
+  useEffect(() => {
+    if (!isTabRoot(location)) return;
+    setVisitedTabs((current) => current.has(location) ? current : new Set(current).add(location));
+  }, [location]);
+
+  const renderTab = (path: string) => {
+    switch (path) {
+      case "/notifications": return <Notifications />;
+      case "/create": return <Create />;
+      case "/messages": return <Messages />;
+      case "/profile": return <Profile />;
+      case "/":
+      default: return <Home />;
+    }
+  };
+
+  return (
+    <div className="relative h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
+      {[...visitedTabs].map((path) => (
+        <div
+          key={path}
+          className={path === location ? "h-full w-full" : "hidden"}
+          aria-hidden={path !== location}
+        >
+          {renderTab(path)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AnimatedRoutes() {
   const [location] = useLocation();
 
@@ -103,7 +138,7 @@ function AnimatedRoutes() {
 
   const transitionDuration = direction === "instant" ? 0 : 0.14;
 
-  if (location === "/") return null;
+  if (isTabRoot(location)) return null;
 
   return (
     <div className="relative h-[var(--yuniko-vh)] min-h-0 overflow-hidden">
@@ -121,15 +156,6 @@ function AnimatedRoutes() {
           <Switch>
             {/* Auth */}
             <Route path="/login" component={Login} />
-
-            {/* Main tabs */}
-            <Route path="/" component={Home} />
-            <Route path="/notifications" component={Notifications} />
-            <Route path="/create" component={Create} />
-            <Route path="/messages" component={Messages} />
-            <Route path="/profile">
-              {() => <Profile />}
-            </Route>
 
             {/* Settings */}
             <Route path="/settings" component={Settings} />
@@ -283,7 +309,7 @@ function AppContent() {
 
   return (
     <>
-      {user && <Home />}
+      {user && <PersistentTabViews />}
       <AnimatedRoutes />
     </>
   );

@@ -297,7 +297,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         }}
         data-testid="home-header"
       >
-        <button onClick={() => { scrollRef.current?.scrollTo({ top: 0, behavior: "auto" }); void refreshFeed(); }} className="shrink-0" aria-label="Yuniko home">
+        <button onClick={() => { if (window.location.pathname !== "/") navigate("/"); }} className="shrink-0" aria-label="Yuniko home">
           <span
             className="text-[clamp(31px,8vw,39px)] font-black tracking-[-0.055em] leading-none"
             style={{
@@ -389,7 +389,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         )}
       </main>
 
-      <BottomNav newPostsCount={newPostsCount} onHomePress={() => { scrollRef.current?.scrollTo({ top: 0, behavior: "auto" }); try { sessionStorage.setItem(FEED_SCROLL_POSITION_KEY, "0"); } catch {} void refreshFeed(); }} />
+      <BottomNav newPostsCount={newPostsCount} onHomePress={() => navigate("/")} />
 
       <AnimatePresence>
         {optionsPostId && (
