@@ -113,6 +113,7 @@ export default function BottomNav({
           active={isActive("/")}
           compact
           onClick={location === "/" ? onHomePress : undefined}
+          preventNavigation={location === "/"}
         >
           <div className="relative">
             <Home size={25} style={{ color: isActive("/") ? ACTIVE_COLOR : INACTIVE_COLOR }} strokeWidth={isActive("/") ? 2.25 : 1.7} />
@@ -179,9 +180,17 @@ function NavItem({ href, label, active, children, compact = false, onClick }: {
   children: React.ReactNode;
   compact?: boolean;
   onClick?: () => void;
+  preventNavigation?: boolean;
 }) {
   return (
-    <Link href={href} className="min-w-0 w-full" onClick={onClick}>
+    <Link
+      href={href}
+      className="min-w-0 w-full"
+      onClick={(event) => {
+        if (preventNavigation) event.preventDefault();
+        onClick?.();
+      }}
+    >
       <button
         className={`flex w-full min-w-0 flex-col items-center justify-center relative active:scale-[0.96] transition-transform duration-75 ${compact ? "h-14" : "gap-0.5 py-1"}`}
       >
