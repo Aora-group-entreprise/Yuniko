@@ -74,7 +74,7 @@ function relativeTime(iso: string): string {
 }
 
 function HomeContent({ navigate }: { navigate: (path: string) => void }) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user } = useAuth();
   setSessionUser(Number(user?.id));
   const [optionsPostId, setOptionsPostId] = useState<string | null>(null);
@@ -236,7 +236,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     window.setTimeout(() => warmSessionData(Number(user.id)), 0);
 
     const checkForNewPosts = async () => {
-      if (document.visibilityState === "hidden") return;
+      if (location !== "/" || document.visibilityState === "hidden") return;
       try {
         const data = await apiJson<{ newPostsCount?: number }>(
           `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
@@ -263,7 +263,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     const interval = window.setInterval(checkForNewPosts, 15000);
     const notificationInterval = window.setInterval(checkNotifications, 5000);
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") void checkForNewPosts();
+      if (location === "/" && document.visibilityState === "visible") void checkForNewPosts();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
 
@@ -278,7 +278,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
       window.clearInterval(notificationInterval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [user]);
+  }, [user, location]);
 
   const allFeedItems: Array<{ post: Post; author?: LiveAuthor }> =
     livePosts.map(({ post, author }) => ({ post, author }));
@@ -389,7 +389,20 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         )}
       </main>
 
-      <BottomNav newPostsCount={newPostsCount} onHomePress={() => navigate("/")} />
+      <BottomNav
+        newPostsCount={newPostsCount}
+        onHomePress={() => {
+          if (location !== "/" || newPostsCount <= 0) return;
+          void refreshFeed().then(() => {
+            const scrollElement = scrollRef.current;
+            if (scrollElement) {
+              scrollElement.scrollTo({ top: 0, behavior: "auto" });
+            }
+            feedViewState = null;
+            try { sessionStorage.removeItem(FEED_SCROLL_POSITION_KEY); } catch {}
+          });
+        }}
+      />
 
       <AnimatePresence>
         {optionsPostId && (
