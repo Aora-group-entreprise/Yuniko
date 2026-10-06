@@ -263,18 +263,16 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
     const checkForNewPosts = async () => {
       if (location !== "/" || document.visibilityState === "hidden") return;
+      const prefetchPromise = prefetchLatestFeed();
+      if (prefetchPromise) {
+        void prefetchPromise.catch(() => {});
+      }
       try {
         const data = await apiJson<{ newPostsCount?: number }>(
           `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
         );
         const count = Math.max(0, Number(data.newPostsCount) || 0);
-        if (count > 0) {
-          setNewPostsCount(count);
-          const prefetchPromise = prefetchLatestFeed();
-          if (prefetchPromise) {
-            void prefetchPromise.catch(() => {});
-          }
-        }
+        if (count > 0) setNewPostsCount(count);
       } catch {}
     };
 
