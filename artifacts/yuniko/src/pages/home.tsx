@@ -360,6 +360,64 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     setHiddenNotice(null);
   };
 
+  const toggleSavePost = async (postId: string) => {
+    const numericId = postId.replace("live_", "");
+    const target = livePosts.find(({ post }) => post.id === postId)?.post;
+    if (!target) return;
+    try {
+      const result = await apiJson<{ saved: boolean; saves: number }>("/posts/" + numericId + "/save", { method: "POST" });
+      setLivePosts((prev) => prev.map(({ post, author }) => post.id === postId
+        ? { post: { ...post, isSaved: Boolean(result.saved), saves: Number(result.saves ?? post.saves) }, author }
+        : { post, author }));
+      window.dispatchEvent(new CustomEvent("yuniko:save-changed"));
+      setOptionsPostId(null);
+      setHiddenNotice({ postId, message: result.saved ? "Publication enregistrée" : "Publication retirée des enregistrements" });
+      window.setTimeout(() => setHiddenNotice((current) => current?.postId === postId ? null : current), 3000);
+    } catch {
+      setHiddenNotice({ postId, message: "Impossible d'enregistrer cette publication." });
+      window.setTimeout(() => setHiddenNotice((current) => current?.postId === postId ? null : current), 3000);
+    }
+  };
+
+  const sharePost = async (postId: string) => {
+    const entry = livePosts.find(({ post }) => post.id === postId);
+    if (!entry) return;
+    const { post: target, author } = entry;
+    const numericId = postId.replace("live_", "");
+    const url = (typeof window === "undefined" ? "" : window.location.origin) + "/post/" + postId;
+    const title = (author?.displayName ?? "Yuniko") + " sur Yuniko";
+    const text = target.caption?.trim() || "Découvre cette publication sur Yuniko.";
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ title, text, url });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = url;
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        input.remove();
+      }
+      const result = await apiJson<{ shared: boolean; shares: number }>("/posts/" + numericId + "/share", {
+        method: "POST",
+        body: JSON.stringify({ channel: "native" }),
+      });
+      setLivePosts((prev) => prev.map(({ post, author: postAuthor }) => post.id === postId
+        ? { post: { ...post, shares: Number(result.shares ?? post.shares) }, author: postAuthor }
+        : { post, author: postAuthor }));
+      setOptionsPostId(null);
+      setHiddenNotice({ postId, message: "Publication partagée" });
+      window.setTimeout(() => setHiddenNotice((current) => current?.postId === postId ? null : current), 3000);
+    } catch {
+      // A cancelled native share must not count as a share.
+    }
+  };
+
   const submitReport = async (postId: string, reason: string) => {
     if (reportSubmitting) return;
     setReportSubmitting(true);
@@ -511,7 +569,15 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
                 </>
               ) : (
                 <>
-                  {[{ icon: <Bookmark size={18} />, label: t("savePost"), action: () => setOptionsPostId(null) }, { icon: <Share2 size={18} />, label: t("sharePost"), action: () => setOptionsPostId(null) }, { icon: <EyeOff size={18} />, label: "Masquer la publication", action: () => hidePost(optionsPostId) }, { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">Signaler la publication</span>, action: () => setReportingPostId(optionsPostId) }].map((item, i) => (
+                  {(() => {
+                    const selectedPost = livePosts.find(({ post }) => post.id === optionsPostId)?.post;
+                    return [
+                      { icon: <Bookmark size={18} />, label: selectedPost?.isSaved ? "Retirer des enregistrements" : t("savePost"), action: () => void toggleSavePost(optionsPostId) },
+                      { icon: <Share2 size={18} />, label: t("sharePost"), action: () => void sharePost(optionsPostId) },
+                      { icon: <EyeOff size={18} />, label: "Masquer la publication", action: () => hidePost(optionsPostId) },
+                      { icon: <Flag size={18} className="text-red-400" />, label: <span className="text-red-400">Signaler la publication</span>, action: () => setReportingPostId(optionsPostId) },
+                    ];
+                  })().map((item, i) => (
                     <button key={i} onClick={item.action} className="w-full flex items-center gap-3 px-5 py-4 text-white/85 text-sm font-medium" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{item.icon}{item.label}</button>
                   ))}
                   <button onClick={() => setOptionsPostId(null)} className="w-full py-4 text-white/45 text-sm font-medium">{t("cancel")}</button>
