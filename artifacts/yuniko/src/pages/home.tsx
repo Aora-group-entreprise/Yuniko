@@ -127,6 +127,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const pendingFeedDataRef = useRef<{ posts?: any[]; feedSnapshotAt?: string } | null>(null);
   const pendingFeedPromiseRef = useRef<Promise<{ posts?: any[]; feedSnapshotAt?: string }> | null>(null);
   const notificationCheckRef = useRef(false);
+  const suppressFeedPositionSaveRef = useRef(false);
 
   const prefetchLatestFeed = () => {
     if (!user || pendingFeedPromiseRef.current) return pendingFeedPromiseRef.current;
@@ -230,6 +231,10 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
     const saveFeedPosition = () => {
       if (!scrollElement || activeFeedScrollElement !== scrollElement) return;
+      if (suppressFeedPositionSaveRef.current) {
+        suppressFeedPositionSaveRef.current = false;
+        return;
+      }
 
       const containerTop = scrollElement.getBoundingClientRect().top;
       const posts = Array.from(
@@ -429,6 +434,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
           const scrollElement = scrollRef.current;
           if (scrollElement) {
+            suppressFeedPositionSaveRef.current = true;
             scrollElement.scrollTo({ top: 0, behavior: "auto" });
           }
 
