@@ -300,10 +300,10 @@ export default function Create() {
         <section className="mb-5 flex gap-2.5 overflow-x-auto no-scrollbar">
           {(activeTab === "post"
             ? [
-                {label:"Original",icon:<Sparkles size={18}/>,filter:"Original" as const},
-                {label:"Warm",icon:<Sparkles size={18}/>,filter:"Warm" as const},
-                {label:"Cool",icon:<Sparkles size={18}/>,filter:"Cool" as const},
-                {label:"Moody",icon:<Sparkles size={18}/>,filter:"Moody" as const},
+                {label:"Original",icon:<Sparkles size={18}/>,filter:"Original" as const,sticker:false,filterTool:false},
+                {label:"Warm",icon:<Sparkles size={18}/>,filter:"Warm" as const,sticker:false,filterTool:false},
+                {label:"Cool",icon:<Sparkles size={18}/>,filter:"Cool" as const,sticker:false,filterTool:false},
+                {label:"Moody",icon:<Sparkles size={18}/>,filter:"Moody" as const,sticker:false,filterTool:false},
               ]
             : [
                 {label:"Text",icon:<Type size={18}/>,filter:undefined,sticker:false,filterTool:false},
