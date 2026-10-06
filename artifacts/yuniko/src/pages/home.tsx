@@ -308,6 +308,12 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
 
+    // When the persistent Home view becomes active again, check immediately.
+    // Do not wait for the 15s polling interval after returning from another tab.
+    if (location === "/") {
+      void checkForNewPosts();
+    }
+
     return () => {
       window.cancelAnimationFrame(frame);
       if (activeFeedScrollElement === scrollElement) {
