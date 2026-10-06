@@ -173,7 +173,7 @@ export default function BottomNav({
   );
 }
 
-function NavItem({ href, label, active, children, compact = false, onClick }: {
+function NavItem({ href, label, active, children, compact = false, onClick, preventNavigation = false }: {
   href: string;
   label: string;
   active: boolean;
