@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Search, UserCheck, UserPlus, X } from "lucide-react";
+import { ArrowLeft, Search, UserCheck, UserPlus, X, Link as LinkIcon, Share2 } from "lucide-react";
 import { apiJson } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
@@ -12,6 +12,7 @@ type FriendUser = {
   avatar: string;
   displayName: string;
   username: string;
+  age?: number | null;
   followers: number;
   mutualFriends?: number;
 };
@@ -33,6 +34,8 @@ export default function AddFriends() {
   const [searching, setSearching] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
 
   const tabs = [
     { id: "requests" as Tab, label: t("friendRequests") },
@@ -151,6 +154,42 @@ export default function AddFriends() {
     }
   };
 
+  const inviteUrl = typeof window === "undefined"
+    ? ""
+    : window.location.origin + "/add-friends?invite=" + encodeURIComponent(String((JSON.parse(localStorage.getItem("yuniko_user") || "{}") as { id?: number }).id ?? ""));
+
+  const inviteText = "Rejoins-moi sur Yuniko et découvre le feed mondial.";
+
+  const copyInviteLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setInviteNotice("Lien copié");
+    } catch {
+      setInviteNotice("Impossible de copier le lien");
+    }
+    window.setTimeout(() => setInviteNotice(null), 2500);
+  };
+
+  const shareInvite = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Rejoins-moi sur Yuniko", text: inviteText, url: inviteUrl });
+      } else {
+        await copyInviteLink();
+        return;
+      }
+      setInviteNotice("Invitation partagée");
+      window.setTimeout(() => setInviteNotice(null), 2500);
+    } catch {
+      // User cancelled the native share sheet.
+    }
+  };
+
+  const shareToFacebook = () => {
+    if (!inviteUrl) return;
+    window.open("https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(inviteUrl), "_blank", "noopener,noreferrer");
+  };
+
   const activeSearchResults = useMemo(() => searchResults, [searchResults]);
 
     const displayedSuggestions = suggestions;
@@ -205,16 +244,38 @@ export default function AddFriends() {
               ))}
             </div>
 
-            <button className="mt-7 flex w-full items-center gap-4 rounded-[22px] p-4 text-left" style={{background:"rgba(10,9,16,.82)",border:"1px solid rgba(255,20,147,.28)",boxShadow:"0 0 24px rgba(0,140,255,.10)"}}>
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)",boxShadow:"0 0 18px rgba(255,20,147,.28)"}}><UserPlus size={30} /></div>
-              <div className="min-w-0 flex-1"><p className="text-[20px] font-bold">Invite contacts</p><p className="mt-1 text-sm text-white/45">Invite friends from your contacts or share invite link</p></div>
+            <button onClick={() => setInviteOpen(true)} className="mt-7 flex w-full items-center gap-4 rounded-[22px] p-4 text-left" style={{background:"rgba(10,9,16,.82)",border:"1px solid rgba(255,20,147,.28)",boxShadow:"0 0 24px rgba(0,140,255,.10)"}}>
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)",boxShadow:"0 0 18px rgba(255,20,147,.28)"}}><Share2 size={30} /></div>
+              <div className="min-w-0 flex-1"><p className="text-[20px] font-bold">Invite friends</p><p className="mt-1 text-sm text-white/45">Facebook, TikTok, Instagram, Messenger and more</p></div>
               <span className="rounded-xl px-4 py-2 text-sm font-bold" style={{border:"1px solid rgba(255,70,180,.7)",color:"#C56CFF"}}>Invite</span>
-            </button>
+            </button>n>
           </section>
         )}
       </main>
 
       <BottomNav />
+
+      {inviteOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3 pb-3" onClick={() => setInviteOpen(false)}>
+          <div className="w-full max-w-[430px] rounded-[24px] p-5" onClick={(event) => event.stopPropagation()} style={{background:"rgba(12,11,18,.98)",border:"1px solid rgba(255,255,255,.1)",boxShadow:"0 -12px 50px rgba(0,0,0,.45)"}}>
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
+            <div className="flex items-center justify-between">
+              <div><h2 className="text-[22px] font-bold">Invite friends</h2><p className="mt-1 text-sm text-white/45">No phone contacts needed. Share your Yuniko invite.</p></div>
+              <button onClick={() => setInviteOpen(false)} className="rounded-full p-2 text-white/55"><X size={20} /></button>
+            </div>
+            <button onClick={shareInvite} className="mt-5 flex w-full items-center gap-3 rounded-2xl p-4 text-left" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)"}}>
+              <Share2 size={22} /><div className="flex-1"><p className="font-bold">Partager avec...</p><p className="text-xs text-white/75">Ouvre le partage du téléphone pour choisir les applications disponibles.</p></div>
+            </button>
+            <button onClick={shareToFacebook} className="mt-3 flex w-full items-center gap-3 rounded-2xl p-4 text-left" style={{background:"rgba(66,103,178,.18)",border:"1px solid rgba(66,103,178,.35)"}}>
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#4267B2] text-lg font-black">f</span><div className="flex-1"><p className="font-bold">Facebook</p><p className="text-xs text-white/45">Ouvre le partage Facebook pour publier le lien.</p></div>
+            </button>
+            <button onClick={copyInviteLink} className="mt-3 flex w-full items-center gap-3 rounded-2xl p-4 text-left" style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.08)"}}>
+              <LinkIcon size={21} className="text-[#8B7CFF]" /><div className="flex-1"><p className="font-bold">Copier le lien</p><p className="text-xs text-white/45 truncate">{inviteUrl}</p></div>
+            </button>
+            {inviteNotice && <p className="mt-3 text-center text-sm font-semibold text-[#7DB8FF]">{inviteNotice}</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
