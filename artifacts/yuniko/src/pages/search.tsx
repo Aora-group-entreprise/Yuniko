@@ -1,11 +1,64 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Search, X, Hash } from "lucide-react";
+import { Search, X, Hash, Globe2, Flame, Clock3, TrendingUp } from "lucide-react";
 import { formatCount, type User } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, apiJson } from "@/lib/api";
+
+type SearchPayload = {
+  users?: Array<{ id:number; username:string; displayName:string; avatarUrl:string|null; bio:string; countryFlag:string|null; isFollowing?: boolean }>;
+  posts?: Array<Record<string, any>>;
+  hashtags?: Array<{tag:string;posts:number;trendScore?:number}>;
+};
+
+const SEARCH_CACHE_KEY = "yuniko_search_cache_v3";
+const SEARCH_CACHE_TTL = 5 * 60 * 1000;
+const searchMemoryCache = new Map<string, { payload: SearchPayload; cachedAt: number }>();
+
+function readSearchCache(key: string) {
+  const memory = searchMemoryCache.get(key);
+  if (memory) return memory;
+  try {
+    const raw = sessionStorage.getItem(SEARCH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, { payload: SearchPayload; cachedAt: number }>;
+    const entry = parsed[key];
+    if (entry) {
+      searchMemoryCache.set(key, entry);
+      return entry;
+    }
+  } catch {}
+  return null;
+}
+
+function writeSearchCache(key: string, payload: SearchPayload) {
+  const entry = { payload, cachedAt: Date.now() };
+  searchMemoryCache.set(key, entry);
+  try {
+    const raw = sessionStorage.getItem(SEARCH_CACHE_KEY);
+    const parsed = raw
+      ? JSON.parse(raw) as Record<string, { payload: SearchPayload; cachedAt: number }>
+      : {};
+    parsed[key] = entry;
+    const keys = Object.keys(parsed);
+    if (keys.length > 20) {
+      const oldest = keys.sort((a, b) => parsed[a].cachedAt - parsed[b].cachedAt)[0];
+      if (oldest) delete parsed[oldest];
+    }
+    sessionStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify(parsed));
+  } catch {}
+}
+
+function patchCachedFollowState(key: string, userId: string, following: boolean) {
+  const cached = readSearchCache(key);
+  if (!cached) return;
+  const users = (cached.payload.users ?? []).map((item) =>
+    String(item.id) === userId ? { ...item, isFollowing: following } : item,
+  );
+  writeSearchCache(key, { ...cached.payload, users });
+}
 
 const GRADIENT = "linear-gradient(135deg, #FF006E 0%, #8B00FF 100%)";
 
@@ -22,18 +75,32 @@ export default function SearchPage() {
   const [apiPosts, setApiPosts] = useState<Array<Record<string, any>>>([]);
   const [apiHashtags, setApiHashtags] = useState<Array<{tag:string;posts:number}>>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const raw = sessionStorage.getItem("yuniko_recent_searches");
+      return raw ? (JSON.parse(raw) as string[]).slice(0, 6) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const toggleFollow = async (uid: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const id = Number(uid);
     if (!Number.isInteger(id)) return;
-    const previous = followStates[uid] ?? false;
-    setFollowStates((prev) => ({ ...prev, [uid]: !previous }));
+    const previous = followStates[uid] ?? apiUsers.find((item) => item.id === uid)?.isFollowing ?? false;
+    const optimistic = !previous;
+    setFollowStates((prev) => ({ ...prev, [uid]: optimistic }));
+    setApiUsers((prev) => prev.map((item) => item.id === uid ? { ...item, isFollowing: optimistic } : item));
     try {
       const result = await apiJson<{ following?: boolean }>(`/users/${id}/follow`, { method: "POST" });
-      setFollowStates((prev) => ({ ...prev, [uid]: Boolean(result.following) }));
+      const following = Boolean(result.following);
+      setFollowStates((prev) => ({ ...prev, [uid]: following }));
+      setApiUsers((prev) => prev.map((item) => item.id === uid ? { ...item, isFollowing: following } : item));
+      patchCachedFollowState(`${Number(user?.id)}:${query.trim().toLowerCase()}`, uid, following);
     } catch {
       setFollowStates((prev) => ({ ...prev, [uid]: previous }));
+      setApiUsers((prev) => prev.map((item) => item.id === uid ? { ...item, isFollowing: previous } : item));
     }
   };
 
@@ -46,39 +113,77 @@ export default function SearchPage() {
       return;
     }
 
+    if (normalizedQuery.length >= 2) {
+      setRecentSearches((previous) => {
+        const next = [
+          normalizedQuery,
+          ...previous.filter((item) => item.toLowerCase() !== normalizedQuery.toLowerCase()),
+        ].slice(0, 6);
+        try { sessionStorage.setItem("yuniko_recent_searches", JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+
+    const cacheKey = `${Number(user.id)}:${normalizedQuery.toLowerCase()}`;
+    const cached = readSearchCache(cacheKey);
+    const applyPayload = (data: SearchPayload, followingIds?: Set<number>) => {
+      setApiPosts(data.posts ?? []);
+      setApiHashtags(data.hashtags ?? []);
+      setApiUsers((data.users ?? []).map((resultUser) => ({
+        id: String(resultUser.id),
+        username: resultUser.username,
+        displayName: resultUser.displayName,
+        avatar: resultUser.avatarUrl ??
+          `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(resultUser.displayName)}&backgroundColor=FF006E`,
+        bio: resultUser.bio,
+        location: "",
+        flag: resultUser.countryFlag ?? "",
+        verified: false,
+        followers: 0,
+        following: 0,
+        posts: 0,
+        isOnline: false,
+        coverPhoto: "",
+        isFollowing: followingIds ? followingIds.has(Number(resultUser.id)) : Boolean(resultUser.isFollowing),
+        isFriend: false,
+      })));
+    };
+
+    if (cached) {
+      applyPayload(cached.payload);
+      setIsSearching(false);
+      if (Date.now() - cached.cachedAt < SEARCH_CACHE_TTL) return;
+    }
+
     const controller = new AbortController();
-    setIsSearching(true);
-    apiFetch(`/users/search?q=${encodeURIComponent(normalizedQuery)}`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Search failed");
-        const data = (await response.json()) as {
-          users?: Array<{ id:number; username:string; displayName:string; avatarUrl:string|null; bio:string; countryFlag:string|null }>;
-          posts?: Array<Record<string, any>>;
-          hashtags?: Array<{tag:string;posts:number}>;
+    if (!cached) setIsSearching(true);
+
+    Promise.all([
+      apiFetch(`/users/search?q=${encodeURIComponent(normalizedQuery)}`, { signal: controller.signal }),
+      apiFetch(`/users/${Number(user.id)}/relations?mode=following`, { signal: controller.signal }),
+    ])
+      .then(async ([searchResponse, relationsResponse]) => {
+        if (!searchResponse.ok) throw new Error("Search failed");
+        const data = (await searchResponse.json()) as SearchPayload;
+        let followingIds: Set<number> | undefined;
+        if (relationsResponse.ok) {
+          const relationData = (await relationsResponse.json()) as {
+            users?: Array<{ id:number }>;
+          };
+          followingIds = new Set((relationData.users ?? []).map((item) => Number(item.id)));
+        }
+        const payload: SearchPayload = {
+          ...data,
+          users: (data.users ?? []).map((resultUser) => ({
+            ...resultUser,
+            isFollowing: followingIds ? followingIds.has(Number(resultUser.id)) : Boolean(resultUser.isFollowing),
+          })),
         };
-        setApiPosts(data.posts ?? []);
-        setApiHashtags(data.hashtags ?? []);
-        setApiUsers((data.users ?? []).map((user) => ({
-          id: String(user.id),
-          username: user.username,
-          displayName: user.displayName,
-          avatar: user.avatarUrl ??
-            `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(user.displayName)}&backgroundColor=FF006E`,
-          bio: user.bio,
-          location: "",
-          flag: user.countryFlag ?? "",
-          verified: false,
-          followers: 0,
-          following: 0,
-          posts: 0,
-          isOnline: false,
-          coverPhoto: "",
-          isFollowing: false,
-          isFriend: false,
-        })));
+        writeSearchCache(cacheKey, payload);
+        applyPayload(payload, followingIds);
       })
       .catch((error: unknown) => {
-        if ((error as { name?: string }).name !== "AbortError") {
+        if ((error as { name?: string }).name !== "AbortError" && !cached) {
           setApiUsers([]);
           setApiPosts([]);
           setApiHashtags([]);
@@ -117,15 +222,47 @@ export default function SearchPage() {
 
       {!query&&<section className="px-4">
         <h2 className="text-[16px] font-bold mb-3">Categories</h2>
+        {recentSearches.length > 0 && (
+          <div className="mb-5">
+            <div className="mb-2 flex items-center gap-2 text-[13px] font-bold text-white/65">
+              <Clock3 size={14} /> Recent searches
+            </div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {recentSearches.map((term) => (
+                <button
+                  key={term}
+                  onClick={() => setQuery(term)}
+                  className="shrink-0 rounded-full border border-white/[0.09] bg-white/[0.04] px-3.5 py-2 text-[11px] font-semibold text-white/65"
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
           {["All", ...apiHashtags.slice(0,5).map((item) => item.tag)].map((category,i)=><button key={category} onClick={()=>category!=="All"&&setQuery(category)} className="shrink-0 h-11 px-4 rounded-2xl text-[13px] font-semibold" style={{background:i===0?"linear-gradient(135deg,#FF1493,#008CFF)":"rgba(255,255,255,.045)",border:i===0?"none":"1px solid rgba(255,255,255,.18)",color:i===0?"white":"rgba(255,255,255,.65)",boxShadow:i===0?"0 4px 14px rgba(255,20,147,.2)":"none"}}>{category}</button>)}
         </div>
-        <div className="flex items-end justify-between mt-7 mb-3">
-          <h2 className="text-[21px] font-extrabold tracking-tight">Trending in Madagascar</h2>
+        <div className="mt-7 mb-4 rounded-[22px] border border-white/[0.07] bg-white/[0.035] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Globe2 size={17} className="text-[#36A3FF]" />
+                <h2 className="text-[21px] font-extrabold tracking-tight">Trending worldwide</h2>
+              </div>
+              <p className="mt-1 text-[11px] text-white/40">What is rising across Yuniko globally</p>
+            </div>
+            <div className="flex items-center gap-1 rounded-full bg-[#FF1493]/10 px-2.5 py-1 text-[10px] font-bold text-[#FF6DBA]">
+              <TrendingUp size={12} /> LIVE
+            </div>
+          </div>
+        </div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[16px] font-bold">Hot right now</h2>
           <span className="text-[12px] font-bold" style={{color:"#C14BFF"}}>{apiHashtags.length} topics</span>
         </div>
         <div className="grid grid-cols-2 gap-3 pb-5">
-          {apiPosts.slice(0,8).map(post=><button key={post.id} onClick={()=>setLocation(`/post/live_${post.id}`)} className="text-left overflow-hidden rounded-[20px] bg-[#101016] border border-white/[0.08] shadow-[0_8px_25px_rgba(0,0,0,.28)]" data-testid={`discover-post-${post.id}`}>
+          {apiPosts.slice(0,8).map((post,index)=><button key={post.id} onClick={()=>setLocation(`/post/live_${post.id}`)} className="text-left overflow-hidden rounded-[20px] bg-[#101016] border border-white/[0.08] shadow-[0_8px_25px_rgba(0,0,0,.28)]" data-testid={`discover-post-${post.id}`}>
             <div className="relative p-[2px] rounded-[18px]" style={{background:"linear-gradient(135deg,#FF1493,#008CFF)"}}>
               <img src={post.mediaUrl || "https://picsum.photos/seed/yuniko-search-"+post.id+"/600/600"} alt={post.caption || "Yuniko post"} className="w-full aspect-[1.42] object-cover rounded-[16px]"/>
             </div>
