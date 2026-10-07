@@ -2,7 +2,9 @@ import { env as cloudflareEnv } from "cloudflare:workers";
 
 type Row = Record<string, unknown>;
 const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
-type Filter = { column: string; operator: "eq" | "gt" | "ilike"; value: string | number | boolean | Date };
+type Filter =
+  | { column: string; operator: "eq" | "gt" | "ilike"; value: string | number | boolean | Date }
+  | { column: string; operator: "in"; value: readonly number[] };
 
 function getEnv(name: string) {
   return runtimeEnv[name] ?? process.env[name] ?? "";
@@ -26,6 +28,19 @@ function toCamelCase(value: string) {
 
 function serializeValue(value: unknown) {
   return value instanceof Date ? value.toISOString() : value;
+}
+
+function serializeFilter(filter: Filter) {
+  if (filter.operator === "in") {
+    if (
+      filter.value.length === 0 ||
+      filter.value.some((id) => !Number.isSafeInteger(id) || id <= 0)
+    ) {
+      throw new Error("IN filters require positive integer IDs");
+    }
+    return `in.(${filter.value.join(",")})`;
+  }
+  return `${filter.operator}.${serializeValue(filter.value)}`;
 }
 
 function fromSupabaseRow(row: Row): Row {
@@ -105,8 +120,7 @@ export async function selectRows<T extends Row = Row>(
   const params = new URLSearchParams();
   params.set("select", options.select ?? "*");
   for (const filter of options.filters ?? []) {
-    const value = serializeValue(filter.value);
-    params.set(filter.column === "id" ? filter.column : toSnakeCase(filter.column), `${filter.operator}.${value}`);
+    params.set(toSnakeCase(filter.column), serializeFilter(filter));
   }
   if (options.order) {
     params.set(
@@ -138,7 +152,7 @@ export async function updateRows<T extends Row = Row>(
 ): Promise<T[]> {
   const params = new URLSearchParams();
   for (const filter of filters) {
-    params.set(toSnakeCase(filter.column), `${filter.operator}.${serializeValue(filter.value)}`);
+    params.set(toSnakeCase(filter.column), serializeFilter(filter));
   }
   const rows = await request<Row[]>(`/${table}?${params.toString()}`, {
     method: "PATCH",
@@ -151,7 +165,7 @@ export async function updateRows<T extends Row = Row>(
 export async function deleteRows(table: string, filters: Filter[]) {
   const params = new URLSearchParams();
   for (const filter of filters) {
-    params.set(toSnakeCase(filter.column), `${filter.operator}.${serializeValue(filter.value)}`);
+    params.set(toSnakeCase(filter.column), serializeFilter(filter));
   }
   return request<Row[]>(`/${table}?${params.toString()}`, {
     method: "DELETE",
@@ -169,6 +183,10 @@ export function gt(column: string, value: string | number | boolean | Date): Fil
 
 export function ilike(column: string, value: string): Filter {
   return { column, operator: "ilike", value };
+}
+
+export function inList(column: string, values: readonly number[]): Filter {
+  return { column, operator: "in", value: values };
 }
 
 export function countRows(rows: Row[]) {
@@ -213,6 +231,9 @@ export function filterRows<T extends Row>(rows: T[], ...filters: Filter[]) {
   return rows.filter((row) =>
     filters.every((filter) => {
       const value = row[toCamelCase(filter.column)] ?? row[filter.column];
+      if (filter.operator === "in") {
+        return filter.value.some((candidate) => String(candidate) === String(value));
+      }
       if (filter.operator === "eq") return value === filter.value;
       if (filter.operator === "gt") return new Date(String(value)).getTime() > new Date(String(filter.value)).getTime();
       return String(value ?? "").toLowerCase().includes(String(filter.value).replaceAll("%", "").toLowerCase());

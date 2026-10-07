@@ -3,6 +3,7 @@ import { authMiddleware } from "../middlewares/auth";
 import {
   eq,
   gt,
+  inList,
   insertRow,
   selectRows,
   supabaseError,
@@ -220,10 +221,21 @@ postsRouter.get("/posts/feed", authMiddleware, async (req: Request & { userId?: 
       feedRows(req.userId!),
     ]);
     const { candidates, followingIds } = feed;
-    const [likes,saves]=await Promise.all([
-      selectRows("likes",{select:"post_id",filters:[eq("userId",req.userId!)]}).catch(()=>[]),
-      selectRows("saves",{select:"post_id",filters:[eq("userId",req.userId!)]}).catch(()=>[]),
-    ]);
+    const candidatePostIds = Array.from(
+      new Set(candidates.map((row) => Number(row.id)).filter((id) => Number.isSafeInteger(id) && id > 0)),
+    );
+    const [likes, saves] = candidatePostIds.length
+      ? await Promise.all([
+          selectRows("likes", {
+            select: "post_id",
+            filters: [eq("userId", req.userId!), inList("postId", candidatePostIds)],
+          }).catch(() => []),
+          selectRows("saves", {
+            select: "post_id",
+            filters: [eq("userId", req.userId!), inList("postId", candidatePostIds)],
+          }).catch(() => []),
+        ])
+      : [[], []];
     const likedIds=new Set(likes.map(row=>Number(row.postId)));
     const savedIds=new Set(saves.map(row=>Number(row.postId)));
     const sinceValue=typeof req.query["since"]==="string"?req.query["since"]:null;
