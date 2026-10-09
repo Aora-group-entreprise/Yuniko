@@ -1,3 +1,4 @@
+import { invalidateApiCachePrefix } from "@/lib/api-cache";
 import { invalidateSessionCache, invalidateSessionCachePrefix } from "@/lib/session-cache";
 import { apiJson } from "@/lib/api";
 
@@ -18,6 +19,9 @@ function invalidateForEvent(event: RealtimeEvent): void {
     invalidateSessionCache("/notifications");
     invalidateSessionCache("/posts/feed");
     invalidateSessionCache("/messages/conversations");
+    invalidateApiCachePrefix("/notifications");
+    invalidateApiCachePrefix("/posts/");
+    invalidateApiCachePrefix("/messages/");
     if (["like", "comment", "follow", "story_reaction", "story_reply", "story_view"].includes(notificationType)) {
       invalidateSessionCache("/stories");
     }
@@ -25,6 +29,7 @@ function invalidateForEvent(event: RealtimeEvent): void {
   if (type.startsWith("message:") || type.startsWith("chat:")) {
     invalidateSessionCache("/messages/conversations");
     invalidateSessionCachePrefix("/messages/conversations/");
+    invalidateApiCachePrefix("/messages/conversations");
     const otherUserId = Number(event.userId ?? event.fromUserId);
     if (Number.isInteger(otherUserId) && otherUserId > 0) {
       invalidateSessionCache(`/messages/conversations/${otherUserId}`);
@@ -33,8 +38,8 @@ function invalidateForEvent(event: RealtimeEvent): void {
   if (type === "presence:update") {
     window.dispatchEvent(new CustomEvent("yuniko:presence", { detail: event }));
   }
-  if (type.startsWith("story:")) invalidateSessionCache("/stories");
-  if (type.startsWith("post:") || type.startsWith("feed:")) invalidateSessionCache("/posts/feed");
+  if (type.startsWith("story:")) { invalidateSessionCache("/stories"); invalidateApiCachePrefix("/stories"); }
+  if (type.startsWith("post:") || type.startsWith("feed:")) { invalidateSessionCache("/posts/feed"); invalidateApiCachePrefix("/posts/"); }
 }
 
 function connect(userId: number): void {
