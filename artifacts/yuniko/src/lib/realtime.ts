@@ -1,4 +1,4 @@
-import { invalidateSessionCache } from "@/lib/session-cache";
+import { invalidateSessionCache, invalidateSessionCachePrefix } from "@/lib/session-cache";
 
 type RealtimeEvent = Record<string, unknown> & { type?: string };
 
@@ -22,6 +22,7 @@ function invalidateForEvent(event: RealtimeEvent): void {
   }
   if (type.startsWith("message:") || type.startsWith("chat:")) {
     invalidateSessionCache("/messages/conversations");
+    invalidateSessionCachePrefix("/messages/conversations/");
     const otherUserId = Number(event.userId ?? event.fromUserId);
     if (Number.isInteger(otherUserId) && otherUserId > 0) {
       invalidateSessionCache(`/messages/conversations/${otherUserId}`);
