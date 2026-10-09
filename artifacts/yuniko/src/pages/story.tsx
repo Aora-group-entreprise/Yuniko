@@ -130,6 +130,20 @@ export default function StoryViewer() {
   }, [isOwnStory, liveStory?.id]);
 
   useEffect(() => {
+    if (!isOwnStory || !liveStory) return;
+    const onRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (detail?.type !== "story:view" || Number(detail.storyId) !== Number(liveStory.id)) return;
+      void apiFetch(`/stories/${liveStory.id}/views`).then(r=>r.json()).then((data:{viewCount?:number;viewers?:Array<{userId:number;displayName:string;username:string;avatarUrl:string|null;reaction:string|null}>})=>{
+        setViewCount(Number(data.viewCount??0));
+        if (Array.isArray(data.viewers)) setViewers(data.viewers);
+      }).catch(()=>setViewCount(count=>count+1));
+    };
+    window.addEventListener("yuniko:realtime", onRealtime);
+    return () => window.removeEventListener("yuniko:realtime", onRealtime);
+  }, [isOwnStory, liveStory?.id]);
+
+  useEffect(() => {
     const imageUrl=userStories[currentIndex]?.imageUrl;
     if(imageUrl){const image=new Image(); image.decoding="async"; image.src=imageUrl;}
   }, [currentIndex, userStories]);
