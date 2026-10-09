@@ -5,6 +5,8 @@ import { apiJson } from "@/lib/api";
 type RealtimeEvent = Record<string, unknown> & { type?: string };
 
 let socket: WebSocket | null = null;
+let feedSocket: WebSocket | null = null;
+let feedRetryTimer: number | null = null;
 let activeUserId: number | null = null;
 let retryTimer: number | null = null;
 let presenceOfflineTimer: number | null = null;
@@ -40,6 +42,30 @@ function invalidateForEvent(event: RealtimeEvent): void {
   }
   if (type.startsWith("story:")) { invalidateSessionCache("/stories"); invalidateApiCachePrefix("/stories"); }
   if (type.startsWith("post:") || type.startsWith("feed:")) { invalidateSessionCache("/posts/feed"); invalidateApiCachePrefix("/posts/"); }
+}
+
+function connectFeed(userId: number): void {
+  if (stopped || activeUserId !== userId || typeof window === "undefined") return;
+  if (feedSocket && (feedSocket.readyState === WebSocket.OPEN || feedSocket.readyState === WebSocket.CONNECTING)) return;
+  const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const next = new WebSocket(`${scheme}//${window.location.host}/api/realtime/feed`);
+  feedSocket = next;
+  next.onmessage = (message) => {
+    let event: RealtimeEvent;
+    try { event = JSON.parse(String(message.data)) as RealtimeEvent; } catch { return; }
+    invalidateForEvent(event);
+    window.dispatchEvent(new CustomEvent("yuniko:realtime", { detail: event }));
+  };
+  next.onerror = () => { try { next.close(); } catch {} };
+  next.onclose = () => {
+    if (feedSocket === next) feedSocket = null;
+    if (stopped || activeUserId !== userId) return;
+    if (feedRetryTimer !== null) window.clearTimeout(feedRetryTimer);
+    feedRetryTimer = window.setTimeout(() => {
+      feedRetryTimer = null;
+      connectFeed(userId);
+    }, 5000);
+  };
 }
 
 function connect(userId: number): void {
@@ -94,8 +120,10 @@ export function connectRealtime(userId: number): () => void {
   activeUserId = userId;
   stopped = false;
   connect(userId);
+  connectFeed(userId);
   const onOnline = () => {
     if (!socket || socket.readyState === WebSocket.CLOSED) connect(userId);
+    if (!feedSocket || feedSocket.readyState === WebSocket.CLOSED) connectFeed(userId);
   };
   window.addEventListener("online", onOnline);
   return () => {
@@ -111,12 +139,19 @@ export function disconnectRealtime(): void {
   }
   activeUserId = null;
   if (retryTimer !== null && typeof window !== "undefined") window.clearTimeout(retryTimer);
+  if (feedRetryTimer !== null && typeof window !== "undefined") window.clearTimeout(feedRetryTimer);
   if (presenceOfflineTimer !== null && typeof window !== "undefined") window.clearTimeout(presenceOfflineTimer);
   retryTimer = null;
+  feedRetryTimer = null;
   presenceOfflineTimer = null;
   if (socket) {
     socket.onclose = null;
     try { socket.close(1000, "session ended"); } catch {}
   }
   socket = null;
+  if (feedSocket) {
+    feedSocket.onclose = null;
+    try { feedSocket.close(1000, "session ended"); } catch {}
+  }
+  feedSocket = null;
 }
