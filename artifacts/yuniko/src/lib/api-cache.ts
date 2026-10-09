@@ -149,8 +149,6 @@ export function invalidateApiCachePrefix(prefix: string): void {
         if (key.startsWith(start) || entry?.path?.startsWith(prefix)) cursor.delete();
         cursor.continue();
       };
-      tx.oncomplete = () => 
-      tx.onerror = () => 
     } catch {  }
   });
 }
