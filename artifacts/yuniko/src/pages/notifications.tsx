@@ -269,19 +269,25 @@ export default function Notifications() {
     void syncNotifications(true);
     const handleRealtime = (event: Event) => {
       const detail = (event as CustomEvent<Record<string, unknown>>).detail;
-      if (detail?.type === "notification:new") void syncNotifications(false);
+      if (detail?.type !== "notification:new") return;
+      const raw = detail.notification as Record<string, unknown> | undefined;
+      if (!raw || raw.id == null) return;
+      const incoming = mapNotification({
+        ...raw,
+        text: raw.text ?? raw.message ?? "",
+        read: Boolean(raw.read),
+        actorDisplayName: raw.actorDisplayName ?? "Yuniko user",
+        actorAvatarUrl: raw.actorAvatarUrl ?? null,
+      });
+      setItems((current) => current.some((item) => item.id === incoming.id)
+        ? current
+        : [incoming, ...current].slice(0, 100));
     };
     window.addEventListener("yuniko:realtime", handleRealtime);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") void syncNotifications(false);
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       alive = false;
       window.removeEventListener("yuniko:realtime", handleRealtime);
-      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 

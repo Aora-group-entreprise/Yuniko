@@ -1,5 +1,5 @@
-import { invalidateApiCachePrefix } from "@/lib/api-cache";
-import { invalidateSessionCache, invalidateSessionCachePrefix } from "@/lib/session-cache";
+import { getApiCached, invalidateApiCachePrefix, setApiCached } from "@/lib/api-cache";
+import { getSessionCache, invalidateSessionCache, invalidateSessionCachePrefix, setSessionCache } from "@/lib/session-cache";
 import { apiJson } from "@/lib/api";
 
 type RealtimeEvent = Record<string, unknown> & { type?: string };
@@ -13,36 +13,129 @@ let presenceOfflineTimer: number | null = null;
 let retryDelay = 1000;
 let stopped = true;
 
+type CacheEnvelope = Record<string, unknown>;
+
+function updateExistingSessionCache<T>(path: string, update: (value: T) => T): boolean {
+  const current = getSessionCache<T>(path);
+  if (current === undefined) return false;
+  setSessionCache(path, update(current));
+  return true;
+}
+
+async function updateExistingApiCache<T>(path: string, update: (value: T) => T): Promise<boolean> {
+  const current = await getApiCached<T>(path);
+  if (current === undefined) return false;
+  setApiCached(path, update(current));
+  return true;
+}
+
+function appendUnique<T>(items: T[], item: T, idOf: (value: T) => unknown): T[] {
+  const id = idOf(item);
+  if (items.some((existing) => idOf(existing) === id)) return items;
+  return [item, ...items].slice(0, 100);
+}
+
+function applyNotificationToCache(event: RealtimeEvent): void {
+  const notification = event.notification as Record<string, unknown> | undefined;
+  if (!notification || notification.id == null) return;
+  const item = {
+    ...notification,
+    text: String(notification.text ?? notification.message ?? ""),
+    read: Boolean(notification.read),
+    actorId: Number(notification.actorId),
+    actorDisplayName: String(notification.actorDisplayName ?? "Yuniko user"),
+    actorAvatarUrl: notification.actorAvatarUrl ?? null,
+  };
+  const update = <T extends CacheEnvelope>(value: T): T => {
+    const notifications = Array.isArray(value.notifications) ? value.notifications as Array<Record<string, unknown>> : [];
+    return { ...value, notifications: appendUnique(notifications, item, (entry) => entry.id) } as T;
+  };
+  updateExistingSessionCache("/notifications", update);
+  void updateExistingApiCache("/notifications", update);
+}
+
+function applyMessageToCache(event: RealtimeEvent): boolean {
+  const userId = Number(event.userId ?? event.fromUserId);
+  const message = event.message as Record<string, unknown> | undefined;
+  if (!Number.isInteger(userId) || userId <= 0 || !message || message.id == null) return false;
+  const path = `/messages/conversations/${userId}`;
+  const update = <T extends CacheEnvelope>(value: T): T => {
+    const messages = Array.isArray(value.messages) ? value.messages as Array<Record<string, unknown>> : [];
+    return { ...value, messages: appendUnique(messages, message, (entry) => entry.id) } as T;
+  };
+  updateExistingSessionCache(path, update);
+  void updateExistingApiCache(path, update);
+
+  const conversationUpdate = <T extends CacheEnvelope>(value: T): T => {
+    if (!Array.isArray(value.conversations)) return value;
+    const conversations = (value.conversations as Array<Record<string, unknown>>).map((conversation) => {
+      if (Number(conversation.user && (conversation.user as Record<string, unknown>).id) !== userId) return conversation;
+      return {
+        ...conversation,
+        lastMessage: String(message.text ?? (message.type === "image" ? "Photo" : message.type === "audio" ? "Voice message" : "")),
+        lastMessageTime: String(message.timestamp ?? new Date().toISOString()),
+        unread: Math.max(0, Number(conversation.unread ?? 0)) + 1,
+      };
+    });
+    conversations.sort((a, b) => new Date(String(b.lastMessageTime ?? 0)).getTime() - new Date(String(a.lastMessageTime ?? 0)).getTime());
+    return { ...value, conversations } as T;
+  };
+  updateExistingSessionCache("/messages/conversations", conversationUpdate);
+  void updateExistingApiCache("/messages/conversations", conversationUpdate);
+  return true;
+}
+
+function applyPostToCache(event: RealtimeEvent): boolean {
+  const post = event.post as Record<string, unknown> | undefined;
+  if (!post || post.id == null) return false;
+  const update = <T extends CacheEnvelope>(value: T): T => {
+    const posts = Array.isArray(value.posts) ? value.posts as Array<Record<string, unknown>> : [];
+    return {
+      ...value,
+      posts: appendUnique(posts, post, (entry) => entry.id),
+      latestCreatedAt: String(post.createdAt ?? value.latestCreatedAt ?? new Date().toISOString()),
+      newPostsCount: 0,
+    } as T;
+  };
+  updateExistingSessionCache("/posts/feed", update);
+  void updateExistingApiCache("/posts/feed", update);
+  return true;
+}
+
 function invalidateForEvent(event: RealtimeEvent): void {
   const type = String(event.type ?? "");
-  const notification = event.notification as Record<string, unknown> | undefined;
-  const notificationType = String(notification?.type ?? "");
   if (type === "notification:new") {
-    invalidateSessionCache("/notifications");
-    invalidateSessionCache("/posts/feed");
-    invalidateSessionCache("/messages/conversations");
-    invalidateApiCachePrefix("/notifications");
-    invalidateApiCachePrefix("/posts/");
-    invalidateApiCachePrefix("/messages/");
-    if (["like", "comment", "follow", "story_reaction", "story_reply", "story_view"].includes(notificationType)) {
-      invalidateSessionCache("/stories");
-      invalidateApiCachePrefix("/stories");
+    applyNotificationToCache(event);
+  } else if (type === "message:new") {
+    if (!applyMessageToCache(event)) {
+      invalidateSessionCache("/messages/conversations");
+      invalidateApiCachePrefix("/messages/conversations");
     }
-  }
-  if (type.startsWith("message:") || type.startsWith("chat:")) {
+  } else if (type.startsWith("message:")) {
     invalidateSessionCache("/messages/conversations");
     invalidateSessionCachePrefix("/messages/conversations/");
     invalidateApiCachePrefix("/messages/conversations");
-    const otherUserId = Number(event.userId ?? event.fromUserId);
-    if (Number.isInteger(otherUserId) && otherUserId > 0) {
-      invalidateSessionCache(`/messages/conversations/${otherUserId}`);
-    }
+  } else if (type.startsWith("chat:") && !["chat:typing", "chat:presence"].includes(type)) {
+    invalidateSessionCache("/messages/conversations");
+    invalidateSessionCachePrefix("/messages/conversations/");
+    invalidateApiCachePrefix("/messages/conversations");
   }
   if (type === "presence:update") {
     window.dispatchEvent(new CustomEvent("yuniko:presence", { detail: event }));
   }
-  if (type.startsWith("story:")) { invalidateSessionCache("/stories"); invalidateApiCachePrefix("/stories"); }
-  if (type.startsWith("post:") || type.startsWith("feed:")) { invalidateSessionCache("/posts/feed"); invalidateApiCachePrefix("/posts/"); }
+  if (type.startsWith("story:")) {
+    invalidateSessionCache("/stories");
+    invalidateApiCachePrefix("/stories");
+  }
+  if (type === "post:new" || type.startsWith("feed:")) {
+    if (!applyPostToCache(event)) {
+      invalidateSessionCache("/posts/feed");
+      invalidateApiCachePrefix("/posts/");
+    }
+  } else if (type.startsWith("post:")) {
+    invalidateSessionCache("/posts/feed");
+    invalidateApiCachePrefix("/posts/");
+  }
 }
 
 function connectFeed(userId: number): void {
