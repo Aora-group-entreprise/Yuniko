@@ -88,9 +88,9 @@ export async function flushInteractionQueue(userId: number): Promise<void> {
   try {
     const response = await apiJson<{ results: BatchResult[] }>("/posts/interactions/batch", {
       method: "POST",
-      body: JSON.stringify({ actions: batch.map(({ id, type, postId, liked, text, clientMutationId }) => ({
-        id, type, postId, ...(type === "like" ? { liked } : { text, clientMutationId }),
-      })) }),
+      body: JSON.stringify({ actions: batch.map(action => action.type === "like"
+        ? { id: action.id, type: action.type, postId: action.postId, liked: action.liked }
+        : { id: action.id, type: action.type, postId: action.postId, text: action.text, clientMutationId: action.clientMutationId }) }),
     });
     const results = Array.isArray(response.results) ? response.results : [];
     const byId = new Map(results.map(result => [result.id, result]));
