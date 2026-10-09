@@ -31,3 +31,14 @@ export async function publishRealtimeToUser(
     throw new Error(`Realtime publish failed (${response.status})`);
   }
 }
+
+export async function getRealtimePresence(userId: number): Promise<boolean> {
+  if (!Number.isInteger(userId) || userId <= 0) return false;
+  const namespace = runtimeEnv.CALL_SIGNAL;
+  if (!namespace) return false;
+  const stub = namespace.getByName(`user:${userId}`);
+  const response = await stub.fetch(new Request("https://realtime.internal/presence"));
+  if (!response.ok) return false;
+  const result = await response.json() as { online?: boolean };
+  return result.online === true;
+}
