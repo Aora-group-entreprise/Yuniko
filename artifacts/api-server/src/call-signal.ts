@@ -1,6 +1,6 @@
 import {DurableObject,DurableObjectState} from "cloudflare:workers";
 
-type CallScope = {scope:"inbox"|"room";userId:number};
+type CallScope = {scope:"inbox"|"room"|"realtime";userId:number};
 type HibernatableWebSocket = WebSocket & {
   serializeAttachment(value:CallScope):void;
   deserializeAttachment():CallScope|null;
@@ -31,9 +31,20 @@ export class CallSignalRoom extends DurableObject {
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping","pong"));
   }
   async fetch(request:Request){
-    if(request.headers.get("Upgrade")!=="websocket")return new Response("Expected WebSocket",{status:426});
     const u=new URL(request.url);
-    const scope=u.searchParams.get("scope")==="inbox"?"inbox":"room";
+    if(request.method==="POST"&&u.pathname.endsWith("/publish")){
+      let event:Record<string,unknown>;
+      try{event=await request.json() as Record<string,unknown>}catch{return new Response("Invalid event",{status:400});}
+      if(!event||typeof event.type!=="string"||event.type.length>80)return new Response("Invalid event",{status:400});
+      const message=JSON.stringify(event);
+      for(const ws of this.ctx.getWebSockets("realtime")){
+        if(ws.readyState===WebSocket.OPEN){try{ws.send(message)}catch{}}
+      }
+      return Response.json({published:true});
+    }
+    if(request.headers.get("Upgrade")!=="websocket")return new Response("Expected WebSocket",{status:426});
+    const rawScope=u.searchParams.get("scope");
+    const scope:CallScope["scope"]=rawScope==="inbox"?"inbox":rawScope==="realtime"?"realtime":"room";
     const userId=Number(u.searchParams.get("userId")||0);
     if(!Number.isInteger(userId)||userId<=0)return new Response("Invalid user",{status:400});
     const [client,server]=Object.values(new WebSocketPair()) as [WebSocket,HibernatableWebSocket];
