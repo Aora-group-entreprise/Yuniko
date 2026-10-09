@@ -2,6 +2,7 @@ const CACHE_PREFIX = "yuniko_api_cache_v1_";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const DB_NAME = "yuniko-cache";
 const DB_STORE = "api-responses";
+const SESSION_DB_STORE = "sessions";
 type Entry = { savedAt: number; path: string; value: unknown };
 const memory = new Map<string, Entry>();
 let activeUserId: number | null = null;
@@ -26,6 +27,7 @@ function openDb(): Promise<IDBDatabase | null> {
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+        if (!db.objectStoreNames.contains(SESSION_DB_STORE)) db.createObjectStore(SESSION_DB_STORE);
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
