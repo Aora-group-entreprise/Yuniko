@@ -846,7 +846,7 @@ function PostViewer({
                 />
                 <ViewerAction
                   icon={<MessageCircle size={22} strokeWidth={1.9} className="text-white" />}
-                  label={formatCount(commentCount)}
+                  label={formatCount(post.comments + comments.length)}
                   onClick={onComment}
                 />
                 <ViewerAction
