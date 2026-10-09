@@ -279,35 +279,8 @@ function AppContent() {
     }
   }, [isLoading, user, location, navigate]);
 
-  useEffect(() => {
-    if (!user) return;
-
-    let enabled = false;
-    let cancelled = false;
-
-    apiFetch("/settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((settings) => {
-        if (!cancelled) enabled = settings?.clearCacheOnExit === true;
-      })
-      .catch(() => {});
-
-    const clearOnExit = () => {
-      if (!enabled) return;
-      const keep = new Set(["yuniko_user", "yuniko_lang"]);
-      for (const key of Object.keys(localStorage)) {
-        if (!keep.has(key)) localStorage.removeItem(key);
-      }
-    };
-
-    window.addEventListener("pagehide", clearOnExit);
-    window.addEventListener("beforeunload", clearOnExit);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("pagehide", clearOnExit);
-      window.removeEventListener("beforeunload", clearOnExit);
-    };
-  }, [user]);
+  // Yuniko keeps its user-scoped browser data cache between visits.
+  // Cache clearing is deliberately not tied to pagehide or beforeunload.
 
   return (
     <>
