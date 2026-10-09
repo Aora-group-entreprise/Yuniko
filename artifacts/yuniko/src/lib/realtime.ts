@@ -26,6 +26,7 @@ function invalidateForEvent(event: RealtimeEvent): void {
     invalidateApiCachePrefix("/messages/");
     if (["like", "comment", "follow", "story_reaction", "story_reply", "story_view"].includes(notificationType)) {
       invalidateSessionCache("/stories");
+      invalidateApiCachePrefix("/stories");
     }
   }
   if (type.startsWith("message:") || type.startsWith("chat:")) {
