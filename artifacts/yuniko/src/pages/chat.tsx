@@ -92,13 +92,16 @@ export default function Chat(){
   useEffect(()=>{void load();},[userId]);
 
   useEffect(()=>{
+    if(!Number.isInteger(userId)||userId<=0)return;
+    let alive=true;
+    void apiJson<{online:boolean}>("/realtime/presence?userId="+userId).then(data=>{if(alive)setOtherOnline(Boolean(data.online));}).catch(()=>{if(alive)setOtherOnline(false);});
     const onPresence=(event:Event)=>{
       const detail=(event as CustomEvent<Record<string,unknown>>).detail;
       if(Number(detail?.userId)!==userId)return;
       setOtherOnline(Boolean(detail?.online));
     };
     window.addEventListener("yuniko:presence",onPresence);
-    return()=>window.removeEventListener("yuniko:presence",onPresence);
+    return()=>{alive=false;window.removeEventListener("yuniko:presence",onPresence);};
   },[userId]);
 
   useEffect(()=>{
