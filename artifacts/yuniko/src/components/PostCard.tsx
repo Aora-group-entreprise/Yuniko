@@ -95,7 +95,7 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
       : null;
   useEffect(() => {
     if (!livePostId || !authUser?.id) return;
-    const pending = getPendingLike(Number(livePostId));
+    const pending = getPendingLike(Number(authUser.id), Number(livePostId));
     if (!pending) return;
     lastLikeQueueIdRef.current = pending.id;
     setLiked(pending.liked);
@@ -453,7 +453,7 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
             : "",
         };
       }));
-      const pendingComments = getPendingComments(Number(livePostId));
+      const pendingComments = getPendingComments(Number(authUser?.id), Number(livePostId));
       if (pendingComments.length) {
         setComments(current => [...current, ...pendingComments
           .filter(item => !current.some(comment => comment.clientMutationId === item.clientMutationId))

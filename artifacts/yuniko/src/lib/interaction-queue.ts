@@ -84,14 +84,12 @@ export function enqueueComment(userId: number, postId: number, text: string): st
   scheduleFlush();
   return id;
 }
-export function getPendingComments(postId: number): Array<{ id: string; clientMutationId: string; text: string; queuedAt: number }> {
-  if (activeUserId === null) return [];
-  return readQueue(activeUserId).filter((action): action is CommentAction => action.type === "comment" && action.postId === postId)
+export function getPendingComments(userId: number, postId: number): Array<{ id: string; clientMutationId: string; text: string; queuedAt: number }> {
+  return readQueue(userId).filter((action): action is CommentAction => action.type === "comment" && action.postId === postId)
     .map(action => ({ id: action.id, clientMutationId: action.clientMutationId, text: action.text, queuedAt: action.queuedAt }));
 }
-export function getPendingLike(postId: number): { id: string; liked: boolean } | null {
-  if (activeUserId === null) return null;
-  const action = readQueue(activeUserId).find((item): item is LikeAction => item.type === "like" && item.postId === postId);
+export function getPendingLike(userId: number, postId: number): { id: string; liked: boolean } | null {
+  const action = readQueue(userId).find((item): item is LikeAction => item.type === "like" && item.postId === postId);
   return action ? { id: action.id, liked: action.liked } : null;
 }
 export async function flushInteractionQueue(userId: number): Promise<void> {

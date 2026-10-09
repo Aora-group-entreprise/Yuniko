@@ -114,7 +114,7 @@ interactionsRouter.get("/posts/saved", authMiddleware, async (req: Authenticated
 /** Persist queued likes/comments in one Worker request; each operation is retry-safe. */
 interactionsRouter.post("/posts/interactions/batch", authMiddleware, async (req: AuthenticatedRequest, res) => {
   const actions = Array.isArray(req.body?.actions) ? req.body.actions as Array<Record<string, unknown>> : [];
-  if (!actions.length || actions.length > 40) return res.status(400).json({ error: "Batch must contain between 1 and 40 actions" });
+  if (!actions.length || actions.length > 500) return res.status(400).json({ error: "Batch must contain between 1 and 500 actions" });
   const results: Array<Record<string, unknown>> = [];
   for (const action of actions) {
     const id = typeof action.id === "string" ? action.id : "";
