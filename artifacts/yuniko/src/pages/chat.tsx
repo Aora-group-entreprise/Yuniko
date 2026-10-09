@@ -112,7 +112,7 @@ export default function Chat(){
       const eventUserId=Number(detail.userId??detail.fromUserId);
       if(detail.type==="chat:typing"&&eventUserId===userId){setOtherTyping(Boolean(detail.typing));return;}
       if(detail.type!=="message:new"||eventUserId!==userId)return;
-      const raw=detail.message as Message|undefined;
+      const raw=(detail.message??detail.realtimeMessage) as Message|undefined;
       if(!raw||!Number.isInteger(Number(raw.id)))return;
       void (async()=>{
         const fresh:Message={
