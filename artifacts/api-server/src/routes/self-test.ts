@@ -105,7 +105,8 @@ async function runSelfTest(req: any, res: any) {
     }
   }
 
-  return res.status(result.ok && result.steps.cleanup ? 200 : 503).json(result);
+  result.ok = Object.values(result.steps).every(Boolean);
+  return res.status(result.ok ? 200 : 503).json(result);
 }
 
 router.post("/debug/self-test", runSelfTest);
