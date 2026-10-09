@@ -67,6 +67,7 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
     Number(authUser.id) === Number(author.userId),
   );
   const [likeCount, setLikeCount] = useState(post.likes);
+  const [commentCount, setCommentCount] = useState(post.comments);
   const [heartBurst, setHeartBurst] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(initialViewer);
   const [viewerOptionsOpen, setViewerOptionsOpen] = useState(false);
@@ -93,6 +94,31 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
     if (!livePostId) return;
     void apiJson(`/analytics/post/${livePostId}/impression`, { method: "POST" }).catch(() => {});
   }, [livePostId]);
+
+  useEffect(() => {
+    const onRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (String(detail?.postId ?? "") !== livePostId) return;
+      if (detail?.type === "post:like") {
+        setLikeCount(Math.max(0, Number(detail.likes ?? 0)));
+        if (Number(detail.userId) === Number(authUser?.id)) setLiked(Boolean(detail.liked));
+      }
+      if (detail?.type === "post:comment") {
+        setCommentCount(Math.max(0, Number(detail.comments ?? 0)));
+        const raw = detail.comment as Record<string, unknown> | undefined;
+        if (!raw || raw.id == null) return;
+        const displayName = String(raw.displayName ?? "User");
+        const avatarUrl = raw.avatarUrl == null ? null : String(raw.avatarUrl);
+        setComments(current => current.some(comment => comment.id === String(raw.id)) ? current : [...current, {
+          id: String(raw.id), userId: String(raw.userId ?? ""), text: String(raw.text ?? ""), displayName,
+          avatar: avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=FF006E`,
+          likes: 0, liked: false, timestamp: raw.createdAt ? new Date(String(raw.createdAt)).toLocaleDateString() : "just now",
+        }]);
+      }
+    };
+    window.addEventListener("yuniko:realtime", onRealtime);
+    return () => window.removeEventListener("yuniko:realtime", onRealtime);
+  }, [livePostId, authUser?.id]);
 
   if (!author) return null;
 
@@ -394,21 +420,22 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
     const text = commentText.trim();
     if (!text) return;
 
+    let savedComment: Record<string, unknown> | null = null;
     if (livePostId) {
       try {
-        await apiJson(`/posts/${livePostId}/comments`, {
-          method: "POST",
-          body: JSON.stringify({ text }),
+        const result = await apiJson<{ comment?: Record<string, unknown>; comments?: number }>(`/posts/${livePostId}/comments`, {
+          method: "POST", body: JSON.stringify({ text }),
         });
-      } catch {
-        return;
-      }
+        savedComment = result.comment ?? null;
+        if (result.comments != null) setCommentCount(Number(result.comments));
+      } catch { return; }
     }
 
-    setComments((prev) => [
+    const ownCommentId = savedComment?.id == null ? `local_${Date.now()}` : String(savedComment.id);
+    setComments((prev) => prev.some((comment) => comment.id === ownCommentId) ? prev : [
       ...prev,
       {
-        id: `local_${Date.now()}`,
+        id: ownCommentId,
         userId: String(authUser?.id ?? "me"),
         text,
         displayName: authUser?.displayName ?? "You",
@@ -483,7 +510,7 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
       <div className="flex items-center justify-between px-0.5 pt-3 pb-2">
         <div className="flex items-center gap-6">
           <ActionBtn icon={<Heart size={25} className={liked ? "fill-[#FF2FA4] text-[#FF2FA4]" : "text-white/90"} strokeWidth={1.8} />} label={formatCount(likeCount)} onClick={handleLike} testId="btn-like" active={liked} />
-          <ActionBtn icon={<MessageCircle size={25} className="text-white/90" strokeWidth={1.8} />} label={formatCount(post.comments)} onClick={() => void openComments(false)} testId="btn-comment" />
+          <ActionBtn icon={<MessageCircle size={25} className="text-white/90" strokeWidth={1.8} />} label={formatCount(commentCount)} onClick={() => void openComments(false)} testId="btn-comment" />
           <ActionBtn icon={<Share2 size={25} className="text-white/90" strokeWidth={1.8} />} label={formatCount(shareCount)} onClick={handleShare} testId="btn-share" />
         </div>
         <ActionBtn icon={<Bookmark size={25} className={saved ? "fill-[#FF2FA4] text-[#FF2FA4]" : "text-white/90"} strokeWidth={1.8} />} label={formatCount(post.saves)} onClick={handleSave} testId="btn-save" active={saved} />
@@ -494,7 +521,7 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
         {post.caption && <p className="mt-1 line-clamp-3 text-[13px] leading-[1.35] text-white/80">{post.caption}</p>}
         {post.hashtags.length > 0 && <p className="mt-1 text-[13px] font-medium" style={{ color: "#FF2FA4" }}>{post.hashtags.slice(0, 3).join(" ")}</p>}
         <button type="button" onClick={() => void openComments(false)} className="mt-2 block text-left text-[12px] text-white/42">
-          View all {formatCount(post.comments)} comments · {post.timestamp}
+          View all {formatCount(commentCount)} comments · {post.timestamp}
         </button>
       </div>
 
@@ -819,7 +846,7 @@ function PostViewer({
                 />
                 <ViewerAction
                   icon={<MessageCircle size={22} strokeWidth={1.9} className="text-white" />}
-                  label={formatCount(post.comments + comments.length)}
+                  label={formatCount(commentCount)}
                   onClick={onComment}
                 />
                 <ViewerAction
