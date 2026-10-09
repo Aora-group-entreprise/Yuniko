@@ -110,6 +110,89 @@ interactionsRouter.get("/posts/saved", authMiddleware, async (req: Authenticated
   }
 });
 
+
+/** Persist queued likes/comments in one Worker request; each operation is retry-safe. */
+interactionsRouter.post("/posts/interactions/batch", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  const actions = Array.isArray(req.body?.actions) ? req.body.actions as Array<Record<string, unknown>> : [];
+  if (!actions.length || actions.length > 40) return res.status(400).json({ error: "Batch must contain between 1 and 40 actions" });
+  const results: Array<Record<string, unknown>> = [];
+  for (const action of actions) {
+    const id = typeof action.id === "string" ? action.id : "";
+    const type = action.type === "like" || action.type === "comment" ? action.type : "";
+    const postId = Number(action.postId);
+    if (!id || !type || !Number.isSafeInteger(postId) || postId <= 0) {
+      results.push({ id, ok: false, retryable: false, error: "Invalid interaction" });
+      continue;
+    }
+    try {
+      const [post] = await selectRows("posts", { filters: [eq("id", postId)], limit: 1 });
+      if (!post) { results.push({ id, ok: false, retryable: false, error: "Post not found" }); continue; }
+
+      if (type === "like") {
+        if (typeof action.liked !== "boolean") { results.push({ id, ok: false, retryable: false, error: "Invalid like state" }); continue; }
+        const filters = [eq("postId", postId), eq("userId", req.userId!)];
+        const existing = await selectRows("likes", { filters, limit: 1 });
+        const wasLiked = existing.length > 0;
+        const desiredLiked = action.liked;
+        if (desiredLiked && !wasLiked) await insertRow("likes", { postId, userId: req.userId! });
+        if (!desiredLiked && wasLiked) await deleteRows("likes", filters);
+        const likes = await countFor("likes", postId);
+        await updateRows("posts", { likes }, [eq("id", postId)]);
+        if (desiredLiked && !wasLiked) {
+          try { await notify(Number(post.userId), req.userId!, "like", "liked your post", postId); } catch {}
+        }
+        if (post.isWorldFeed === true && desiredLiked !== wasLiked) {
+          try { await publishRealtimeToFeed({ type: "post:like", postId, userId: Number(req.userId), liked: desiredLiked, likes }); }
+          catch (error) { console.error("[YUNIKO REALTIME] batched like dispatch failed", error); }
+        }
+        results.push({ id, ok: true, type, postId, liked: desiredLiked, likes });
+        continue;
+      }
+
+      const text = typeof action.text === "string" ? action.text.trim() : "";
+      const clientMutationId = typeof action.clientMutationId === "string" ? action.clientMutationId : "";
+      if (!text || text.length > 1000 || clientMutationId.length < 8 || clientMutationId.length > 120) {
+        results.push({ id, ok: false, retryable: false, error: "Invalid comment" }); continue;
+      }
+      const prior = await selectRows("comments", { filters: [eq("clientMutationId", clientMutationId), eq("userId", req.userId!)], limit: 1 });
+      const [author] = await selectRows("users", { filters: [eq("id", Number(req.userId))], limit: 1 });
+      if (prior.length) {
+        const comments = await countFor("comments", postId);
+        const priorComment = prior[0]!;
+        results.push({ id, ok: true, type, postId, clientMutationId, comments, comment: {
+          id: Number(priorComment.id), postId, userId: Number(req.userId), text: String(priorComment.text ?? text),
+          createdAt: priorComment.createdAt ?? new Date().toISOString(), username: author?.username ?? null,
+          displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null,
+        }});
+        continue;
+      }
+      const [settings] = await selectRows("user_settings", { filters: [eq("userId", Number(post.userId))], limit: 1 });
+      const permission = String(settings?.commentPermissions ?? settings?.commentPermission ?? "everyone") as any;
+      if (!(await canInteract(permission, req.userId!, Number(post.userId)))) {
+        results.push({ id, ok: false, retryable: false, error: "Comments are restricted for this account" }); continue;
+      }
+      const comment = await insertRow("comments", { postId, userId: req.userId!, text, clientMutationId });
+      const comments = await countFor("comments", postId);
+      await updateRows("posts", { comments }, [eq("id", postId)]);
+      const realtimeComment = {
+        id: Number(comment.id), postId, userId: Number(req.userId), text: String(comment.text ?? text),
+        createdAt: comment.createdAt ?? new Date().toISOString(), username: author?.username ?? null,
+        displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null,
+      };
+      try { await notify(Number(post.userId), req.userId!, "comment", "commented on your post", postId); } catch {}
+      if (post.isWorldFeed === true) {
+        try { await publishRealtimeToFeed({ type: "post:comment", postId, userId: Number(req.userId), comment: realtimeComment, comments }); }
+        catch (error) { console.error("[YUNIKO REALTIME] batched comment dispatch failed", error); }
+      }
+      results.push({ id, ok: true, type, postId, clientMutationId, comments, comment: realtimeComment });
+    } catch (error) {
+      console.error("[YUNIKO BATCH] interaction failed", { id, type, postId, error });
+      results.push({ id, ok: false, retryable: true, error: "Temporary interaction failure" });
+    }
+  }
+  return res.json({ results });
+});
+
 interactionsRouter.post("/posts/:id/like", authMiddleware, async (req: AuthenticatedRequest, res) => {
   const postId = parseId(req.params["id"]);
   if (!postId) return res.status(400).json({ error: "Invalid post id" });

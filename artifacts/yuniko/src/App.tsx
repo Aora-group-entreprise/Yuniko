@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { connectRealtime } from "@/lib/realtime";
 import { setApiCacheUser } from "@/lib/api-cache";
+import { configureInteractionQueue } from "@/lib/interaction-queue";
 
 import Home from "@/pages/home";
 import Notifications from "@/pages/notifications";
@@ -240,6 +241,11 @@ function AppContent() {
   useEffect(() => {
     if (isLoading || !user) return;
     return connectRealtime(Number(user.id));
+  }, [isLoading, user?.id]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+    return configureInteractionQueue(Number(user.id));
   }, [isLoading, user?.id]);
 
   // Firefox can restore the last SPA URL after a cold reopen, including

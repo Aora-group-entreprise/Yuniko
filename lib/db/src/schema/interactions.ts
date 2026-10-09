@@ -6,6 +6,7 @@ import {
   timestamp,
   primaryKey,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { postsTable } from "./posts";
 import { usersTable } from "./users";
@@ -39,8 +40,11 @@ export const commentsTable = pgTable("comments", {
   postId: integer("post_id").notNull().references(() => postsTable.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   text: text("text").notNull(),
+  clientMutationId: text("client_mutation_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  clientMutationIdUnique: uniqueIndex("comments_client_mutation_id_uidx").on(table.clientMutationId),
+}));
 
 export const followsTable = pgTable(
   "follows",
