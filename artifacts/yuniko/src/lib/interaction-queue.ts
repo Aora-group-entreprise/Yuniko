@@ -9,8 +9,8 @@ type BatchResult = {
   comments?: number; comment?: Record<string, unknown>;
 };
 const STORAGE_PREFIX = "yuniko_pending_interactions_v1_";
-const BATCH_SIZE = 40;
-const FLUSH_DELAY_MS = 1500;
+const BATCH_SIZE = 500;
+const DAY_MS = 24 * 60 * 60 * 1000;
 let activeUserId: number | null = null;
 let timer: number | null = null;
 let flushing = false;
@@ -33,9 +33,14 @@ function readQueue(userId: number): PendingAction[] {
 function writeQueue(userId: number, queue: PendingAction[]): void {
   try { localStorage.setItem(storageKey(userId), JSON.stringify(queue)); } catch {}
 }
-function scheduleFlush(delay = FLUSH_DELAY_MS): void {
+function scheduleFlush(delayOverride?: number): void {
   if (typeof window === "undefined" || activeUserId === null) return;
   if (timer !== null) window.clearTimeout(timer);
+  timer = null;
+  const queue = readQueue(activeUserId);
+  if (!queue.length) return;
+  const nextDueAt = Math.min(...queue.map(action => action.queuedAt + DAY_MS));
+  const delay = delayOverride ?? Math.max(0, nextDueAt - Date.now());
   timer = window.setTimeout(() => {
     timer = null;
     if (activeUserId !== null) void flushInteractionQueue(activeUserId);
@@ -47,15 +52,15 @@ function emit(name: string, detail: Record<string, unknown>): void {
 function attachListeners(): void {
   if (listenersAttached || typeof window === "undefined") return;
   listenersAttached = true;
-  window.addEventListener("online", () => { if (activeUserId !== null) void flushInteractionQueue(activeUserId); });
-  window.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden" && activeUserId !== null) void flushInteractionQueue(activeUserId);
+  window.addEventListener("online", () => { if (activeUserId !== null) scheduleFlush(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && activeUserId !== null) scheduleFlush();
   });
 }
 export function configureInteractionQueue(userId: number): () => void {
   activeUserId = Number.isSafeInteger(userId) && userId > 0 ? userId : null;
   attachListeners();
-  if (activeUserId !== null) scheduleFlush(250);
+  if (activeUserId !== null) scheduleFlush();
   return () => {
     if (activeUserId !== userId) return;
     activeUserId = null;
@@ -79,11 +84,21 @@ export function enqueueComment(userId: number, postId: number, text: string): st
   scheduleFlush();
   return id;
 }
+export function getPendingComments(userId: number, postId: number): Array<{ id: string; clientMutationId: string; text: string; queuedAt: number }> {
+  return readQueue(userId).filter((action): action is CommentAction => action.type === "comment" && action.postId === postId)
+    .map(action => ({ id: action.id, clientMutationId: action.clientMutationId, text: action.text, queuedAt: action.queuedAt }));
+}
+export function getPendingLike(userId: number, postId: number): { id: string; liked: boolean } | null {
+  const action = readQueue(userId).find((item): item is LikeAction => item.type === "like" && item.postId === postId);
+  return action ? { id: action.id, liked: action.liked } : null;
+}
 export async function flushInteractionQueue(userId: number): Promise<void> {
   if (flushing || activeUserId !== userId || (typeof navigator !== "undefined" && !navigator.onLine)) return;
   const queue = readQueue(userId);
   if (!queue.length) return;
-  const batch = queue.slice(0, BATCH_SIZE);
+  const dueQueue = queue.filter(action => action.queuedAt + DAY_MS <= Date.now());
+  if (!dueQueue.length) { scheduleFlush(); return; }
+  const batch = dueQueue.slice(0, BATCH_SIZE);
   flushing = true;
   try {
     const response = await apiJson<{ results: BatchResult[] }>("/posts/interactions/batch", {

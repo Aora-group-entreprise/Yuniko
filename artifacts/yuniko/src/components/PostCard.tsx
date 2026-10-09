@@ -7,7 +7,7 @@ import { Post, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { apiJson } from "@/lib/api";
-import { enqueueLike, enqueueComment } from "@/lib/interaction-queue";
+import { enqueueLike, enqueueComment, getPendingComments, getPendingLike } from "@/lib/interaction-queue";
 
 export interface LiveAuthor {
   userId?: number;
@@ -82,6 +82,7 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
     likes: number;
     liked: boolean;
     timestamp: string;
+    clientMutationId?: string;
   }>>([]);
   const [commentText, setCommentText] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -92,6 +93,15 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
     : /^\d+$/.test(String(post.id))
       ? String(post.id)
       : null;
+  useEffect(() => {
+    if (!livePostId || !authUser?.id) return;
+    const pending = getPendingLike(Number(authUser.id), Number(livePostId));
+    if (!pending) return;
+    lastLikeQueueIdRef.current = pending.id;
+    setLiked(pending.liked);
+    setLikeCount(current => Math.max(0, current + (pending.liked === Boolean(post.isLiked) ? 0 : pending.liked ? 1 : -1)));
+  }, [livePostId, authUser?.id, post.isLiked]);
+
   useEffect(() => {
     if (!livePostId) return;
     void apiJson(`/analytics/post/${livePostId}/impression`, { method: "POST" }).catch(() => {});
@@ -443,12 +453,24 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
             : "",
         };
       }));
+      const pendingComments = getPendingComments(Number(authUser?.id), Number(livePostId));
+      if (pendingComments.length) {
+        setComments(current => [...current, ...pendingComments
+          .filter(item => !current.some(comment => comment.clientMutationId === item.clientMutationId))
+          .map(item => ({
+            id: `pending_${item.clientMutationId}`, clientMutationId: item.clientMutationId,
+            userId: String(authUser?.id ?? "me"), text: item.text,
+            displayName: authUser?.displayName ?? "You",
+            avatar: authUser?.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "You")}&backgroundColor=FF006E`,
+            likes: 0, liked: false, timestamp: "pending sync",
+          }))]);
+      }
     } catch {
       setComments([]);
     } finally {
       setCommentsLoading(false);
     }
-  }, [comments.length, livePostId, post.id, setLocation]);
+  }, [authUser?.avatarUrl, authUser?.displayName, authUser?.id, comments.length, livePostId, post.id, setLocation]);
 
   const submitComment = useCallback(() => {
     const text = commentText.trim();
