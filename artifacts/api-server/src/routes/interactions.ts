@@ -162,7 +162,7 @@ interactionsRouter.post("/posts/interactions/batch", authMiddleware, async (req:
         results.push({ id, ok: true, type, postId, clientMutationId, comments, comment: {
           id: Number(priorComment.id), postId, userId: Number(req.userId), text: String(priorComment.text ?? text),
           createdAt: priorComment.createdAt ?? new Date().toISOString(), username: author?.username ?? null,
-          displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null,
+          displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null, clientMutationId,
         }});
         continue;
       }
@@ -177,7 +177,7 @@ interactionsRouter.post("/posts/interactions/batch", authMiddleware, async (req:
       const realtimeComment = {
         id: Number(comment.id), postId, userId: Number(req.userId), text: String(comment.text ?? text),
         createdAt: comment.createdAt ?? new Date().toISOString(), username: author?.username ?? null,
-        displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null,
+        displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null, clientMutationId,
       };
       try { await notify(Number(post.userId), req.userId!, "comment", "commented on your post", postId); } catch {}
       if (post.isWorldFeed === true) {
