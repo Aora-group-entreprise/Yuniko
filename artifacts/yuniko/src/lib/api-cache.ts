@@ -2,7 +2,7 @@ const CACHE_PREFIX = "yuniko_api_cache_v1_";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const DB_NAME = "yuniko-cache";
 const DB_STORE = "api-responses";
-type Entry = { savedAt: number; value: unknown };
+type Entry = { savedAt: number; path: string; value: unknown };
 const memory = new Map<string, Entry>();
 let activeUserId: number | null = null;
 let databasePromise: Promise<IDBDatabase | null> | null = null;
@@ -93,7 +93,7 @@ export function setApiCached(path: string, value: unknown): void {
   const userId = activeUserId;
   if (userId === null || typeof window === "undefined") return;
   const key = cacheKey(userId, path);
-  const entry: Entry = { savedAt: Date.now(), value };
+  const entry: Entry = { savedAt: Date.now(), path, value };
   memory.set(key, entry);
   try {
     const serialized = JSON.stringify(entry);
@@ -121,19 +121,18 @@ export function invalidateApiCachePrefix(prefix: string): void {
   const userId = activeUserId;
   if (userId === null || typeof window === "undefined") return;
   const start = cacheKey(userId, prefix);
-  for (const key of memory.keys()) if (key.startsWith(start)) memory.delete(key);
+  for (const [key, entry] of memory.entries()) {
+    if (key.startsWith(start) || entry.path.startsWith(prefix)) memory.delete(key);
+  }
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
-      if (key?.startsWith(CACHE_PREFIX + userId + "_")) {
+      if (!key?.startsWith(CACHE_PREFIX + userId + "_")) continue;
+      try {
         const raw = localStorage.getItem(key);
-        try {
-          const entry = raw ? JSON.parse(raw) as Entry : null;
-          if (entry && typeof entry === "object" && "value" in entry) {
-            // URL path is not exposed by the compact key; prefix invalidation also clears IDB below.
-          }
-        } catch {}
-      }
+        const entry = raw ? JSON.parse(raw) as Entry : null;
+        if (entry && typeof entry.path === "string" && entry.path.startsWith(prefix)) localStorage.removeItem(key);
+      } catch { localStorage.removeItem(key); }
     }
   } catch {}
   void openDb().then(db => {
@@ -146,7 +145,8 @@ export function invalidateApiCachePrefix(prefix: string): void {
         const cursor = req.result;
         if (!cursor) return;
         const key = String(cursor.key);
-        if (key.startsWith(start)) cursor.delete();
+        const entry = cursor.value as Entry;
+        if (key.startsWith(start) || entry?.path?.startsWith(prefix)) cursor.delete();
         cursor.continue();
       };
       tx.oncomplete = () => db.close();
