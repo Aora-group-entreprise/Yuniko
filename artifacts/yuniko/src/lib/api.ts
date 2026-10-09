@@ -28,10 +28,10 @@ export async function apiFetch(
   }
 
   const method = (options.method ?? "GET").toUpperCase();
-  const canCache = method === "GET" && !options.signal && isCacheableGet(path);
+  const canCache = method === "GET" && isCacheableGet(path);
   if (canCache) {
     const cached = await getApiCached<unknown>(path);
-    if (cached !== undefined) {
+    if (cached !== undefined && !options.signal?.aborted) {
       return new Response(JSON.stringify(cached), {
         status: 200,
         headers: { "Content-Type": "application/json; charset=utf-8", "X-Yuniko-Cache": "HIT" },
@@ -86,9 +86,9 @@ export async function apiJson<T>(
 ): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
   const cacheable = method === "GET" && isCacheableGet(path);
-  if (cacheable) {
+  if (cacheable && !options.signal?.aborted) {
     const cached = await getApiCached<T>(path);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined && !options.signal?.aborted) return cached;
   }
   const res = await apiFetch(path, options);
   const contentType = res.headers.get("content-type") ?? "";
