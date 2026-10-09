@@ -45,8 +45,6 @@ async function idbGet(key: string): Promise<Entry | null> {
       const req = tx.objectStore(DB_STORE).get(key);
       req.onsuccess = () => resolve(isFresh(req.result) ? req.result : null);
       req.onerror = () => resolve(null);
-      tx.oncomplete = () => 
-      tx.onerror = () => 
     } catch {  resolve(null); }
   });
 }
@@ -116,8 +114,6 @@ export function invalidateApiCache(path: string): void {
     try {
       const tx = db.transaction(DB_STORE, "readwrite");
       tx.objectStore(DB_STORE).delete(key);
-      tx.oncomplete = () => 
-      tx.onerror = () => 
     } catch {  }
   });
 }
