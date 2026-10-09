@@ -202,6 +202,33 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     }
   };
 
+  const refreshFeedRef = useRef(refreshFeed);
+  refreshFeedRef.current = refreshFeed;
+
+  useEffect(() => {
+    let timer: number | null = null;
+    const onRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (!detail) return;
+      const notification = detail.notification as Record<string, unknown> | undefined;
+      const eventType = String(detail.type ?? "");
+      const notificationType = String(notification?.type ?? "");
+      const feedRelevant = eventType === "story:view" || eventType.startsWith("post:") ||
+        (eventType === "notification:new" && ["like", "comment", "share", "follow", "story_reaction", "story_reply"].includes(notificationType));
+      if (!feedRelevant) return;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        void refreshFeedRef.current();
+      }, 180);
+    };
+    window.addEventListener("yuniko:realtime", onRealtime);
+    return () => {
+      window.removeEventListener("yuniko:realtime", onRealtime);
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     if (!user) return;
 
