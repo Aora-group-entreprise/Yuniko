@@ -7,7 +7,7 @@ import {deviceInfo,encryptForDevices,encryptForPublicKey,decryptFromPublicKey} f
 import { apiJson } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
-import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionUser } from "@/lib/session-cache";
+import { fetchSessionJson, getSessionCache, invalidateSessionCache, setSessionCache, setSessionUser } from "@/lib/session-cache";
 
 type Reaction={reaction:string;count:number;reacted:boolean};
 type Message={
@@ -106,42 +106,34 @@ export default function Chat(){
 
   useEffect(()=>{
     if(!Number.isInteger(userId)||userId<=0)return;
-    let cancelled=false;
-    const poll=async()=>{
-      if(cancelled||document.visibilityState==="hidden")return;
-      try{
-        const data=await apiJson<{messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>("/messages/conversations/"+userId+"?after="+lastMessageIdRef.current);
-        if(cancelled)return;
-        if(data.messages?.length){
-          const fresh=await Promise.all(data.messages.map(async m=>({
-            ...m,
-            text:m.text&&(m.text.startsWith("enc2.")||m.encryptionPublicKey)?await decryptFromPublicKey(m.encryptionPublicKey,m.text).catch(()=>m.text):m.text,
-          })));
-          setMessages(current=>{
-            const known=new Set(current.map(m=>m.id));
-            return current.concat(fresh.filter(m=>!known.has(m.id)));
-          });
-          lastMessageIdRef.current=Math.max(lastMessageIdRef.current,...data.messages.map(m=>m.id));
-        }
-        setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
-      }catch{}
-    };
     const onRealtime=(event:Event)=>{
       const detail=(event as CustomEvent<Record<string,unknown>>).detail;
       if(!detail)return;
       const eventUserId=Number(detail.userId??detail.fromUserId);
       if(detail.type==="chat:typing"&&eventUserId===userId){setOtherTyping(Boolean(detail.typing));return;}
-      if(detail.type==="message:new"&&eventUserId===userId)void poll();
+      if(detail.type!=="message:new"||eventUserId!==userId)return;
+      const raw=detail.message as Message|undefined;
+      if(!raw||!Number.isInteger(Number(raw.id)))return;
+      void (async()=>{
+        const fresh:Message={
+          ...raw,
+          text:raw.text&&(raw.text.startsWith("enc2.")||raw.encryptionPublicKey)
+            ?await decryptFromPublicKey(raw.encryptionPublicKey,raw.text).catch(()=>raw.text)
+            :raw.text,
+          reactions:Array.isArray(raw.reactions)?raw.reactions:[],
+        };
+        lastMessageIdRef.current=Math.max(lastMessageIdRef.current,Number(fresh.id));
+        setMessages(current=>{
+          if(current.some(message=>message.id===fresh.id))return current;
+          const next=[...current,fresh];
+          if(user)setSessionCache(cacheKey,{user,messages:next,otherTyping:false,otherActiveAt,otherOnline});
+          return next;
+        });
+      })();
     };
-    const interval=window.setInterval(()=>void poll(),15000);
-    void poll();
-    const onVisible=()=>{if(document.visibilityState==="visible")void poll();};
     window.addEventListener("yuniko:realtime",onRealtime);
-    document.addEventListener("visibilitychange",onVisible);
-    window.addEventListener("online",onVisible);
-    return()=>{cancelled=true;window.clearInterval(interval);window.removeEventListener("yuniko:realtime",onRealtime);document.removeEventListener("visibilitychange",onVisible);window.removeEventListener("online",onVisible);};
-  },[userId,user?.encryptionPublicKey]);
-
+    return()=>window.removeEventListener("yuniko:realtime",onRealtime);
+  },[userId,user?.id,cacheKey,otherActiveAt,otherOnline]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
   useEffect(()=>()=>{mediaRecorderRef.current?.stop();if(typingTimerRef.current!==null)window.clearTimeout(typingTimerRef.current);},[]);
   useEffect(()=>()=>{if(selectedMediaPreview)URL.revokeObjectURL(selectedMediaPreview);},[selectedMediaPreview]);
