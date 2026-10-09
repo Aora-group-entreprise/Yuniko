@@ -36,7 +36,7 @@ export default function Chat(){
   setSessionUser(Number(authUser?.id));
   const userId=Number(params?.userId);
   const cacheKey=Number.isInteger(userId)&&userId>0?"/messages/conversations/"+userId:"";
-  const cached=cacheKey?getSessionCache<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>(cacheKey):undefined;
+  const cached=cacheKey?getSessionCache<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null;otherOnline?:boolean}>(cacheKey):undefined;
   const [user,setUser]=useState<ChatUser|null>(()=>cached?.user??null);
   const [messages,setMessages]=useState<Message[]>(()=>cached?.messages??[]);
   const [inputText,setInputText]=useState("");
@@ -48,6 +48,7 @@ export default function Chat(){
   const [error,setError]=useState<string|null>(null);
   const [otherTyping,setOtherTyping]=useState(Boolean(cached?.otherTyping));
   const [otherActiveAt,setOtherActiveAt]=useState<string|null>(cached?.otherActiveAt??null);
+  const [otherOnline,setOtherOnline]=useState(Boolean(cached?.otherOnline));
   const [selectedMessage,setSelectedMessage]=useState<Message|null>(null);
   const [incomingCall,setIncomingCall]=useState<{roomId:string;callType:"voice"|"video";callerId:number;user:{id:number;displayName:string;avatarUrl:string|null}}|null>(null);
   useEffect(()=>{
@@ -89,6 +90,16 @@ export default function Chat(){
   };
 
   useEffect(()=>{void load();},[userId]);
+
+  useEffect(()=>{
+    const onPresence=(event:Event)=>{
+      const detail=(event as CustomEvent<Record<string,unknown>>).detail;
+      if(Number(detail?.userId)!==userId)return;
+      setOtherOnline(Boolean(detail?.online));
+    };
+    window.addEventListener("yuniko:presence",onPresence);
+    return()=>window.removeEventListener("yuniko:presence",onPresence);
+  },[userId]);
 
   useEffect(()=>{
     if(!Number.isInteger(userId)||userId<=0)return;
@@ -303,14 +314,14 @@ export default function Chat(){
       <button onClick={()=>setLocation("/user/"+user.id)} className="min-w-0 flex-1 flex items-center gap-2.5 text-left">
         <div className="relative shrink-0">
           <img src={avatar(user)} alt={user.displayName} className="w-11 h-11 rounded-full object-cover"/>
-          <span className="absolute right-0 bottom-0 w-3 h-3 rounded-full border-2 border-[#050509] bg-[#35d16f]"/>
+          <span className={"absolute right-0 bottom-0 w-3 h-3 rounded-full border-2 border-[#050509] "+(otherOnline?"bg-[#35d16f]":"bg-white/20")}/>
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1 min-w-0">
             <span className="text-white font-semibold text-[16px] leading-tight truncate">{nickname||user.displayName}</span>
             {user.verified&&<BadgeCheck size={13} className="shrink-0 text-blue-400 fill-blue-400"/>}
           </div>
-          <span className="block text-white/45 text-[12px] leading-tight mt-0.5 truncate">{otherTyping?"typing…":otherActiveAt?"active recently":"@"+user.username}</span>
+          <span className="block text-white/45 text-[12px] leading-tight mt-0.5 truncate">{otherTyping?"typing…":otherOnline?"online":otherActiveAt?"active recently":"@"+user.username}</span>
         </div>
       </button>
       <div className="shrink-0 flex items-center gap-1">
