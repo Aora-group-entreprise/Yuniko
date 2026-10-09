@@ -133,31 +133,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const [notificationBadgeCleared, setNotificationBadgeCleared] = useState(false);
   const feedSnapshotRef = useRef<string>(new Date().toISOString());
   const feedRefreshInFlightRef = useRef(false);
-  const pendingFeedDataRef = useRef<{ posts?: any[]; feedSnapshotAt?: string } | null>(null);
-  const pendingFeedPromiseRef = useRef<Promise<{ posts?: any[]; feedSnapshotAt?: string }> | null>(null);
   const suppressFeedPositionSaveRef = useRef(false);
-
-  const prefetchLatestFeed = () => {
-    if (!user || feedRefreshInFlightRef.current || pendingFeedPromiseRef.current) {
-      return pendingFeedPromiseRef.current;
-    }
-
-    const promise = apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed")
-      .then((data) => {
-        pendingFeedDataRef.current = data;
-        return data;
-      })
-      .catch(() => {
-        pendingFeedDataRef.current = null;
-        throw new Error("Feed prefetch failed");
-      })
-      .finally(() => {
-        pendingFeedPromiseRef.current = null;
-      });
-
-    pendingFeedPromiseRef.current = promise;
-    return promise;
-  };
 
   const applyFeedData = (feedData: { posts?: any[]; feedSnapshotAt?: string }) => {
     const snapshotAt = feedData.feedSnapshotAt ?? new Date().toISOString();
@@ -173,62 +149,30 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     try { sessionStorage.setItem("yuniko_feed_snapshot_at", snapshotAt); } catch {}
     setNewPostsCount(0);
     setFeedLoading(false);
-    pendingFeedDataRef.current = null;
   };
 
   const refreshFeed = async () => {
     if (!user || feedRefreshInFlightRef.current) return;
     feedRefreshInFlightRef.current = true;
     try {
-      const pendingFeed = pendingFeedDataRef.current;
-      const pendingPromise = pendingFeedPromiseRef.current;
-      const feedPromise = pendingPromise ?? apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed");
-      const storiesPromise = apiJson<{ stories?: LiveStory[] }>("/stories");
-
-      const feedData = pendingFeed ?? await feedPromise;
+      const [feedData, storiesData] = await Promise.all([
+        apiJson<{ posts?: any[]; feedSnapshotAt?: string }>("/posts/feed"),
+        apiJson<{ stories?: LiveStory[] }>("/stories"),
+      ]);
       applyFeedData(feedData);
+      const stories = storiesData.stories ?? [];
+      setSessionCache("/stories", storiesData);
+      setLiveStories(stories);
+      if (feedMemoryCache?.userId === Number(user.id)) {
+        feedMemoryCache = { ...feedMemoryCache, stories };
+      }
 
-      void storiesPromise.then((storiesData) => {
-        const stories = storiesData.stories ?? [];
-        setSessionCache("/stories", storiesData);
-        setLiveStories(stories);
-        if (feedMemoryCache?.userId === Number(user.id)) {
-          feedMemoryCache = { ...feedMemoryCache, stories };
-        }
-      }).catch(() => {});
     } catch {
       setFeedLoading(false);
     } finally {
       feedRefreshInFlightRef.current = false;
     }
   };
-
-  const refreshFeedRef = useRef(refreshFeed);
-  refreshFeedRef.current = refreshFeed;
-
-  useEffect(() => {
-    let timer: number | null = null;
-    const onRealtime = (event: Event) => {
-      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
-      if (!detail) return;
-      const notification = detail.notification as Record<string, unknown> | undefined;
-      const eventType = String(detail.type ?? "");
-      const notificationType = String(notification?.type ?? "");
-      const feedRelevant = eventType === "story:view" || eventType.startsWith("post:") ||
-        (eventType === "notification:new" && ["like", "comment", "share", "follow", "story_reaction", "story_reply"].includes(notificationType));
-      if (!feedRelevant) return;
-      if (timer !== null) window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        timer = null;
-        void refreshFeedRef.current();
-      }, 180);
-    };
-    window.addEventListener("yuniko:realtime", onRealtime);
-    return () => {
-      window.removeEventListener("yuniko:realtime", onRealtime);
-      if (timer !== null) window.clearTimeout(timer);
-    };
-  }, []);
 
   useLayoutEffect(() => {
     if (!user) return;
@@ -334,6 +278,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
     scrollElement?.addEventListener("scroll", saveFeedPosition, { passive: true });
 
     try { setNotificationBadgeCleared(sessionStorage.getItem("yuniko_notifications_badge_cleared") === "1"); } catch {}
+    setNewPostsCount(getSessionCache<{ posts?: any[] }>("/posts/feed/pending-realtime")?.posts?.length ?? 0);
     const onRealtime = (event: Event) => {
       const detail = (event as CustomEvent<Record<string, unknown>>).detail;
       if (detail?.type === "notification:new") {
@@ -341,10 +286,9 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         setNotificationBadgeCleared(false);
         try { sessionStorage.removeItem("yuniko_notifications_badge_cleared"); } catch {}
       }
-      if (detail?.type === "post:new" && location === "/") {
-        setNewPostsCount((count) => count + 1);
-        const refresh = prefetchLatestFeed();
-        if (refresh) void refresh.catch(() => {});
+      if (detail?.type === "post:new") {
+        const pending = getSessionCache<{ posts?: any[] }>("/posts/feed/pending-realtime");
+        setNewPostsCount(pending?.posts?.length ?? 0);
       }
     };
     window.addEventListener("yuniko:realtime", onRealtime);
@@ -541,41 +485,43 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
             scrollElement.scrollTo({ top: 0, behavior: "auto" });
           }
 
-          const refreshIfNeeded = async () => {
-            let count = newPostsCount;
+          const pending = getSessionCache<{ posts?: any[] }>("/posts/feed/pending-realtime")?.posts ?? [];
+          if (pending.length > 0 && user) {
+            const feedCache = getSessionCache<{ posts?: any[]; feedSnapshotAt?: string; [key: string]: unknown }>("/posts/feed");
+            const cachedPosts = feedMemoryCache?.userId === Number(user.id)
+              ? feedMemoryCache.posts
+              : (feedCache?.posts ?? []);
+            const existingIds = new Set(cachedPosts.map((post) => String(post.id)));
+            const incoming = pending
+              .filter((post) => post && post.id != null && !existingIds.has(String(post.id)))
+              .sort((a, b) => new Date(String(b.createdAt ?? 0)).getTime() - new Date(String(a.createdAt ?? 0)).getTime());
+            const mergedRaw = [...incoming, ...cachedPosts]
+              .filter((post, index, all) => all.findIndex((candidate) => String(candidate.id) === String(post.id)) === index)
+              .sort((a, b) => new Date(String(b.createdAt ?? 0)).getTime() - new Date(String(a.createdAt ?? 0)).getTime())
+              .slice(0, 100);
 
-            if (count <= 0) {
-              try {
-                const data = await apiJson<{ newPostsCount?: number }>(
-                  `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
-                );
-                count = Math.max(0, Number(data.newPostsCount) || 0);
-                if (count > 0) setNewPostsCount(count);
-              } catch {
-                return;
-              }
+            if (incoming.length > 0) {
+              const convertedIncoming = convertPosts(incoming);
+              setLivePosts((current) => [
+                ...convertedIncoming.filter(({ post }) => !current.some((existing) => existing.post.id === post.id)),
+                ...current,
+              ]);
             }
 
-            if (count <= 0) return;
-
-            setNewPostsCount(0);
-
-            const pendingFeed = pendingFeedDataRef.current;
-            if (pendingFeed) {
-              applyFeedData(pendingFeed);
-              return;
-            }
-
-            const pendingFeedPromise = pendingFeedPromiseRef.current ?? prefetchLatestFeed();
-            if (pendingFeedPromise) {
-              try {
-                const feedData = await pendingFeedPromise;
-                applyFeedData(feedData);
-              } catch {}
-            }
-          };
-
-          void refreshIfNeeded();
+            setSessionCache("/posts/feed", {
+              ...(feedCache ?? {}),
+              posts: mergedRaw,
+              feedSnapshotAt: feedCache?.feedSnapshotAt ?? feedSnapshotRef.current,
+            });
+            setSessionCache("/posts/feed/pending-realtime", { posts: [] });
+            feedMemoryCache = {
+              userId: Number(user.id),
+              posts: mergedRaw,
+              stories: feedMemoryCache?.userId === Number(user.id) ? feedMemoryCache.stories : liveStories,
+              snapshotAt: feedMemoryCache?.snapshotAt ?? feedSnapshotRef.current,
+            };
+          }
+          setNewPostsCount(0);
         }}
       />
 

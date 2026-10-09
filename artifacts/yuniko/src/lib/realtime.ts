@@ -88,17 +88,16 @@ function applyMessageToCache(event: RealtimeEvent): boolean {
 function applyPostToCache(event: RealtimeEvent): boolean {
   const post = event.post as Record<string, unknown> | undefined;
   if (!post || post.id == null) return false;
-  const update = <T extends CacheEnvelope>(value: T): T => {
-    const posts = Array.isArray(value.posts) ? value.posts as Array<Record<string, unknown>> : [];
-    return {
-      ...value,
-      posts: appendUnique(posts, post, (entry) => entry.id),
-      latestCreatedAt: String(post.createdAt ?? value.latestCreatedAt ?? new Date().toISOString()),
-      newPostsCount: 0,
-    } as T;
-  };
-  updateExistingSessionCache("/posts/feed", update);
-  void updateExistingApiCache("/posts/feed", update);
+
+  // Queue incoming posts separately so a realtime event never jumps the visible feed.
+  // The user applies this queue locally by tapping Home; no feed refresh request is needed.
+  const path = "/posts/feed/pending-realtime";
+  const cached = getSessionCache<{ posts?: Array<Record<string, unknown>> }>(path);
+  const queued = Array.isArray(cached?.posts) ? cached.posts : [];
+  const posts = appendUnique(queued, post, (entry) => entry.id)
+    .sort((a, b) => new Date(String(b.createdAt ?? 0)).getTime() - new Date(String(a.createdAt ?? 0)).getTime())
+    .slice(0, 100);
+  setSessionCache(path, { posts });
   return true;
 }
 
