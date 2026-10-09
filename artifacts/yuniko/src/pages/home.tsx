@@ -9,7 +9,7 @@ import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
-import { fetchSessionJson, getSessionCache, setSessionUser, warmSessionData } from "@/lib/session-cache";
+import { fetchSessionJson, getSessionCache, setSessionCache, setSessionUser, warmSessionData } from "@/lib/session-cache";
 import { apiJson } from "@/lib/api";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
@@ -163,6 +163,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const applyFeedData = (feedData: { posts?: any[]; feedSnapshotAt?: string }) => {
     const snapshotAt = feedData.feedSnapshotAt ?? new Date().toISOString();
     setLivePosts(convertPosts(feedData.posts ?? []));
+    setSessionCache("/posts/feed", feedData);
     feedSnapshotRef.current = snapshotAt;
     feedMemoryCache = {
       userId: Number(user!.id),
@@ -190,6 +191,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
       void storiesPromise.then((storiesData) => {
         const stories = storiesData.stories ?? [];
+        setSessionCache("/stories", storiesData);
         setLiveStories(stories);
         if (feedMemoryCache?.userId === Number(user.id)) {
           feedMemoryCache = { ...feedMemoryCache, stories };
