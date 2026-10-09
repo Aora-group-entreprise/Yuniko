@@ -6,7 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import { apiJson } from "@/lib/api";
 
 const GRADIENT = "linear-gradient(135deg, #FF1493 0%, #8B5CFF 48%, #008CFF 100%)";
-const NOTIFICATION_REFRESH_MS = 3000;
+const NOTIFICATION_REFRESH_MS = 30000;
 
 interface NotificationItem {
   id: number;
@@ -269,6 +269,11 @@ export default function Notifications() {
 
     void syncNotifications(true);
     const interval = window.setInterval(() => void syncNotifications(false), NOTIFICATION_REFRESH_MS);
+    const handleRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (detail?.type === "notification:new") void syncNotifications(false);
+    };
+    window.addEventListener("yuniko:realtime", handleRealtime);
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") void syncNotifications(false);
@@ -278,6 +283,7 @@ export default function Notifications() {
     return () => {
       alive = false;
       window.clearInterval(interval);
+      window.removeEventListener("yuniko:realtime", handleRealtime);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);

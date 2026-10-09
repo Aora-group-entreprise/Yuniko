@@ -20,11 +20,13 @@ function userFromCookie(r:Request){
 export default{
   async fetch(request:Request,env:Record<string,unknown>,ctx:WorkerExecutionContext){
     const u=new URL(request.url);
-    if(u.pathname==="/api/calls/ws"){
+    if(u.pathname==="/api/calls/ws"||u.pathname==="/api/realtime/ws"){
       if(request.method!=="GET"||request.headers.get("Upgrade")!=="websocket")return new Response("Expected WebSocket",{status:426});
       const userId=userFromCookie(request);
       if(!userId)return new Response("Unauthorized",{status:401});
-      const scope=u.searchParams.get("scope")==="room"?"room":"inbox",room=u.searchParams.get("room");
+      const realtime=u.pathname==="/api/realtime/ws";
+      const scope=realtime?"realtime":u.searchParams.get("scope")==="room"?"room":"inbox";
+      const room=u.searchParams.get("room");
       if(scope==="room"&&!room)return new Response("Missing room",{status:400});
       const ns=env.CALL_SIGNAL as CallSignalNamespace,name=scope==="room"?"room:"+room:"user:"+userId;
       u.searchParams.set("scope",scope);

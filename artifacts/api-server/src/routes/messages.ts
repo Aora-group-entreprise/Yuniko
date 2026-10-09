@@ -3,6 +3,7 @@ import { env as cloudflareEnv } from "cloudflare:workers";
 import { authMiddleware } from "../middlewares/auth";
 import { deleteRows, eq, insertRow, selectRows, updateRows, supabaseError } from "../lib/supabase";
 import { createNotification } from "../lib/notifications";
+import { publishRealtimeToUser } from "../lib/realtime";
 
 const messagesRouter = Router();
 const runtimeEnv = cloudflareEnv as unknown as Record<string, string | undefined>;
@@ -420,8 +421,10 @@ messagesRouter.post("/messages/conversations/:userId",authMiddleware,async(req:A
     await updateRows("conversations",{updatedAt:now},[eq("id",conversationId)]);
     await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
     const notificationText=req.body?.encryptionVersion? "Vous avez reçu un nouveau message.":text;
+    const realtimeMessage={id:Number(message.id),senderId:currentId,text,timestamp:dateValue(message.createdAt),read:false,delivered:false,edited:false,deleted:false,replyToMessageId:replyTo,forwardedFromMessageId:null,reactions:[],type:"text"};
     await createNotification(friendId,currentId,"message",notificationText,{url:`/messages?userId=${currentId}`});
-    return res.status(201).json({message:{id:Number(message.id),senderId:currentId,text,timestamp:dateValue(message.createdAt),read:false,delivered:false,edited:false,deleted:false,replyToMessageId:replyTo,forwardedFromMessageId:null,reactions:[],type:"text"}});
+    try{await publishRealtimeToUser(friendId,{type:"message:new",userId:currentId,conversationId,message:realtimeMessage});}catch(error){console.error("[YUNIKO REALTIME] message dispatch failed",error);}
+    return res.status(201).json({message:realtimeMessage});
   }catch(err){return supabaseError(res,err);}
 });
 
@@ -515,6 +518,7 @@ messagesRouter.post("/messages/conversations/:userId/typing",authMiddleware,asyn
   try{
     const conversationId=await ensureFriendConversation(currentId,friendId),now=new Date();
     await updateRows("conversation_members",{lastActiveAt:now,typingAt:typing?now:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
+    try{await publishRealtimeToUser(friendId,{type:"chat:typing",userId:currentId,typing,conversationId});}catch(error){console.error("[YUNIKO REALTIME] typing dispatch failed",error);}
     return res.json({typing});
   }catch(err){return supabaseError(res,err);}
 });
@@ -675,11 +679,13 @@ messagesRouter.post("/messages/conversations/:userId/media",authMiddleware,async
     await updateRows("conversation_members",{lastActiveAt:now,typingAt:null},[eq("conversationId",conversationId),eq("userId",currentId)]);
     await createNotification(friendId,currentId,"message","Vous avez reçu un nouveau média.",{url:`/messages?userId=${currentId}`});
     const mediaUrl=await signedMediaUrl(objectPath);
-    return res.status(201).json({message:{
+    const mediaMessage={
       id:Number(message.id),senderId:currentId,text:undefined,imageUrl:finalKind==="image"||finalKind==="sticker"?mediaUrl:undefined,audioUrl:finalKind==="audio"?mediaUrl:undefined,videoUrl:finalKind==="video"?mediaUrl:undefined,fileUrl:finalKind==="file"?mediaUrl:undefined,
       fileName:mediaName||null,fileSize:binary.length,mediaMimeType:contentType,durationMs:Number.isFinite(durationMs)&&durationMs>0?Math.floor(durationMs):null,
       timestamp:dateValue(message.createdAt),read:false,delivered:false,edited:false,deleted:false,reactions:[],type:finalKind,
-    }});
+    };
+    try{await publishRealtimeToUser(friendId,{type:"message:new",userId:currentId,conversationId,message:mediaMessage});}catch(error){console.error("[YUNIKO REALTIME] media dispatch failed",error);}
+    return res.status(201).json({message:mediaMessage});
   }catch(err){return supabaseError(res,err);}
 });
 

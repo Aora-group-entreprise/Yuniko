@@ -4,6 +4,7 @@ import { deleteRows, eq, gt, selectRows, sortRows, supabaseError, insertRow, upd
 import { canInteract } from "../lib/privacy";
 import { ensureFriendConversation } from "./messages";
 import { createNotification } from "../lib/notifications";
+import { publishRealtimeToUser } from "../lib/realtime";
 
 const storiesRouter = Router();
 async function cleanupExpiredStories(){const rows=await selectRows("stories",{filters:[gt("expiresAt",new Date(0))],limit:5000});for(const story of rows){if(new Date(String(story.expiresAt)).getTime()>Date.now())continue;const id=Number(story.id);for(const table of ["story_views","story_reactions","story_replies"]){try{await deleteRows(table,[eq("storyId",id)])}catch{}}try{await deleteRows("stories",[eq("id",id)])}catch{}}}
@@ -86,11 +87,10 @@ storiesRouter.post("/stories/:id/view", authMiddleware, async (req: Request & { 
         limit: 1,
       });
       const existing=await selectRows("story_views",{filters:[eq("storyId",id),eq("userId",viewerId)],limit:1});
-      if(!existing.length) await insertRow("story_views", {
-        storyId: id,
-        userId: viewerId,
-        viewedAt: new Date(),
-      });
+      if(!existing.length){
+        await insertRow("story_views", {storyId:id,userId:viewerId,viewedAt:new Date()});
+        try{await publishRealtimeToUser(Number(story.userId),{type:"story:view",storyId:id,viewerId});}catch(error){console.error("[YUNIKO REALTIME] story view dispatch failed",error);}
+      }
 
       if (settings?.deleteWatchedStories === true) {
         // Remove it only from this viewer's feed. Never delete the author's story

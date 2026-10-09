@@ -9,7 +9,7 @@ import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
-import { fetchSessionJson, getSessionCache, setSessionUser, warmSessionData } from "@/lib/session-cache";
+import { fetchSessionJson, getSessionCache, setSessionCache, setSessionUser, warmSessionData } from "@/lib/session-cache";
 import { apiJson } from "@/lib/api";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
@@ -163,6 +163,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const applyFeedData = (feedData: { posts?: any[]; feedSnapshotAt?: string }) => {
     const snapshotAt = feedData.feedSnapshotAt ?? new Date().toISOString();
     setLivePosts(convertPosts(feedData.posts ?? []));
+    setSessionCache("/posts/feed", feedData);
     feedSnapshotRef.current = snapshotAt;
     feedMemoryCache = {
       userId: Number(user!.id),
@@ -190,6 +191,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
       void storiesPromise.then((storiesData) => {
         const stories = storiesData.stories ?? [];
+        setSessionCache("/stories", storiesData);
         setLiveStories(stories);
         if (feedMemoryCache?.userId === Number(user.id)) {
           feedMemoryCache = { ...feedMemoryCache, stories };
@@ -201,6 +203,33 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
       feedRefreshInFlightRef.current = false;
     }
   };
+
+  const refreshFeedRef = useRef(refreshFeed);
+  refreshFeedRef.current = refreshFeed;
+
+  useEffect(() => {
+    let timer: number | null = null;
+    const onRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (!detail) return;
+      const notification = detail.notification as Record<string, unknown> | undefined;
+      const eventType = String(detail.type ?? "");
+      const notificationType = String(notification?.type ?? "");
+      const feedRelevant = eventType === "story:view" || eventType.startsWith("post:") ||
+        (eventType === "notification:new" && ["like", "comment", "share", "follow", "story_reaction", "story_reply"].includes(notificationType));
+      if (!feedRelevant) return;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        void refreshFeedRef.current();
+      }, 180);
+    };
+    window.addEventListener("yuniko:realtime", onRealtime);
+    return () => {
+      window.removeEventListener("yuniko:realtime", onRealtime);
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!user) return;

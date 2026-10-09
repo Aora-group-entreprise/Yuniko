@@ -36,7 +36,7 @@ export default function Chat(){
   setSessionUser(Number(authUser?.id));
   const userId=Number(params?.userId);
   const cacheKey=Number.isInteger(userId)&&userId>0?"/messages/conversations/"+userId:"";
-  const cached=cacheKey?getSessionCache<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>(cacheKey):undefined;
+  const cached=cacheKey?getSessionCache<{user:ChatUser;messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null;otherOnline?:boolean}>(cacheKey):undefined;
   const [user,setUser]=useState<ChatUser|null>(()=>cached?.user??null);
   const [messages,setMessages]=useState<Message[]>(()=>cached?.messages??[]);
   const [inputText,setInputText]=useState("");
@@ -48,6 +48,7 @@ export default function Chat(){
   const [error,setError]=useState<string|null>(null);
   const [otherTyping,setOtherTyping]=useState(Boolean(cached?.otherTyping));
   const [otherActiveAt,setOtherActiveAt]=useState<string|null>(cached?.otherActiveAt??null);
+  const [otherOnline,setOtherOnline]=useState(Boolean(cached?.otherOnline));
   const [selectedMessage,setSelectedMessage]=useState<Message|null>(null);
   const [incomingCall,setIncomingCall]=useState<{roomId:string;callType:"voice"|"video";callerId:number;user:{id:number;displayName:string;avatarUrl:string|null}}|null>(null);
   useEffect(()=>{
@@ -92,11 +93,24 @@ export default function Chat(){
 
   useEffect(()=>{
     if(!Number.isInteger(userId)||userId<=0)return;
+    let alive=true;
+    void apiJson<{online:boolean}>("/realtime/presence?userId="+userId).then(data=>{if(alive)setOtherOnline(Boolean(data.online));}).catch(()=>{if(alive)setOtherOnline(false);});
+    const onPresence=(event:Event)=>{
+      const detail=(event as CustomEvent<Record<string,unknown>>).detail;
+      if(Number(detail?.userId)!==userId)return;
+      setOtherOnline(Boolean(detail?.online));
+    };
+    window.addEventListener("yuniko:presence",onPresence);
+    return()=>{alive=false;window.removeEventListener("yuniko:presence",onPresence);};
+  },[userId]);
+
+  useEffect(()=>{
+    if(!Number.isInteger(userId)||userId<=0)return;
     let cancelled=false;
     const poll=async()=>{
       if(cancelled||document.visibilityState==="hidden")return;
       try{
-        const data=await fetchSessionJson<{messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>("/messages/conversations/"+userId+"?after="+lastMessageIdRef.current);
+        const data=await apiJson<{messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>("/messages/conversations/"+userId+"?after="+lastMessageIdRef.current);
         if(cancelled)return;
         if(data.messages?.length){
           const fresh=await Promise.all(data.messages.map(async m=>({
@@ -112,12 +126,20 @@ export default function Chat(){
         setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
       }catch{}
     };
-    const interval=window.setInterval(()=>void poll(),1500);
+    const onRealtime=(event:Event)=>{
+      const detail=(event as CustomEvent<Record<string,unknown>>).detail;
+      if(!detail)return;
+      const eventUserId=Number(detail.userId??detail.fromUserId);
+      if(detail.type==="chat:typing"&&eventUserId===userId){setOtherTyping(Boolean(detail.typing));return;}
+      if(detail.type==="message:new"&&eventUserId===userId)void poll();
+    };
+    const interval=window.setInterval(()=>void poll(),15000);
     void poll();
     const onVisible=()=>{if(document.visibilityState==="visible")void poll();};
+    window.addEventListener("yuniko:realtime",onRealtime);
     document.addEventListener("visibilitychange",onVisible);
     window.addEventListener("online",onVisible);
-    return()=>{cancelled=true;window.clearInterval(interval);document.removeEventListener("visibilitychange",onVisible);window.removeEventListener("online",onVisible);};
+    return()=>{cancelled=true;window.clearInterval(interval);window.removeEventListener("yuniko:realtime",onRealtime);document.removeEventListener("visibilitychange",onVisible);window.removeEventListener("online",onVisible);};
   },[userId,user?.encryptionPublicKey]);
 
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
@@ -295,14 +317,14 @@ export default function Chat(){
       <button onClick={()=>setLocation("/user/"+user.id)} className="min-w-0 flex-1 flex items-center gap-2.5 text-left">
         <div className="relative shrink-0">
           <img src={avatar(user)} alt={user.displayName} className="w-11 h-11 rounded-full object-cover"/>
-          <span className="absolute right-0 bottom-0 w-3 h-3 rounded-full border-2 border-[#050509] bg-[#35d16f]"/>
+          <span className={"absolute right-0 bottom-0 w-3 h-3 rounded-full border-2 border-[#050509] "+(otherOnline?"bg-[#35d16f]":"bg-white/20")}/>
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1 min-w-0">
             <span className="text-white font-semibold text-[16px] leading-tight truncate">{nickname||user.displayName}</span>
             {user.verified&&<BadgeCheck size={13} className="shrink-0 text-blue-400 fill-blue-400"/>}
           </div>
-          <span className="block text-white/45 text-[12px] leading-tight mt-0.5 truncate">{otherTyping?"typing…":otherActiveAt?"active recently":"@"+user.username}</span>
+          <span className="block text-white/45 text-[12px] leading-tight mt-0.5 truncate">{otherTyping?"typing…":otherOnline?"online":otherActiveAt?"active recently":"@"+user.username}</span>
         </div>
       </button>
       <div className="shrink-0 flex items-center gap-1">
