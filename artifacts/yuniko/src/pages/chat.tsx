@@ -96,7 +96,7 @@ export default function Chat(){
     const poll=async()=>{
       if(cancelled||document.visibilityState==="hidden")return;
       try{
-        const data=await fetchSessionJson<{messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>("/messages/conversations/"+userId+"?after="+lastMessageIdRef.current);
+        const data=await apiJson<{messages:Message[];otherTyping?:boolean;otherActiveAt?:string|null}>("/messages/conversations/"+userId+"?after="+lastMessageIdRef.current);
         if(cancelled)return;
         if(data.messages?.length){
           const fresh=await Promise.all(data.messages.map(async m=>({
@@ -112,12 +112,20 @@ export default function Chat(){
         setOtherTyping(Boolean(data.otherTyping));setOtherActiveAt(data.otherActiveAt??null);
       }catch{}
     };
-    const interval=window.setInterval(()=>void poll(),1500);
+    const onRealtime=(event:Event)=>{
+      const detail=(event as CustomEvent<Record<string,unknown>>).detail;
+      if(!detail)return;
+      const eventUserId=Number(detail.userId??detail.fromUserId);
+      if(detail.type==="chat:typing"&&eventUserId===userId){setOtherTyping(Boolean(detail.typing));return;}
+      if(detail.type==="message:new"&&eventUserId===userId)void poll();
+    };
+    const interval=window.setInterval(()=>void poll(),15000);
     void poll();
     const onVisible=()=>{if(document.visibilityState==="visible")void poll();};
+    window.addEventListener("yuniko:realtime",onRealtime);
     document.addEventListener("visibilitychange",onVisible);
     window.addEventListener("online",onVisible);
-    return()=>{cancelled=true;window.clearInterval(interval);document.removeEventListener("visibilitychange",onVisible);window.removeEventListener("online",onVisible);};
+    return()=>{cancelled=true;window.clearInterval(interval);window.removeEventListener("yuniko:realtime",onRealtime);document.removeEventListener("visibilitychange",onVisible);window.removeEventListener("online",onVisible);};
   },[userId,user?.encryptionPublicKey]);
 
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
