@@ -32,6 +32,10 @@ export class CallSignalRoom extends DurableObject {
   }
   async fetch(request:Request){
     const u=new URL(request.url);
+    if(request.method==="GET"&&u.pathname.endsWith("/presence")){
+      const online=this.ctx.getWebSockets("realtime").some(ws=>ws.readyState===WebSocket.OPEN);
+      return Response.json({online});
+    }
     if(request.method==="POST"&&u.pathname.endsWith("/publish")){
       let event:Record<string,unknown>;
       try{event=await request.json() as Record<string,unknown>}catch{return new Response("Invalid event",{status:400});}
