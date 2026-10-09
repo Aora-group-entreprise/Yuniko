@@ -11,6 +11,7 @@ import {
   deleteRows,
 } from "../lib/supabase";
 import { mixCandidateSources, rankFeedCandidates, type FeedRankingCandidate } from "../lib/feed-ranking";
+import { publishRealtimeToFeed } from "../lib/realtime";
 
 const postsRouter = Router();
 const FEED_LIMIT = 50;
@@ -195,6 +196,11 @@ postsRouter.post("/posts", authMiddleware, async (req: Request & { userId?: numb
       hashtags: hashtags?.trim() || null,
       isWorldFeed: isWorldFeed ?? true,
     });
+    try {
+      await publishRealtimeToFeed({ type: "post:new", postId: Number(post.id), authorId: Number(req.userId), createdAt: post.createdAt ?? new Date().toISOString() });
+    } catch (error) {
+      console.error("[YUNIKO REALTIME] new post broadcast failed", error);
+    }
     return res.status(201).json({ post });
   } catch (err) {
     return supabaseError(res, err);

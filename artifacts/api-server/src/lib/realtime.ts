@@ -42,3 +42,16 @@ export async function getRealtimePresence(userId: number): Promise<boolean> {
   const result = await response.json() as { online?: boolean };
   return result.online === true;
 }
+
+/** Publish a lightweight new-post event to all connected clients on the shared feed socket. */
+export async function publishRealtimeToFeed(event: Record<string, unknown>): Promise<void> {
+  const namespace = runtimeEnv.CALL_SIGNAL;
+  if (!namespace) return;
+  const stub = namespace.getByName("feed:global");
+  const response = await stub.fetch(new Request("https://realtime.internal/publish?targetScope=feed", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  }));
+  if (!response.ok) throw new Error(`Realtime feed publish failed (${response.status})`);
+}
