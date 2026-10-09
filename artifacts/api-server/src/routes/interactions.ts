@@ -114,7 +114,7 @@ interactionsRouter.get("/posts/saved", authMiddleware, async (req: Authenticated
 /** Persist queued likes/comments in one Worker request; each operation is retry-safe. */
 interactionsRouter.post("/posts/interactions/batch", authMiddleware, async (req: AuthenticatedRequest, res) => {
   const actions = Array.isArray(req.body?.actions) ? req.body.actions as Array<Record<string, unknown>> : [];
-  if (!actions.length || actions.length > 40) return res.status(400).json({ error: "Batch must contain between 1 and 40 actions" });
+  if (!actions.length || actions.length > 500) return res.status(400).json({ error: "Batch must contain between 1 and 500 actions" });
   const results: Array<Record<string, unknown>> = [];
   for (const action of actions) {
     const id = typeof action.id === "string" ? action.id : "";
@@ -162,7 +162,7 @@ interactionsRouter.post("/posts/interactions/batch", authMiddleware, async (req:
         results.push({ id, ok: true, type, postId, clientMutationId, comments, comment: {
           id: Number(priorComment.id), postId, userId: Number(req.userId), text: String(priorComment.text ?? text),
           createdAt: priorComment.createdAt ?? new Date().toISOString(), username: author?.username ?? null,
-          displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null,
+          displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null, clientMutationId,
         }});
         continue;
       }
@@ -177,7 +177,7 @@ interactionsRouter.post("/posts/interactions/batch", authMiddleware, async (req:
       const realtimeComment = {
         id: Number(comment.id), postId, userId: Number(req.userId), text: String(comment.text ?? text),
         createdAt: comment.createdAt ?? new Date().toISOString(), username: author?.username ?? null,
-        displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null,
+        displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null, clientMutationId,
       };
       try { await notify(Number(post.userId), req.userId!, "comment", "commented on your post", postId); } catch {}
       if (post.isWorldFeed === true) {
