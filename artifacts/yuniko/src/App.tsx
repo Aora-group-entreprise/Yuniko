@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { connectRealtime } from "@/lib/realtime";
 
 import Home from "@/pages/home";
 import Notifications from "@/pages/notifications";
@@ -237,6 +238,11 @@ function AppContent() {
   const { user, isLoading } = useAuth();
   const [location, navigate] = useLocation();
   const initialRouteHandledRef = useRef(false);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+    return connectRealtime(Number(user.id));
+  }, [isLoading, user?.id]);
 
   // Firefox can restore the last SPA URL after a cold reopen, including
   // when the document is restored from its back-forward cache. Keep browser
