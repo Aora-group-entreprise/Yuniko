@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { connectRealtime } from "@/lib/realtime";
+import { setApiCacheUser } from "@/lib/api-cache";
 
 import Home from "@/pages/home";
 import Notifications from "@/pages/notifications";
@@ -238,6 +239,7 @@ function AppContent() {
   const { user, isLoading } = useAuth();
   const [location, navigate] = useLocation();
   const initialRouteHandledRef = useRef(false);
+  setApiCacheUser(user && !isLoading ? Number(user.id) : null);
 
   useEffect(() => {
     if (isLoading || !user) return;
