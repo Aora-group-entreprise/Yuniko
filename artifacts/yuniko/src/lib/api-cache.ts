@@ -62,7 +62,9 @@ async function idbPut(key: string, entry: Entry): Promise<void> {
   });
 }
 export function setApiCacheUser(userId: number | null): void {
-  activeUserId = Number.isInteger(userId) && Number(userId) > 0 ? Number(userId) : null;
+  const nextUserId = Number.isInteger(userId) && Number(userId) > 0 ? Number(userId) : null;
+  if (activeUserId === nextUserId) return;
+  activeUserId = nextUserId;
   memory.clear();
 }
 export async function getApiCached<T>(path: string): Promise<T | undefined> {
