@@ -196,10 +196,39 @@ postsRouter.post("/posts", authMiddleware, async (req: Request & { userId?: numb
       hashtags: hashtags?.trim() || null,
       isWorldFeed: isWorldFeed ?? true,
     });
-    try {
-      await publishRealtimeToFeed({ type: "post:new", postId: Number(post.id), authorId: Number(req.userId), createdAt: post.createdAt ?? new Date().toISOString() });
-    } catch (error) {
-      console.error("[YUNIKO REALTIME] new post broadcast failed", error);
+    if (Boolean(post.isWorldFeed ?? isWorldFeed ?? true)) {
+      try {
+        const [[author], [settings]] = await Promise.all([
+          selectRows("users", { select: "id,display_name,username,avatar_url,country", filters: [eq("id", req.userId!)], limit: 1 }),
+          selectRows("user_settings", { filters: [eq("userId", req.userId!)], limit: 1 }).catch(() => []),
+        ]);
+        // Never inject private-account posts into the public world-feed cache.
+        if (!settings?.privateAccount) {
+          const realtimePost = {
+            id: Number(post.id),
+            userId: Number(req.userId),
+            caption: String(post.caption ?? ""),
+            mediaUrl: post.mediaUrl ?? null,
+            location: post.location ?? null,
+            hashtags: post.hashtags ?? null,
+            isWorldFeed: true,
+            likes: Number(post.likes ?? 0),
+            comments: Number(post.comments ?? 0),
+            shares: Number(post.shares ?? 0),
+            saves: Number(post.saves ?? 0),
+            createdAt: post.createdAt ?? new Date().toISOString(),
+            authorDisplayName: author?.displayName ?? null,
+            authorUsername: author?.username ?? null,
+            authorAvatarUrl: author?.avatarUrl ?? null,
+            isFollowing: false,
+            liked: false,
+            saved: false,
+          };
+          await publishRealtimeToFeed({ type: "post:new", postId: Number(post.id), authorId: Number(req.userId), createdAt: realtimePost.createdAt, post: realtimePost });
+        }
+      } catch (error) {
+        console.error("[YUNIKO REALTIME] new post broadcast failed", error);
+      }
     }
     return res.status(201).json({ post });
   } catch (err) {
