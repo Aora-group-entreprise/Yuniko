@@ -9,7 +9,7 @@ import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
-import { fetchSessionJson, getSessionCache, setSessionCache, setSessionUser, warmSessionData } from "@/lib/session-cache";
+import { fetchSessionJson, getSessionCache, setSessionCache, setSessionUser } from "@/lib/session-cache";
 import { apiJson } from "@/lib/api";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
@@ -334,50 +334,21 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
 
     scrollElement?.addEventListener("scroll", saveFeedPosition, { passive: true });
 
-    window.setTimeout(() => warmSessionData(Number(user.id)), 0);
-
-    const checkForNewPosts = async () => {
-      if (location !== "/" || document.visibilityState === "hidden") return;
-
-      try {
-        const data = await apiJson<{ newPostsCount?: number }>(
-          `/posts/feed/updates?since=${encodeURIComponent(feedSnapshotRef.current)}`,
-        );
-        const count = Math.max(0, Number(data.newPostsCount) || 0);
-        if (count <= 0) return;
-
-        setNewPostsCount(count);
-        const prefetchPromise = prefetchLatestFeed();
-        if (prefetchPromise) void prefetchPromise.catch(() => {});
-      } catch {}
-    };
-
     try { setNotificationBadgeCleared(sessionStorage.getItem("yuniko_notifications_badge_cleared") === "1"); } catch {}
-    const checkNotifications = async () => {
-      if (notificationCheckRef.current || document.visibilityState === "hidden") return;
-      notificationCheckRef.current = true;
-      try {
-        const data = await apiJson<{ notifications?: Array<{ read?: boolean }> }>("/notifications");
-        const count = (data.notifications ?? []).filter(item => !item.read).length;
-        if (count > 0) {
-          setUnreadNotifications(count); setNotificationBadgeCleared(false);
-          try { sessionStorage.removeItem("yuniko_notifications_badge_cleared"); } catch {}
-        }
-      } catch {} finally { notificationCheckRef.current = false; }
+    const onRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (detail?.type === "notification:new") {
+        setUnreadNotifications((count) => count + 1);
+        setNotificationBadgeCleared(false);
+        try { sessionStorage.removeItem("yuniko_notifications_badge_cleared"); } catch {}
+      }
+      if (detail?.type === "post:new" && location === "/") {
+        setNewPostsCount((count) => count + 1);
+        const refresh = prefetchLatestFeed();
+        if (refresh) void refresh.catch(() => {});
+      }
     };
-    void checkNotifications();
-    const interval = window.setInterval(checkForNewPosts, 15000);
-    const notificationInterval = window.setInterval(checkNotifications, 5000);
-    const onVisibilityChange = () => {
-      if (location === "/" && document.visibilityState === "visible") void checkForNewPosts();
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    // When the persistent Home view becomes active again, check immediately.
-    // Do not wait for the 15s polling interval after returning from another tab.
-    if (location === "/") {
-      void checkForNewPosts();
-    }
+    window.addEventListener("yuniko:realtime", onRealtime);
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -391,9 +362,7 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
         activeFeedScrollElement = null;
       }
       scrollElement?.removeEventListener("scroll", saveFeedPosition);
-      window.clearInterval(interval);
-      window.clearInterval(notificationInterval);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("yuniko:realtime", onRealtime);
     };
   }, [user, location]);
 
