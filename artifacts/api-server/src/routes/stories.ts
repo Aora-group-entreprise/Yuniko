@@ -33,6 +33,10 @@ storiesRouter.post("/stories", authMiddleware, async (req: Request & { userId?: 
       caption: caption?.trim() ?? "",
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
+    const [author] = await selectRows("users", { filters: [eq("id", Number(req.userId))], limit: 1 });
+    const followers = await selectRows("follows", { filters: [eq("followingId", Number(req.userId))], limit: 5000 });
+    const realtimeStory = { ...story, authorDisplayName: author?.displayName ?? null, authorUsername: author?.username ?? null, authorAvatarUrl: author?.avatarUrl ?? null };
+    await Promise.all(followers.map((follow) => publishRealtimeToUser(Number(follow.followerId), { type: "story:new", story: realtimeStory }).catch((error) => console.error("[YUNIKO REALTIME] story dispatch failed", error))));
     return res.status(201).json({ story });
   } catch (err) {
     return supabaseError(res, err);
@@ -89,7 +93,10 @@ storiesRouter.post("/stories/:id/view", authMiddleware, async (req: Request & { 
       const existing=await selectRows("story_views",{filters:[eq("storyId",id),eq("userId",viewerId)],limit:1});
       if(!existing.length){
         await insertRow("story_views", {storyId:id,userId:viewerId,viewedAt:new Date()});
-        try{await publishRealtimeToUser(Number(story.userId),{type:"story:view",storyId:id,viewerId});}catch(error){console.error("[YUNIKO REALTIME] story view dispatch failed",error);}
+        try {
+          const [viewer] = await selectRows("users", { filters: [eq("id", viewerId)], limit: 1 });
+          await publishRealtimeToUser(Number(story.userId), { type: "story:view", storyId: id, viewerId, viewer: viewer ? { userId: viewerId, displayName: String(viewer.displayName ?? viewer.username ?? "User"), username: String(viewer.username ?? ""), avatarUrl: viewer.avatarUrl ?? null, reaction: null } : null });
+        } catch(error) { console.error("[YUNIKO REALTIME] story view dispatch failed",error); }
       }
 
       if (settings?.deleteWatchedStories === true) {
