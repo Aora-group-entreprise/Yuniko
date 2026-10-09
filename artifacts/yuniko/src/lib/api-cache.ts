@@ -45,9 +45,9 @@ async function idbGet(key: string): Promise<Entry | null> {
       const req = tx.objectStore(DB_STORE).get(key);
       req.onsuccess = () => resolve(isFresh(req.result) ? req.result : null);
       req.onerror = () => resolve(null);
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => db.close();
-    } catch { db.close(); resolve(null); }
+      tx.oncomplete = () => 
+      tx.onerror = () => 
+    } catch {  resolve(null); }
   });
 }
 async function idbPut(key: string, entry: Entry): Promise<void> {
@@ -57,10 +57,10 @@ async function idbPut(key: string, entry: Entry): Promise<void> {
     try {
       const tx = db.transaction(DB_STORE, "readwrite");
       tx.objectStore(DB_STORE).put(entry, key);
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = () => { db.close(); resolve(); };
-      tx.onabort = () => { db.close(); resolve(); };
-    } catch { db.close(); resolve(); }
+      tx.oncomplete = () => {  resolve(); };
+      tx.onerror = () => {  resolve(); };
+      tx.onabort = () => {  resolve(); };
+    } catch {  resolve(); }
   });
 }
 export function setApiCacheUser(userId: number | null): void {
@@ -116,9 +116,9 @@ export function invalidateApiCache(path: string): void {
     try {
       const tx = db.transaction(DB_STORE, "readwrite");
       tx.objectStore(DB_STORE).delete(key);
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => db.close();
-    } catch { db.close(); }
+      tx.oncomplete = () => 
+      tx.onerror = () => 
+    } catch {  }
   });
 }
 export function invalidateApiCachePrefix(prefix: string): void {
@@ -153,9 +153,9 @@ export function invalidateApiCachePrefix(prefix: string): void {
         if (key.startsWith(start) || entry?.path?.startsWith(prefix)) cursor.delete();
         cursor.continue();
       };
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => db.close();
-    } catch { db.close(); }
+      tx.oncomplete = () => 
+      tx.onerror = () => 
+    } catch {  }
   });
 }
 export function clearApiCacheForUser(userId: number): void {
