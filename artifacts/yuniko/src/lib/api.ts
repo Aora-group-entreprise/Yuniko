@@ -1,23 +1,31 @@
 /**
  * Authenticated API fetch helper.
+ * The frontend and API are served by the same Cloudflare Worker domain.
+ * Use same-origin paths so requests always follow the domain serving Yuniko.
  * Authentication is handled by a browser-managed HttpOnly session cookie.
  * Pages never read, store, or send authentication tokens.
  */
-const API_BASE_URL = (() => {
-  // Yuniko's frontend and API are deployed on the same Cloudflare Worker domain.
-  return "https://yuniko-api.lafatriniainaallane.workers.dev";
-})();
+function getApiPath(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : "/" + path;
+  return "/api" + normalizedPath;
+}
 
 export async function apiFetch(
   path: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...((options.headers ?? {}) as Record<string, string>),
-  };
-  const normalizedPath = path.startsWith("/") ? path : "/" + path;
-  return fetch(API_BASE_URL + "/api" + normalizedPath, {
+  const headers = new Headers(options.headers);
+  const hasBody = options.body !== undefined && options.body !== null;
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+
+  // GET requests and FormData uploads do not need a forced JSON content type.
+  // Let the browser set multipart boundaries for FormData.
+  if (hasBody && !isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return fetch(getApiPath(path), {
     ...options,
     headers,
     credentials: "include",
@@ -36,7 +44,7 @@ export async function apiJson<T>(
     try { data = JSON.parse(raw) as T | { error?: string }; }
     catch {
       const preview = raw.replace(/\s+/g, " ").slice(0, 120);
-      throw new Error("API returned non-JSON (" + res.status + ", " + (contentType || "unknown content-type") + ") from " + API_BASE_URL + "/api" + (path.startsWith("/") ? path : "/" + path) + ": " + preview);
+      throw new Error("API returned non-JSON (" + res.status + ", " + (contentType || "unknown content-type") + ") from " + getApiPath(path) + ": " + preview);
     }
   }
   if (!res.ok) throw new Error((data && typeof data === "object" && "error" in data && data.error) || "Request failed (" + res.status + ")");
