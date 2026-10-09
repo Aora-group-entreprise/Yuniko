@@ -8,6 +8,7 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_LOCAL_STORAGE_CHARS = 3_000_000;
 const DB_NAME = "yuniko-cache";
 const DB_STORE = "sessions";
+const API_DB_STORE = "api-responses";
 let activeUserId: number | null = null;
 let generation = 0;
 let hydration: Promise<void> = Promise.resolve();
@@ -30,10 +31,11 @@ function openDatabase(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === "undefined") return Promise.resolve(null);
   return new Promise((resolve) => {
     try {
-      const request = indexedDB.open(DB_NAME, 1);
+      const request = indexedDB.open(DB_NAME, 2);
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+        if (!db.objectStoreNames.contains(API_DB_STORE)) db.createObjectStore(API_DB_STORE);
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => resolve(null);
