@@ -27,11 +27,27 @@ export async function apiFetch(
     headers.set("Content-Type", "application/json");
   }
 
-  return fetch(getApiPath(path), {
+  const method = (options.method ?? "GET").toUpperCase();
+  const canCache = method === "GET" && !options.signal && isCacheableGet(path);
+  if (canCache) {
+    const cached = await getApiCached<unknown>(path);
+    if (cached !== undefined) {
+      return new Response(JSON.stringify(cached), {
+        status: 200,
+        headers: { "Content-Type": "application/json; charset=utf-8", "X-Yuniko-Cache": "HIT" },
+      });
+    }
+  }
+  const response = await fetch(getApiPath(path), {
     ...options,
     headers,
     credentials: "include",
   });
+  if (canCache && response.ok && (response.headers.get("content-type") ?? "").includes("json")) {
+    try { setApiCached(path, await response.clone().json()); } catch {}
+  }
+  if (method !== "GET" && response.ok) invalidateAfterMutation(path);
+  return response;
 }
 
 function invalidateAfterMutation(path: string): void {
