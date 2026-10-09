@@ -1,0 +1,126 @@
+import { apiJson } from "@/lib/api";
+
+type LikeAction = { id: string; userId: number; type: "like"; postId: number; liked: boolean; queuedAt: number };
+type CommentAction = { id: string; userId: number; type: "comment"; postId: number; text: string; clientMutationId: string; queuedAt: number };
+type PendingAction = LikeAction | CommentAction;
+type BatchResult = {
+  id: string; ok: boolean; retryable?: boolean; error?: string; type?: "like" | "comment";
+  postId?: number; liked?: boolean; likes?: number; clientMutationId?: string;
+  comments?: number; comment?: Record<string, unknown>;
+};
+const STORAGE_PREFIX = "yuniko_pending_interactions_v1_";
+const BATCH_SIZE = 40;
+const FLUSH_DELAY_MS = 1500;
+let activeUserId: number | null = null;
+let timer: number | null = null;
+let flushing = false;
+let listenersAttached = false;
+
+function makeId(): string {
+  try { return crypto.randomUUID(); }
+  catch { return `ym_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`; }
+}
+function storageKey(userId: number): string { return STORAGE_PREFIX + userId; }
+function readQueue(userId: number): PendingAction[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(storageKey(userId)) ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is PendingAction => item && Number(item.userId) === userId &&
+      (item.type === "like" || item.type === "comment") && typeof item.id === "string" &&
+      Number.isSafeInteger(Number(item.postId)) && Number(item.postId) > 0);
+  } catch { return []; }
+}
+function writeQueue(userId: number, queue: PendingAction[]): void {
+  try { localStorage.setItem(storageKey(userId), JSON.stringify(queue)); } catch {}
+}
+function scheduleFlush(delay = FLUSH_DELAY_MS): void {
+  if (typeof window === "undefined" || activeUserId === null) return;
+  if (timer !== null) window.clearTimeout(timer);
+  timer = window.setTimeout(() => {
+    timer = null;
+    if (activeUserId !== null) void flushInteractionQueue(activeUserId);
+  }, delay);
+}
+function emit(name: string, detail: Record<string, unknown>): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(name, { detail }));
+}
+function attachListeners(): void {
+  if (listenersAttached || typeof window === "undefined") return;
+  listenersAttached = true;
+  window.addEventListener("online", () => { if (activeUserId !== null) void flushInteractionQueue(activeUserId); });
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && activeUserId !== null) void flushInteractionQueue(activeUserId);
+  });
+}
+export function configureInteractionQueue(userId: number): () => void {
+  activeUserId = Number.isSafeInteger(userId) && userId > 0 ? userId : null;
+  attachListeners();
+  if (activeUserId !== null) scheduleFlush(250);
+  return () => {
+    if (activeUserId !== userId) return;
+    activeUserId = null;
+    if (timer !== null && typeof window !== "undefined") window.clearTimeout(timer);
+    timer = null;
+  };
+}
+export function enqueueLike(userId: number, postId: number, liked: boolean): string {
+  const id = makeId();
+  const queue = readQueue(userId).filter(action => !(action.type === "like" && action.postId === postId));
+  queue.push({ id, userId, type: "like", postId, liked, queuedAt: Date.now() });
+  writeQueue(userId, queue.slice(-1000));
+  scheduleFlush();
+  return id;
+}
+export function enqueueComment(userId: number, postId: number, text: string): string {
+  const id = makeId();
+  const queue = readQueue(userId);
+  queue.push({ id, userId, type: "comment", postId, text, clientMutationId: id, queuedAt: Date.now() });
+  writeQueue(userId, queue.slice(-1000));
+  scheduleFlush();
+  return id;
+}
+export async function flushInteractionQueue(userId: number): Promise<void> {
+  if (flushing || activeUserId !== userId || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+  const queue = readQueue(userId);
+  if (!queue.length) return;
+  const batch = queue.slice(0, BATCH_SIZE);
+  flushing = true;
+  try {
+    const response = await apiJson<{ results: BatchResult[] }>("/posts/interactions/batch", {
+      method: "POST",
+      body: JSON.stringify({ actions: batch.map(action => action.type === "like"
+        ? { id: action.id, type: action.type, postId: action.postId, liked: action.liked }
+        : { id: action.id, type: action.type, postId: action.postId, text: action.text, clientMutationId: action.clientMutationId }) }),
+    });
+    const results = Array.isArray(response.results) ? response.results : [];
+    const byId = new Map(results.map(result => [result.id, result]));
+    const remove = new Set<string>();
+    for (const action of batch) {
+      const result = byId.get(action.id);
+      if (!result) continue;
+      if (result.ok) {
+        remove.add(action.id);
+        if (action.type === "like") emit("yuniko:interaction-ack", {
+          id: action.id, type: "like", postId: action.postId, liked: result.liked, likes: result.likes,
+        });
+        else emit("yuniko:interaction-ack", {
+          id: action.id, type: "comment", postId: action.postId, clientMutationId: action.clientMutationId,
+          comment: result.comment, comments: result.comments,
+        });
+      } else if (result.retryable === false) {
+        remove.add(action.id);
+        if (action.type === "comment") emit("yuniko:interaction-failed", {
+          id: action.id, type: "comment", postId: action.postId, clientMutationId: action.clientMutationId,
+          error: result.error,
+        });
+      }
+    }
+    writeQueue(userId, readQueue(userId).filter(action => !remove.has(action.id)));
+    if (readQueue(userId).length) scheduleFlush(remove.size ? 100 : 10000);
+  } catch (error) {
+    console.warn("[YUNIKO BATCH] interactions remain queued for retry", error);
+    scheduleFlush(10000);
+  } finally {
+    flushing = false;
+  }
+}

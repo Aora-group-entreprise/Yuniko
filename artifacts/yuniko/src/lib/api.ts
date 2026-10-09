@@ -52,6 +52,8 @@ export async function apiFetch(
 
 function invalidateAfterMutation(path: string): void {
   const normalized = path.startsWith("/") ? path : "/" + path;
+  // Batched optimistic interactions update the cache locally and arrive over realtime.
+  if (normalized === "/posts/interactions/batch") return;
   if (/^\/posts(?:\/|$)/.test(normalized)) {
     invalidateApiCachePrefix("/posts/");
     invalidateApiCachePrefix("/notifications");

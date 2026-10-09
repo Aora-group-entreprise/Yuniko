@@ -7,6 +7,7 @@ import { Post, formatCount } from "@/data/mockData";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { apiJson } from "@/lib/api";
+import { enqueueLike, enqueueComment } from "@/lib/interaction-queue";
 
 export interface LiveAuthor {
   userId?: number;
@@ -85,6 +86,7 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
   const [commentText, setCommentText] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLikeQueueIdRef = useRef<string | null>(null);
   const livePostId = post.id.startsWith("live_")
     ? post.id.slice("live_".length)
     : /^\d+$/.test(String(post.id))
@@ -120,30 +122,62 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
     return () => window.removeEventListener("yuniko:realtime", onRealtime);
   }, [livePostId, authUser?.id]);
 
+  useEffect(() => {
+    const onAck = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (String(detail?.postId ?? "") !== livePostId) return;
+      if (detail?.type === "like") {
+        setLikeCount(Math.max(0, Number(detail.likes ?? 0)));
+        if (detail.id === lastLikeQueueIdRef.current) setLiked(Boolean(detail.liked));
+      }
+      if (detail?.type === "comment") {
+        const clientMutationId = String(detail.clientMutationId ?? "");
+        const comment = detail.comment as Record<string, unknown> | undefined;
+        if (!clientMutationId || !comment?.id) return;
+        const displayName = String(comment.displayName ?? "User");
+        const avatarUrl = comment.avatarUrl == null ? null : String(comment.avatarUrl);
+        setComments(current => {
+          const pendingId = `pending_${clientMutationId}`;
+          if (current.some(item => item.id === String(comment.id))) return current.filter(item => item.id !== pendingId);
+          return current.map(item => item.id === pendingId ? {
+            ...item, id: String(comment.id), userId: String(comment.userId ?? item.userId),
+            text: String(comment.text ?? item.text), displayName, avatar: avatarUrl ?? item.avatar,
+            timestamp: comment.createdAt ? new Date(String(comment.createdAt)).toLocaleDateString() : item.timestamp,
+          } : item);
+        });
+        setCommentCount(Math.max(0, Number(detail.comments ?? 0)));
+      }
+    };
+    const onFailure = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      if (String(detail?.postId ?? "") !== livePostId || detail?.type !== "comment") return;
+      const clientMutationId = String(detail.clientMutationId ?? "");
+      if (!clientMutationId) return;
+      setComments(current => current.filter(item => item.id !== `pending_${clientMutationId}`));
+      setCommentCount(current => Math.max(0, current - 1));
+    };
+    window.addEventListener("yuniko:interaction-ack", onAck);
+    window.addEventListener("yuniko:interaction-failed", onFailure);
+    return () => {
+      window.removeEventListener("yuniko:interaction-ack", onAck);
+      window.removeEventListener("yuniko:interaction-failed", onFailure);
+    };
+  }, [livePostId]);
+
   if (!author) return null;
 
   const avatarSrc =
     author.avatarUrl ??
     `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(author.displayName)}&backgroundColor=FF006E`;
 
-  const handleLike = useCallback(async () => {
+  const handleLike = useCallback(() => {
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLikeCount((prev) => Math.max(0, prev + (nextLiked ? 1 : -1)));
-    if (!livePostId) return;
-
-    try {
-      const result = await apiJson<{ liked: boolean; likes: number }>(
-        `/posts/${livePostId}/like`,
-        { method: "POST" },
-      );
-      setLiked(result.liked);
-      setLikeCount(result.likes);
-    } catch {
-      setLiked(liked);
-      setLikeCount((prev) => Math.max(0, prev + (nextLiked ? -1 : 1)));
-    }
-  }, [liked, livePostId]);
+    if (!livePostId || !authUser?.id) return;
+    // Collapse rapid taps on one post into the final desired state.
+    lastLikeQueueIdRef.current = enqueueLike(Number(authUser.id), Number(livePostId), nextLiked);
+  }, [authUser?.id, liked, livePostId]);
 
   const handleFollow = useCallback(async () => {
     if (!author?.userId || followLoading) return;
@@ -416,35 +450,23 @@ export default function PostCard({ post, onOptions, liveAuthor, deferImage = fal
     }
   }, [comments.length, livePostId, post.id, setLocation]);
 
-  const submitComment = useCallback(async () => {
+  const submitComment = useCallback(() => {
     const text = commentText.trim();
     if (!text) return;
-
-    let savedComment: Record<string, unknown> | null = null;
+    let clientMutationId: string | null = null;
     if (livePostId) {
-      try {
-        const result = await apiJson<{ comment?: Record<string, unknown>; comments?: number }>(`/posts/${livePostId}/comments`, {
-          method: "POST", body: JSON.stringify({ text }),
-        });
-        savedComment = result.comment ?? null;
-        if (result.comments != null) setCommentCount(Number(result.comments));
-      } catch { return; }
+      if (!authUser?.id) return;
+      clientMutationId = enqueueComment(Number(authUser.id), Number(livePostId), text);
+      setCommentCount(current => current + 1);
     }
-
-    const ownCommentId = savedComment?.id == null ? `local_${Date.now()}` : String(savedComment.id);
+    const ownCommentId = clientMutationId ? `pending_${clientMutationId}` : `local_${Date.now()}`;
     setComments((prev) => prev.some((comment) => comment.id === ownCommentId) ? prev : [
       ...prev,
       {
-        id: ownCommentId,
-        userId: String(authUser?.id ?? "me"),
-        text,
+        id: ownCommentId, userId: String(authUser?.id ?? "me"), text,
         displayName: authUser?.displayName ?? "You",
-        avatar:
-          authUser?.avatarUrl ??
-          `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "You")}&backgroundColor=FF006E`,
-        likes: 0,
-        liked: false,
-        timestamp: "just now",
+        avatar: authUser?.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(authUser?.displayName ?? "You")}&backgroundColor=FF006E`,
+        likes: 0, liked: false, timestamp: "just now",
       },
     ]);
     setCommentText("");
