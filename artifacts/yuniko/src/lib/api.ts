@@ -3,12 +3,10 @@
  * Authentication is handled by a browser-managed HttpOnly session cookie.
  * Pages never read, store, or send authentication tokens.
  */
-const API_BASE_URL = (() => {
-  // Yuniko API is a separate Cloudflare Worker. Keep API traffic pinned to it
-  // so a misconfigured frontend build variable cannot turn JSON API requests
-  // into HTML page requests from the frontend origin.
-  return "https://yuniko-api.lafatriniainaallane.workers.dev";
-})();
+// The frontend and API are served by the same Cloudflare Worker/domain.
+// Use same-origin relative paths so /api requests automatically target the
+// current Yuniko domain in production (and the Vite proxy during development).
+const API_BASE_URL = "";
 
 export async function apiFetch(
   path: string,
