@@ -57,6 +57,7 @@ function invalidateAfterMutation(path: string): void {
     invalidateApiCachePrefix("/notifications");
   }
   if (/^\/settings(?:\/|$)/.test(normalized)) invalidateApiCachePrefix("/settings");
+  if (/^\/notifications(?:\/|$)/.test(normalized)) invalidateApiCachePrefix("/notifications");
   if (/^\/auth\/me$/.test(normalized)) {
     invalidateApiCachePrefix("/users/");
     invalidateApiCachePrefix("/posts/");
