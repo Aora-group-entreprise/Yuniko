@@ -133,11 +133,18 @@ export default function StoryViewer() {
     if (!isOwnStory || !liveStory) return;
     const onRealtime = (event: Event) => {
       const detail = (event as CustomEvent<Record<string, unknown>>).detail;
-      if (detail?.type !== "story:view" || Number(detail.storyId) !== Number(liveStory.id)) return;
-      void apiFetch(`/stories/${liveStory.id}/views`).then(r=>r.json()).then((data:{viewCount?:number;viewers?:Array<{userId:number;displayName:string;username:string;avatarUrl:string|null;reaction:string|null}>})=>{
-        setViewCount(Number(data.viewCount??0));
-        if (Array.isArray(data.viewers)) setViewers(data.viewers);
-      }).catch(()=>setViewCount(count=>count+1));
+      if (Number(detail.storyId) !== Number(liveStory.id)) return;
+      if (detail.type === "story:view") {
+        const viewer = detail.viewer as {userId:number;displayName:string;username:string;avatarUrl:string|null;reaction:string|null}|null|undefined;
+        if (!viewer || Number(viewer.userId) === Number(authUser?.id)) return;
+        setViewers(current => current.some(item => Number(item.userId) === Number(viewer.userId)) ? current : [viewer, ...current]);
+        setViewCount(current => current + 1);
+      }
+      if (detail.type === "story:reaction") {
+        const userId = Number(detail.userId);
+        const reaction = String(detail.reaction ?? "");
+        setViewers(current => current.map(item => Number(item.userId) === userId ? {...item, reaction} : item));
+      }
     };
     window.addEventListener("yuniko:realtime", onRealtime);
     return () => window.removeEventListener("yuniko:realtime", onRealtime);
