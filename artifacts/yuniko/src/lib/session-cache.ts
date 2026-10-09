@@ -84,6 +84,7 @@ async function writeIndexedDb(userId: number, value: PersistedCache): Promise<vo
 
 function applyPersisted(value: PersistedCache): void {
   cache.clear();
+  cacheSavedAt.clear();
   for (const [key, item] of Object.entries(value.entries)) {
     if (!item || !isFresh(item.savedAt)) continue;
     cache.set(key, item.value);
@@ -131,6 +132,7 @@ function persistCache(): void {
 
 function restoreCache(userId: number): Promise<void> {
   cache.clear();
+  cacheSavedAt.clear();
   const local = readLocalStorage(userId);
   if (local) applyPersisted(local);
   return readIndexedDb(userId).then((indexed) => {
