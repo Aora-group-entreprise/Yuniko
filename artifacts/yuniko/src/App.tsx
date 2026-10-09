@@ -27,8 +27,6 @@ import Saved from "@/pages/saved";
 import Hashtag from "@/pages/hashtag";
 import BlockedUsers from "@/pages/blocked-users";
 import CallHistory from "@/pages/call-history";
-import Groups from "@/pages/groups";
-import GroupChat from "@/pages/group-chat";
 import RealtimeCall from "@/pages/realtime-call";
 import MessageRequests from "@/pages/message-requests";
 import ArchivedChats from "@/pages/archived-chats";
@@ -204,8 +202,6 @@ function AnimatedRoutes() {
             <Route path="/message-requests" component={MessageRequests} />
             <Route path="/archived-chats" component={ArchivedChats} />
             <Route path="/call-history" component={CallHistory} />
-            <Route path="/groups" component={Groups} />
-            <Route path="/group/:id" component={GroupChat} />
 
             {/* Calls */}
             <Route path="/video-call" component={() => <RealtimeCall mode="video" />} />
