@@ -10,6 +10,7 @@ import {
 } from "../lib/supabase";
 import { canInteract } from "../lib/privacy";
 import { createNotification } from "../lib/notifications";
+import { publishRealtimeToFeed } from "../lib/realtime";
 
 const interactionsRouter = Router();
 type AuthenticatedRequest = Request & { userId?: number };
@@ -119,9 +120,13 @@ interactionsRouter.post("/posts/:id/like", authMiddleware, async (req: Authentic
     else await insertRow("likes", { postId, userId: req.userId! });
     const likes = await countFor("likes", postId);
     await updateRows("posts", { likes }, [eq("id", postId)]);
-    if (!existing.length) {
-      const [post] = await selectRows("posts", { select: "user_id", filters: [eq("id", postId)], limit: 1 });
-      if (post) await notify(Number(post.userId), req.userId!, "like", "liked your post", postId);
+    const [post] = await selectRows("posts", { filters: [eq("id", postId)], limit: 1 });
+    if (post) {
+      if (!existing.length) await notify(Number(post.userId), req.userId!, "like", "liked your post", postId);
+      if (post.isWorldFeed === true) {
+        try { await publishRealtimeToFeed({ type: "post:like", postId, userId: Number(req.userId), liked: !existing.length, likes }); }
+        catch (error) { console.error("[YUNIKO REALTIME] like dispatch failed", error); }
+      }
     }
     return res.json({ liked: existing.length === 0, likes });
   } catch (err) {
@@ -190,8 +195,16 @@ interactionsRouter.post("/posts/:id/comments", authMiddleware, async (req: Authe
     const comment = await insertRow("comments", { postId, userId: req.userId!, text });
     const commentCount = (await selectRows("comments", { select: "id", filters: [eq("postId", postId)] })).length;
     await updateRows("posts", { comments: commentCount }, [eq("id", postId)]);
-    if (post) await notify(Number(post.userId), req.userId!, "comment", "commented on your post", postId);
-    return res.status(201).json({ comment });
+    const [author] = await selectRows("users", { filters: [eq("id", Number(req.userId))], limit: 1 });
+    const realtimeComment = { id: Number(comment.id), postId, userId: Number(req.userId), text: String(comment.text ?? text), createdAt: comment.createdAt ?? new Date().toISOString(), username: author?.username ?? null, displayName: author?.displayName ?? "User", avatarUrl: author?.avatarUrl ?? null };
+    if (post) {
+      await notify(Number(post.userId), req.userId!, "comment", "commented on your post", postId);
+      if (post.isWorldFeed === true) {
+        try { await publishRealtimeToFeed({ type: "post:comment", postId, userId: Number(req.userId), comment: realtimeComment, comments: commentCount }); }
+        catch (error) { console.error("[YUNIKO REALTIME] comment dispatch failed", error); }
+      }
+    }
+    return res.status(201).json({ comment: realtimeComment, comments: commentCount });
   } catch (err) {
     return supabaseError(res, err);
   }
