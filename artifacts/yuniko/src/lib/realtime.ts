@@ -122,18 +122,38 @@ function invalidateForEvent(event: RealtimeEvent): void {
   if (type === "presence:update") {
     window.dispatchEvent(new CustomEvent("yuniko:presence", { detail: event }));
   }
-  if (type.startsWith("story:")) {
-    invalidateSessionCache("/stories");
-    invalidateApiCachePrefix("/stories");
+  if (type === "story:new") {
+    const story = event.story as Record<string, unknown> | undefined;
+    if (story?.id != null) {
+      const updateStories = <T extends CacheEnvelope>(value: T): T => {
+        const stories = Array.isArray(value.stories) ? value.stories as Array<Record<string, unknown>> : [];
+        return { ...value, stories: appendUnique(stories, story, (item) => item.id) } as T;
+      };
+      updateExistingSessionCache("/stories", updateStories);
+      void updateExistingApiCache("/stories", updateStories);
+    }
   }
   if (type === "post:new" || type.startsWith("feed:")) {
     if (!applyPostToCache(event)) {
       invalidateSessionCache("/posts/feed");
       invalidateApiCachePrefix("/posts/");
     }
-  } else if (type.startsWith("post:")) {
-    invalidateSessionCache("/posts/feed");
-    invalidateApiCachePrefix("/posts/");
+  } else if (type === "post:like" || type === "post:comment" || type === "post:share") {
+    const postId = String(event.postId ?? "");
+    if (postId) {
+      const updatePost = <T extends CacheEnvelope>(value: T): T => {
+        if (!Array.isArray(value.posts)) return value;
+        const posts = (value.posts as Array<Record<string, unknown>>).map((post) => {
+          if (String(post.id) !== postId) return post;
+          if (type === "post:like") return { ...post, likes: Number(event.likes ?? post.likes), isLiked: Number(event.userId) === activeUserId ? Boolean(event.liked) : Boolean(post.isLiked) };
+          if (type === "post:comment") return { ...post, comments: Number(event.comments ?? post.comments) };
+          return { ...post, shares: Number(event.shares ?? post.shares) };
+        });
+        return { ...value, posts } as T;
+      };
+      updateExistingSessionCache("/posts/feed", updatePost);
+      void updateExistingApiCache("/posts/feed", updatePost);
+    }
   }
 }
 
