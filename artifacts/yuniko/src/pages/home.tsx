@@ -9,7 +9,7 @@ import { t } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth-context";
 import ScreenPortal from "@/components/ScreenPortal";
 import { LoadingSkeleton } from "@/components/ui/skeleton";
-import { fetchSessionJson, getSessionCache, setSessionCache, setSessionUser } from "@/lib/session-cache";
+import { getSessionCache, setSessionCache, setSessionUser } from "@/lib/session-cache";
 import { apiJson } from "@/lib/api";
 
 const NAV_H = "calc(64px + env(safe-area-inset-bottom, 0px))";
@@ -135,7 +135,6 @@ function HomeContent({ navigate }: { navigate: (path: string) => void }) {
   const feedRefreshInFlightRef = useRef(false);
   const pendingFeedDataRef = useRef<{ posts?: any[]; feedSnapshotAt?: string } | null>(null);
   const pendingFeedPromiseRef = useRef<Promise<{ posts?: any[]; feedSnapshotAt?: string }> | null>(null);
-  const notificationCheckRef = useRef(false);
   const suppressFeedPositionSaveRef = useRef(false);
 
   const prefetchLatestFeed = () => {
