@@ -1,6 +1,7 @@
 import { apiJson } from "@/lib/api";
 
 const cache = new Map<string, unknown>();
+const cacheSavedAt = new Map<string, number>();
 const pending = new Map<string, Promise<unknown>>();
 const CACHE_PREFIX = "yuniko_data_cache_v2_";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -14,7 +15,7 @@ let hydration: Promise<void> = Promise.resolve();
 type PersistedCache = {
   version: 2;
   savedAt: number;
-  entries: Record<string, unknown>;
+  entries: Record<string, { savedAt: number; value: unknown }>;
 };
 
 function storageKey(userId: number): string {
@@ -83,7 +84,11 @@ async function writeIndexedDb(userId: number, value: PersistedCache): Promise<vo
 
 function applyPersisted(value: PersistedCache): void {
   cache.clear();
-  for (const [key, item] of Object.entries(value.entries)) cache.set(key, item);
+  for (const [key, item] of Object.entries(value.entries)) {
+    if (!item || !isFresh(item.savedAt)) continue;
+    cache.set(key, item.value);
+    cacheSavedAt.set(key, item.savedAt);
+  }
 }
 
 function readLocalStorage(userId: number): PersistedCache | null {
@@ -108,7 +113,7 @@ function persistCache(): void {
   const value: PersistedCache = {
     version: 2,
     savedAt: Date.now(),
-    entries: Object.fromEntries(cache.entries()),
+    entries: Object.fromEntries([...cache.entries()].map(([key, value]) => [key, { savedAt: cacheSavedAt.get(key) ?? Date.now(), value }])) as PersistedCache["entries"],
   };
   try {
     const serialized = JSON.stringify(value);
@@ -146,15 +151,39 @@ export function setSessionUser(userId: number): void {
 }
 
 export function getSessionCache<T>(key: string): T | undefined {
+  const savedAt = cacheSavedAt.get(key);
+  if (savedAt !== undefined && !isFresh(savedAt)) {
+    cache.delete(key);
+    cacheSavedAt.delete(key);
+    persistCache();
+    return undefined;
+  }
   return cache.get(key) as T | undefined;
 }
 
 export function hasSessionCache(key: string): boolean {
-  return cache.has(key);
+  return getSessionCache(key) !== undefined;
+}
+
+export function setSessionCache<T>(key: string, value: T): void {
+  cache.set(key, value);
+  cacheSavedAt.set(key, Date.now());
+  persistCache();
 }
 
 export function invalidateSessionCache(key: string): void {
   cache.delete(key);
+  cacheSavedAt.delete(key);
+  persistCache();
+}
+
+export function invalidateSessionCachePrefix(prefix: string): void {
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) {
+      cache.delete(key);
+      cacheSavedAt.delete(key);
+    }
+  }
   persistCache();
 }
 
@@ -168,8 +197,7 @@ export async function fetchSessionJson<T>(path: string): Promise<T> {
   const request = apiJson<T>(path)
     .then((data) => {
       if (requestGeneration === generation) {
-        cache.set(path, data);
-        persistCache();
+        setSessionCache(path, data);
       }
       return data;
     })
