@@ -1,9 +1,26 @@
 import { Router, type Request } from "express";
 import { authMiddleware } from "../middlewares/auth";
 import { eq, selectRows, supabaseError } from "../lib/supabase";
-import { publishRealtimeToUser } from "../lib/realtime";
+import { getRealtimePresence, publishRealtimeToUser } from "../lib/realtime";
 
 const router = Router();
+
+router.get("/realtime/presence", authMiddleware, async (req: Request & { userId?: number }, res) => {
+  const userId = Number(req.userId);
+  const targetId = Number(req.query.userId);
+  if (!Number.isInteger(targetId) || targetId <= 0 || targetId === userId) {
+    return res.status(400).json({ error: "Invalid user id" });
+  }
+  try {
+    const follows = await selectRows("follows", { limit: 5000 });
+    const mutual = follows.some((row) => Number(row.followerId) === userId && Number(row.followingId) === targetId) &&
+      follows.some((row) => Number(row.followerId) === targetId && Number(row.followingId) === userId);
+    if (!mutual) return res.status(403).json({ error: "Presence is available to friends only" });
+    return res.json({ online: await getRealtimePresence(targetId) });
+  } catch (error) {
+    return supabaseError(res, error);
+  }
+});
 
 router.post("/realtime/presence", authMiddleware, async (req: Request & { userId?: number }, res) => {
   const userId = Number(req.userId);
